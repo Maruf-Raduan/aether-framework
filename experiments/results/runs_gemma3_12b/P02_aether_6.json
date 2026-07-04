@@ -1,0 +1,46 @@
+{
+  "promptId": "P02",
+  "condition": "aether",
+  "iteration": 6,
+  "passed": false,
+  "tokensIn": 1145,
+  "tokensOut": 1238,
+  "tokensTotal": 2383,
+  "latencyMs": 93275,
+  "wallMs": 93275,
+  "files": [
+    {
+      "path": "modules/auth/routes/login.ts",
+      "length": 2171
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": false,
+      "skipped": false,
+      "message": "20 TypeScript error(s). First: Cannot find module 'aether' or its corresponding type declarations."
+    }
+  ]
+}

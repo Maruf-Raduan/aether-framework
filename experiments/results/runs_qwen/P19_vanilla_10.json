@@ -1,0 +1,113 @@
+{
+  "promptId": "P19",
+  "targetDesc": "Create a route that creates a new team, with the caller as the owner. Owner is added to team_members. Emits team.created.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 13545,
+      "tokensIn": 137,
+      "tokensOut": 313,
+      "wallMs": 14956,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/team.ts",
+          "content": "import { Hono } from 'hono';\nimport { z } from 'zod';\n\nconst app = new Hono();\n\nconst TeamSchema = z.object({\n  name: z.string(),\n});\n\napp.post('/team', async (c) => {\n  const body = await c.req.json();\n  const result = TeamSchema.safeParse(body);\n\n  if (!result.success) {\n    return c.json({ error: 'Invalid request body' }, 400);\n  }\n\n  const { name } = result.data;\n  const teamId = generateTeamId(); // Implement your own logic to generate a unique team ID\n  const ownerId = c.req.user.id; // Assuming the user is authenticated and their ID is available\n\n  const newTeam = {\n    id: teamId,\n    name,\n    owner_id: ownerId,\n    members: [ownerId],\n  };\n\n  // Emit team.created event (Implement your own logic to emit events)\n  emitEvent('team.created', newTeam);\n\n  return c.json(newTeam, 201);\n});\n\nfunction generateTeamId(): string {\n  // Implement your own logic to generate a unique team ID\n  return Math.random().toString(36).substring(7);\n}\n\nfunction emitEvent(event: string, data: any): void {\n  // Implement your own logic to emit events (e.g., using a message broker)\n  console.log(`Event emitted: ${event}`, data);\n}\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 14956,
+  "finalFiles": [
+    {
+      "path": "/src/routes/team.ts",
+      "content": "import { Hono } from 'hono';\nimport { z } from 'zod';\n\nconst app = new Hono();\n\nconst TeamSchema = z.object({\n  name: z.string(),\n});\n\napp.post('/team', async (c) => {\n  const body = await c.req.json();\n  const result = TeamSchema.safeParse(body);\n\n  if (!result.success) {\n    return c.json({ error: 'Invalid request body' }, 400);\n  }\n\n  const { name } = result.data;\n  const teamId = generateTeamId(); // Implement your own logic to generate a unique team ID\n  const ownerId = c.req.user.id; // Assuming the user is authenticated and their ID is available\n\n  const newTeam = {\n    id: teamId,\n    name,\n    owner_id: ownerId,\n    members: [ownerId],\n  };\n\n  // Emit team.created event (Implement your own logic to emit events)\n  emitEvent('team.created', newTeam);\n\n  return c.json(newTeam, 201);\n});\n\nfunction generateTeamId(): string {\n  // Implement your own logic to generate a unique team ID\n  return Math.random().toString(36).substring(7);\n}\n\nfunction emitEvent(event: string, data: any): void {\n  // Implement your own logic to emit events (e.g., using a message broker)\n  console.log(`Event emitted: ${event}`, data);\n}\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 883
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 523
+      }
+    ],
+    "durationMs": 1411
+  }
+}

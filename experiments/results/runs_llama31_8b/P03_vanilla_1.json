@@ -1,0 +1,53 @@
+{
+  "promptId": "P03",
+  "condition": "vanilla",
+  "iteration": 1,
+  "passed": true,
+  "tokensIn": 105,
+  "tokensOut": 385,
+  "tokensTotal": 490,
+  "latencyMs": 10254,
+  "wallMs": 10254,
+  "files": [
+    {
+      "path": "src/routes/logout.route.ts",
+      "length": 421
+    },
+    {
+      "path": "src/routes/logout.handler.ts",
+      "length": 435
+    },
+    {
+      "path": "src/routes/logout.handler.js",
+      "length": 391
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

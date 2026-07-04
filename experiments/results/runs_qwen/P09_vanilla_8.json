@@ -1,0 +1,113 @@
+{
+  "promptId": "P09",
+  "targetDesc": "Create an archive route that moves finished tasks older than 30 days to an archived_tasks table. Use a single transaction.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 19528,
+      "tokensIn": 134,
+      "tokensOut": 432,
+      "wallMs": 20838,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/archive.ts",
+          "content": "import { Hono } from 'hono';\nimport { PrismaClient } from '@prisma/client';\n\nconst app = new Hono();\nconst prisma = new PrismaClient();\n\napp.post('/archive', async (c) => {\n  try {\n    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);\n\n    await prisma.$transaction(async (tx) => {\n      // Move finished tasks older than 30 days to archived_tasks table\n      await tx.task.updateMany({\n        where: {\n          status: 'finished',\n          createdAt: { lt: thirtyDaysAgo },\n        },\n        data: {\n          status: 'archived',\n        },\n      });\n\n      // Insert the moved tasks into the archived_tasks table\n      const archivedTasks = await tx.task.findMany({\n        where: {\n          status: 'archived',\n        },\n      });\n\n      for (const task of archivedTasks) {\n        await tx.archivedTask.create({\n          data: {\n            taskId: task.id,\n            title: task.title,\n            description: task.description,\n            createdAt: task.createdAt,\n            updatedAt: task.updatedAt,\n            status: task.status,\n          },\n        });\n      }\n\n      // Delete the tasks from the original table\n      await tx.task.deleteMany({\n        where: {\n          status: 'archived',\n        },\n      });\n    });\n\n    return c.json({ message: 'Tasks archived successfully' }, 200);\n  } catch (error) {\n    console.error('Error archiving tasks:', error);\n    return c.json({ error: 'Failed to archive tasks' }, 500);\n  }\n});\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 20838,
+  "finalFiles": [
+    {
+      "path": "/src/routes/archive.ts",
+      "content": "import { Hono } from 'hono';\nimport { PrismaClient } from '@prisma/client';\n\nconst app = new Hono();\nconst prisma = new PrismaClient();\n\napp.post('/archive', async (c) => {\n  try {\n    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);\n\n    await prisma.$transaction(async (tx) => {\n      // Move finished tasks older than 30 days to archived_tasks table\n      await tx.task.updateMany({\n        where: {\n          status: 'finished',\n          createdAt: { lt: thirtyDaysAgo },\n        },\n        data: {\n          status: 'archived',\n        },\n      });\n\n      // Insert the moved tasks into the archived_tasks table\n      const archivedTasks = await tx.task.findMany({\n        where: {\n          status: 'archived',\n        },\n      });\n\n      for (const task of archivedTasks) {\n        await tx.archivedTask.create({\n          data: {\n            taskId: task.id,\n            title: task.title,\n            description: task.description,\n            createdAt: task.createdAt,\n            updatedAt: task.updatedAt,\n            status: task.status,\n          },\n        });\n      }\n\n      // Delete the tasks from the original table\n      await tx.task.deleteMany({\n        where: {\n          status: 'archived',\n        },\n      });\n    });\n\n    return c.json({ message: 'Tasks archived successfully' }, 200);\n  } catch (error) {\n    console.error('Error archiving tasks:', error);\n    return c.json({ error: 'Failed to archive tasks' }, 500);\n  }\n});\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 837
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 470
+      }
+    ],
+    "durationMs": 1309
+  }
+}

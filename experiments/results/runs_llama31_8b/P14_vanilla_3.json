@@ -1,0 +1,65 @@
+{
+  "promptId": "P14",
+  "condition": "vanilla",
+  "iteration": 3,
+  "passed": true,
+  "tokensIn": 127,
+  "tokensOut": 412,
+  "tokensTotal": 539,
+  "latencyMs": 10686,
+  "wallMs": 10686,
+  "files": [
+    {
+      "path": "src/loader/route.ts",
+      "length": 0
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 656
+    },
+    {
+      "path": "src/loader/billing.service.ts",
+      "length": 0
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 384
+    },
+    {
+      "path": "src/loader/db.ts",
+      "length": 0
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 109
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

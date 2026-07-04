@@ -1,0 +1,250 @@
+{
+  "promptId": "P03",
+  "targetDesc": "Create a logout route that invalidates the current session and clears the cookie.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 13384,
+      "tokensIn": 1176,
+      "tokensOut": 363,
+      "wallMs": 16512,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:modules/auth/routes/logout.ts\nimport { type RequestHandler } from 'aether';\nimport { requireUser, invalidateSession } from '~/lib/auth';\nimport { ok, err } from '~/lib/result';\n\n/**\n * POST /auth/logout\n * Invalidates the current user session and clears the session cookie.\n */\nexport const POST: RequestHandler = async ({ req }) => {\n  // AI CONTEXT: Auth is always explicit. requireUser must be called first.\n  const userResult = await requireUser(req);\n  if (userResult.isErr()) {\n    return new Response(JSON.stringify(err(userResult.error)), { status: userResult.error.status, headers: { 'Content-Type': 'application/json' } });\n  }\n\n  // Invalidate the session and clear the cookie\n  const invalidateResult = await invalidateSession(req);\n\n  if (invalidateResult.isErr()) {\n    // This case should ideally not happen if requireUser succeeded,\n    // but we handle it for robustness.\n    return new Response(JSON.stringify(err(invalidateResult.error)), { status: invalidateResult.error.status, headers: { 'Content-Type': 'application/json' } });\n  }\n\n  // Return a success response. The invalidateSession function should have\n  // already handled clearing the cookie via response headers.\n  return new Response(JSON.stringify(ok({ message: 'Logged out successfully' })), {\n    status: 200,\n    headers: { 'Content-Type': 'application/json' },\n  });\n};\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 16512,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:modules/auth/routes/logout.ts\nimport { type RequestHandler } from 'aether';\nimport { requireUser, invalidateSession } from '~/lib/auth';\nimport { ok, err } from '~/lib/result';\n\n/**\n * POST /auth/logout\n * Invalidates the current user session and clears the session cookie.\n */\nexport const POST: RequestHandler = async ({ req }) => {\n  // AI CONTEXT: Auth is always explicit. requireUser must be called first.\n  const userResult = await requireUser(req);\n  if (userResult.isErr()) {\n    return new Response(JSON.stringify(err(userResult.error)), { status: userResult.error.status, headers: { 'Content-Type': 'application/json' } });\n  }\n\n  // Invalidate the session and clear the cookie\n  const invalidateResult = await invalidateSession(req);\n\n  if (invalidateResult.isErr()) {\n    // This case should ideally not happen if requireUser succeeded,\n    // but we handle it for robustness.\n    return new Response(JSON.stringify(err(invalidateResult.error)), { status: invalidateResult.error.status, headers: { 'Content-Type': 'application/json' } });\n  }\n\n  // Return a success response. The invalidateSession function should have\n  // already handled clearing the cookie via response headers.\n  return new Response(JSON.stringify(ok({ message: 'Logged out successfully' })), {\n    status: 200,\n    headers: { 'Content-Type': 'application/json' },\n  });\n};\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 875
+      }
+    ],
+    "durationMs": 1791
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 839
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 496
+      }
+    ],
+    "durationMs": 1337
+  }
+}

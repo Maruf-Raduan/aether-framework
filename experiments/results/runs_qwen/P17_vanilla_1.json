@@ -1,0 +1,113 @@
+{
+  "promptId": "P17",
+  "targetDesc": "Create a password-reset-request route that emails a one-time reset link. Always return 200 even when the email is unknown (avoid user enumeration).",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 17884,
+      "tokensIn": 140,
+      "tokensOut": 427,
+      "wallMs": 19273,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/passwordResetRequest.ts",
+          "content": "import { Hono } from 'hono';\nimport nodemailer from 'nodemailer';\n\nconst app = new Hono();\n\napp.post('/password-reset-request', async (c) => {\n  const email = c.req.query('email');\n  if (!email) {\n    return c.json({ error: 'Email is required' }, 400);\n  }\n\n  // Simulate user lookup\n  const userExists = await checkUserExists(email);\n\n  if (userExists) {\n    // Generate a one-time reset token and send an email\n    const resetToken = generateResetToken();\n    const resetLink = `https://example.com/reset-password?token=${resetToken}`;\n\n    await sendEmail(email, resetLink);\n  }\n\n  // Always return 200 to avoid user enumeration\n  return c.json({ message: 'Password reset request processed' }, 200);\n});\n\nasync function checkUserExists(email: string): Promise<boolean> {\n  // Simulate checking if a user exists in the database\n  return true; // Replace with actual logic\n}\n\nfunction generateResetToken(): string {\n  // Generate a secure one-time token\n  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);\n}\n\nasync function sendEmail(email: string, resetLink: string): Promise<void> {\n  const transporter = nodemailer.createTransport({\n    service: 'gmail',\n    auth: {\n      user: 'your-email@gmail.com', // Replace with your email\n      pass: 'your-password' // Replace with your password or use environment variables\n    }\n  });\n\n  const mailOptions = {\n    from: 'your-email@gmail.com', // Replace with your email\n    to: email,\n    subject: 'Password Reset Request',\n    text: `Please click the following link to reset your password: ${resetLink}`\n  };\n\n  await transporter.sendMail(mailOptions);\n}\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 19273,
+  "finalFiles": [
+    {
+      "path": "/src/routes/passwordResetRequest.ts",
+      "content": "import { Hono } from 'hono';\nimport nodemailer from 'nodemailer';\n\nconst app = new Hono();\n\napp.post('/password-reset-request', async (c) => {\n  const email = c.req.query('email');\n  if (!email) {\n    return c.json({ error: 'Email is required' }, 400);\n  }\n\n  // Simulate user lookup\n  const userExists = await checkUserExists(email);\n\n  if (userExists) {\n    // Generate a one-time reset token and send an email\n    const resetToken = generateResetToken();\n    const resetLink = `https://example.com/reset-password?token=${resetToken}`;\n\n    await sendEmail(email, resetLink);\n  }\n\n  // Always return 200 to avoid user enumeration\n  return c.json({ message: 'Password reset request processed' }, 200);\n});\n\nasync function checkUserExists(email: string): Promise<boolean> {\n  // Simulate checking if a user exists in the database\n  return true; // Replace with actual logic\n}\n\nfunction generateResetToken(): string {\n  // Generate a secure one-time token\n  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);\n}\n\nasync function sendEmail(email: string, resetLink: string): Promise<void> {\n  const transporter = nodemailer.createTransport({\n    service: 'gmail',\n    auth: {\n      user: 'your-email@gmail.com', // Replace with your email\n      pass: 'your-password' // Replace with your password or use environment variables\n    }\n  });\n\n  const mailOptions = {\n    from: 'your-email@gmail.com', // Replace with your email\n    to: email,\n    subject: 'Password Reset Request',\n    text: `Please click the following link to reset your password: ${resetLink}`\n  };\n\n  await transporter.sendMail(mailOptions);\n}\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 923
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 461
+      }
+    ],
+    "durationMs": 1388
+  }
+}

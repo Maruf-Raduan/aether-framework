@@ -1,0 +1,250 @@
+{
+  "promptId": "P18",
+  "targetDesc": "Create a password-reset-confirm route that consumes a one-time token, sets the new password (bcrypt), and invalidates all existing sessions.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 20409,
+      "tokensIn": 1194,
+      "tokensOut": 2735,
+      "wallMs": 23613,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:modules/auth/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'auth',\n  description: 'Handles user authentication, session management, and authorization utilities.',\n\n  dependencies: { modules: [] },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/auth/login',   auth: false },\n      { method: 'POST', path: '/auth/logout',  auth: true },\n      { method: 'GET',  path: '/auth/session', auth: true },\n      { method: 'POST', path: '/auth/password-reset-confirm', auth: false }, // New route for password reset confirmation\n    ],\n    functions: ['requireUser', 'getSession', 'createSession', 'invalidateSession', 'resetPassword'], // Added resetPassword\n    types: ['User', 'Session', 'AuthError', 'PasswordResetToken'], // Added PasswordResetToken\n  },\n\n  sideEffects: [\n    'writes to: sessions table',\n    'reads from: users table',\n    'writes to: password_reset_tokens table', // Added for password reset\n    'reads from: password_reset_tokens table', // Added for password reset\n  ],\n\n  invariants: [\n    'A session must always be bound to exactly one user',\n    'Expired sessions must never be returned as valid',\n    'Logout must invalidate the session immediately',\n    'Password reset tokens must be one-time use and expire', // Added for password reset\n    'Password reset must invalidate all existing sessions for the user', // Added for password reset\n  ],\n});\n```\n```aether:modules/auth/types.ts\n// This file defines types exposed by the auth module, as per the contract.\n\n/**\n * Represents a user in the system.\n */\nexport type User = {\n  id: string;\n  email: string;\n  passwordHash: string; // Stored hash, never exposed directly\n  createdAt: Date;\n  updatedAt: Date;\n};\n\n/**\n * Represents an active user session.\n */\nexport type Session = {\n  id: string;\n  userId: string;\n  expiresAt: Date;\n  createdAt: Date;\n};\n\n/**\n * Represents a password reset token.\n */\nexport type PasswordResetToken = {\n  id: string;\n  userId: string;\n  token: string; // The actual token string (hashed or plain, depending on implementation)\n  expiresAt: Date;\n  usedAt: Date | null; // Null if not yet used\n  createdAt: Date;\n};\n\n/**\n * Specific error types for authentication and authorization operations.\n */\nexport enum AuthError {\n  InvalidCredentials = 'INVALID_CREDENTIALS',\n  SessionNotFound = 'SESSION_NOT_FOUND',\n  Unauthorized = 'UNAUTHORIZED',\n  UserNotFound = 'USER_NOT_FOUND',\n  InvalidToken = 'INVALID_TOKEN',\n  TokenExpired = 'TOKEN_EXPIRED',\n  TokenAlreadyUsed = 'TOKEN_ALREADY_USED',\n  PasswordTooWeak = 'PASSWORD_TOO_WEAK', // Example, if we implement password strength checks\n  DatabaseError = 'DATABASE_ERROR', // For unrecoverable DB issues\n  UnknownError = 'UNKNOWN_ERROR',\n}\n```\n```aether:modules/auth/lib/queries.ts\nimport { query, transaction } from 'lib/db';\nimport { User, Session, PasswordResetToken } from 'modules/auth/types';\n\n// --- User Queries ---\n\nexport async function findUserById(userId: string): Promise<User | null> {\n  const result = await query<User>('SELECT id, email, password_hash as \"passwordHash\", created_at as \"createdAt\", updated_at as \"updatedAt\" FROM users WHERE id = $1', [userId]);\n  return result.rows[0] || null;\n}\n\nexport async function findUserByEmail(email: string): Promise<User | null> {\n  const result = await query<User>('SELECT id, email, password_hash as \"passwordHash\", created_at as \"createdAt\", updated_at as \"updatedAt\" FROM users WHERE email = $1', [email]);\n  return result.rows[0] || null;\n}\n\nexport async function updateUserPassword(userId: string, newPasswordHash: string): Promise<void> {\n  await query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [newPasswordHash, userId]);\n}\n\n// --- Session Queries ---\n\nexport async function createSession(userId: string, expiresAt: Date): Promise<Session> {\n  const result = await query<Session>(\n    'INSERT INTO sessions (user_id, expires_at) VALUES ($1, $2) RETURNING id, user_id as \"userId\", expires_at as \"expiresAt\", created_at as \"createdAt\"',\n    [userId, expiresAt]\n  );\n  return result.rows[0];\n}\n\nexport async function findSessionById(sessionId: string): Promise<Session | null> {\n  const result = await query<Session>(\n    'SELECT id, user_id as \"userId\", expires_at as \"expiresAt\", created_at as \"createdAt\" FROM sessions WHERE id = $1 AND expires_at > NOW()',\n    [sessionId]\n  );\n  return result.rows[0] || null;\n}\n\nexport async function invalidateSession(sessionId: string): Promise<void> {\n  await query('DELETE FROM sessions WHERE id = $1', [sessionId]);\n}\n\nexport async function invalidateAllUserSessions(userId: string): Promise<void> {\n  await query('DELETE FROM sessions WHERE user_id = $1', [userId]);\n}\n\n// --- Password Reset Token Queries ---\n\nexport async function findPasswordResetToken(token: string): Promise<PasswordResetToken | null> {\n  const result = await query<PasswordResetToken>(\n    `SELECT id, user_id as \"userId\", token, expires_at as \"expiresAt\", used_at as \"usedAt\", created_at as \"createdAt\"\n     FROM password_reset_tokens\n     WHERE token = $1`,\n    [token]\n  );\n  return result.rows[0] || null;\n}\n\nexport async function invalidatePasswordResetToken(tokenId: string): Promise<void> {\n  await query('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1', [tokenId]);\n}\n\n/**\n * Performs a transactional update for password reset:\n * 1. Updates the user's password.\n * 2. Invalidates the password reset token.\n * 3. Invalidates all existing sessions for that user.\n *\n * @param userId The ID of the user whose password is being reset.\n * @param newPasswordHash The bcrypt hash of the new password.\n * @param passwordResetTokenId The ID of the password reset token to invalidate.\n */\nexport async function performPasswordResetTransaction(\n  userId: string,\n  newPasswordHash: string,\n  passwordResetTokenId: string\n): Promise<void> {\n  await transaction(async (client) => {\n    // 1. Update user's password\n    await client.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [newPasswordHash, userId]);\n\n    // 2. Invalidate the password reset token\n    await client.query('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1', [passwordResetTokenId]);\n\n    // 3. Invalidate all existing sessions for the user\n    await client.query('DELETE FROM sessions WHERE user_id = $1', [userId]);\n  });\n}\n```\n```aether:modules/auth/services/auth.ts\nimport bcrypt from 'bcrypt';\nimport { ok, err, Result } from 'lib/result';\nimport { AuthError, User, Session, PasswordResetToken } from 'modules/auth/types';\nimport {\n  findUserById,\n  findUserByEmail,\n  createSession,\n  findSessionById,\n  invalidateSession,\n  findPasswordResetToken,\n  performPasswordResetTransaction,\n} from 'modules/auth/lib/queries';\n\nconst BCRYPT_SALT_ROUNDS = 10;\n\n/**\n * Hashes a plain text password using bcrypt.\n * @param password The plain text password.\n * @returns The hashed password.\n */\nexport async function hashPassword(password: string): Promise<string> {\n  return bcrypt.hash(password, BCRYPT_SALT_ROUNDS);\n}\n\n/**\n * Compares a plain text password with a hashed password.\n * @param password The plain text password.\n * @param hash The hashed password.\n * @returns True if they match, false otherwise.\n */\nexport async function comparePassword(password: string, hash: string): Promise<boolean> {\n  return bcrypt.compare(password, hash);\n}\n\n/**\n * Attempts to log in a user with the given email and password.\n * @param email User's email.\n * @param password User's plain text password.\n * @returns A Result containing the User and Session on success, or an AuthError on failure.\n */\nexport async function loginUser(email: string, password: string): Promise<Result<{ user: User; session: Session }, AuthError>> {\n  try {\n    const user = await findUserByEmail(email);\n    if (!user) {\n      return err(AuthError.InvalidCredentials);\n    }\n\n    const passwordMatch = await comparePassword(password, user.passwordHash);\n    if (!passwordMatch) {\n      return err(AuthError.InvalidCredentials);\n    }\n\n    // Create a new session, e.g., expires in 7 days\n    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);\n    const session = await createSession(user.id, expiresAt);\n\n    return ok({ user, session });\n  } catch (error) {\n    console.error('Login error:', error);\n    return err(AuthError.DatabaseError);\n  }\n}\n\n/**\n * Retrieves an active session by its ID.\n * @param sessionId The ID of the session.\n * @returns A Result containing the Session on success, or AuthError.SessionNotFound on failure.\n */\nexport async function getSession(sessionId: string): Promise<Result<Session, AuthError>> {\n  try {\n    const session = await findSessionById(sessionId);\n    if (!session) {\n      return err(AuthError.SessionNotFound);\n    }\n    return ok(session);\n  } catch (error) {\n    console.error('Get session error:', error);\n    return err(AuthError.DatabaseError);\n  }\n}\n\n/**\n * Invalidates a specific session.\n * @param sessionId The ID of the session to invalidate.\n * @returns A Result indicating success or AuthError.\n */\nexport async function invalidateSessionById(sessionId: string): Promise<Result<void, AuthError>> {\n  try {\n    await invalidateSession(sessionId);\n    return ok(undefined);\n  } catch (error) {\n    console.error('Invalidate session error:', error);\n    return err(AuthError.DatabaseError);\n  }\n}\n\n/**\n * Resets a user's password using a one-time token.\n * This function performs a transactional update:\n * 1. Verifies the password reset token.\n * 2. Hashes the new password.\n * 3. Updates the user's password.\n * 4. Invalidates the used password reset token.\n * 5. Invalidates all existing sessions for that user.\n *\n * @param token The one-time password reset token.\n * @param newPassword The new plain text password.\n * @returns A Result indicating success or an AuthError.\n */\nexport async function resetPassword(token: string, newPassword: string): Promise<Result<void, AuthError>> {\n  try {\n    // 1. Find"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 23613,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:modules/auth/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'auth',\n  description: 'Handles user authentication, session management, and authorization utilities.',\n\n  dependencies: { modules: [] },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/auth/login',   auth: false },\n      { method: 'POST', path: '/auth/logout',  auth: true },\n      { method: 'GET',  path: '/auth/session', auth: true },\n      { method: 'POST', path: '/auth/password-reset-confirm', auth: false }, // New route for password reset confirmation\n    ],\n    functions: ['requireUser', 'getSession', 'createSession', 'invalidateSession', 'resetPassword'], // Added resetPassword\n    types: ['User', 'Session', 'AuthError', 'PasswordResetToken'], // Added PasswordResetToken\n  },\n\n  sideEffects: [\n    'writes to: sessions table',\n    'reads from: users table',\n    'writes to: password_reset_tokens table', // Added for password reset\n    'reads from: password_reset_tokens table', // Added for password reset\n  ],\n\n  invariants: [\n    'A session must always be bound to exactly one user',\n    'Expired sessions must never be returned as valid',\n    'Logout must invalidate the session immediately',\n    'Password reset tokens must be one-time use and expire', // Added for password reset\n    'Password reset must invalidate all existing sessions for the user', // Added for password reset\n  ],\n});\n```\n```aether:modules/auth/types.ts\n// This file defines types exposed by the auth module, as per the contract.\n\n/**\n * Represents a user in the system.\n */\nexport type User = {\n  id: string;\n  email: string;\n  passwordHash: string; // Stored hash, never exposed directly\n  createdAt: Date;\n  updatedAt: Date;\n};\n\n/**\n * Represents an active user session.\n */\nexport type Session = {\n  id: string;\n  userId: string;\n  expiresAt: Date;\n  createdAt: Date;\n};\n\n/**\n * Represents a password reset token.\n */\nexport type PasswordResetToken = {\n  id: string;\n  userId: string;\n  token: string; // The actual token string (hashed or plain, depending on implementation)\n  expiresAt: Date;\n  usedAt: Date | null; // Null if not yet used\n  createdAt: Date;\n};\n\n/**\n * Specific error types for authentication and authorization operations.\n */\nexport enum AuthError {\n  InvalidCredentials = 'INVALID_CREDENTIALS',\n  SessionNotFound = 'SESSION_NOT_FOUND',\n  Unauthorized = 'UNAUTHORIZED',\n  UserNotFound = 'USER_NOT_FOUND',\n  InvalidToken = 'INVALID_TOKEN',\n  TokenExpired = 'TOKEN_EXPIRED',\n  TokenAlreadyUsed = 'TOKEN_ALREADY_USED',\n  PasswordTooWeak = 'PASSWORD_TOO_WEAK', // Example, if we implement password strength checks\n  DatabaseError = 'DATABASE_ERROR', // For unrecoverable DB issues\n  UnknownError = 'UNKNOWN_ERROR',\n}\n```\n```aether:modules/auth/lib/queries.ts\nimport { query, transaction } from 'lib/db';\nimport { User, Session, PasswordResetToken } from 'modules/auth/types';\n\n// --- User Queries ---\n\nexport async function findUserById(userId: string): Promise<User | null> {\n  const result = await query<User>('SELECT id, email, password_hash as \"passwordHash\", created_at as \"createdAt\", updated_at as \"updatedAt\" FROM users WHERE id = $1', [userId]);\n  return result.rows[0] || null;\n}\n\nexport async function findUserByEmail(email: string): Promise<User | null> {\n  const result = await query<User>('SELECT id, email, password_hash as \"passwordHash\", created_at as \"createdAt\", updated_at as \"updatedAt\" FROM users WHERE email = $1', [email]);\n  return result.rows[0] || null;\n}\n\nexport async function updateUserPassword(userId: string, newPasswordHash: string): Promise<void> {\n  await query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [newPasswordHash, userId]);\n}\n\n// --- Session Queries ---\n\nexport async function createSession(userId: string, expiresAt: Date): Promise<Session> {\n  const result = await query<Session>(\n    'INSERT INTO sessions (user_id, expires_at) VALUES ($1, $2) RETURNING id, user_id as \"userId\", expires_at as \"expiresAt\", created_at as \"createdAt\"',\n    [userId, expiresAt]\n  );\n  return result.rows[0];\n}\n\nexport async function findSessionById(sessionId: string): Promise<Session | null> {\n  const result = await query<Session>(\n    'SELECT id, user_id as \"userId\", expires_at as \"expiresAt\", created_at as \"createdAt\" FROM sessions WHERE id = $1 AND expires_at > NOW()',\n    [sessionId]\n  );\n  return result.rows[0] || null;\n}\n\nexport async function invalidateSession(sessionId: string): Promise<void> {\n  await query('DELETE FROM sessions WHERE id = $1', [sessionId]);\n}\n\nexport async function invalidateAllUserSessions(userId: string): Promise<void> {\n  await query('DELETE FROM sessions WHERE user_id = $1', [userId]);\n}\n\n// --- Password Reset Token Queries ---\n\nexport async function findPasswordResetToken(token: string): Promise<PasswordResetToken | null> {\n  const result = await query<PasswordResetToken>(\n    `SELECT id, user_id as \"userId\", token, expires_at as \"expiresAt\", used_at as \"usedAt\", created_at as \"createdAt\"\n     FROM password_reset_tokens\n     WHERE token = $1`,\n    [token]\n  );\n  return result.rows[0] || null;\n}\n\nexport async function invalidatePasswordResetToken(tokenId: string): Promise<void> {\n  await query('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1', [tokenId]);\n}\n\n/**\n * Performs a transactional update for password reset:\n * 1. Updates the user's password.\n * 2. Invalidates the password reset token.\n * 3. Invalidates all existing sessions for that user.\n *\n * @param userId The ID of the user whose password is being reset.\n * @param newPasswordHash The bcrypt hash of the new password.\n * @param passwordResetTokenId The ID of the password reset token to invalidate.\n */\nexport async function performPasswordResetTransaction(\n  userId: string,\n  newPasswordHash: string,\n  passwordResetTokenId: string\n): Promise<void> {\n  await transaction(async (client) => {\n    // 1. Update user's password\n    await client.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [newPasswordHash, userId]);\n\n    // 2. Invalidate the password reset token\n    await client.query('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1', [passwordResetTokenId]);\n\n    // 3. Invalidate all existing sessions for the user\n    await client.query('DELETE FROM sessions WHERE user_id = $1', [userId]);\n  });\n}\n```\n```aether:modules/auth/services/auth.ts\nimport bcrypt from 'bcrypt';\nimport { ok, err, Result } from 'lib/result';\nimport { AuthError, User, Session, PasswordResetToken } from 'modules/auth/types';\nimport {\n  findUserById,\n  findUserByEmail,\n  createSession,\n  findSessionById,\n  invalidateSession,\n  findPasswordResetToken,\n  performPasswordResetTransaction,\n} from 'modules/auth/lib/queries';\n\nconst BCRYPT_SALT_ROUNDS = 10;\n\n/**\n * Hashes a plain text password using bcrypt.\n * @param password The plain text password.\n * @returns The hashed password.\n */\nexport async function hashPassword(password: string): Promise<string> {\n  return bcrypt.hash(password, BCRYPT_SALT_ROUNDS);\n}\n\n/**\n * Compares a plain text password with a hashed password.\n * @param password The plain text password.\n * @param hash The hashed password.\n * @returns True if they match, false otherwise.\n */\nexport async function comparePassword(password: string, hash: string): Promise<boolean> {\n  return bcrypt.compare(password, hash);\n}\n\n/**\n * Attempts to log in a user with the given email and password.\n * @param email User's email.\n * @param password User's plain text password.\n * @returns A Result containing the User and Session on success, or an AuthError on failure.\n */\nexport async function loginUser(email: string, password: string): Promise<Result<{ user: User; session: Session }, AuthError>> {\n  try {\n    const user = await findUserByEmail(email);\n    if (!user) {\n      return err(AuthError.InvalidCredentials);\n    }\n\n    const passwordMatch = await comparePassword(password, user.passwordHash);\n    if (!passwordMatch) {\n      return err(AuthError.InvalidCredentials);\n    }\n\n    // Create a new session, e.g., expires in 7 days\n    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);\n    const session = await createSession(user.id, expiresAt);\n\n    return ok({ user, session });\n  } catch (error) {\n    console.error('Login error:', error);\n    return err(AuthError.DatabaseError);\n  }\n}\n\n/**\n * Retrieves an active session by its ID.\n * @param sessionId The ID of the session.\n * @returns A Result containing the Session on success, or AuthError.SessionNotFound on failure.\n */\nexport async function getSession(sessionId: string): Promise<Result<Session, AuthError>> {\n  try {\n    const session = await findSessionById(sessionId);\n    if (!session) {\n      return err(AuthError.SessionNotFound);\n    }\n    return ok(session);\n  } catch (error) {\n    console.error('Get session error:', error);\n    return err(AuthError.DatabaseError);\n  }\n}\n\n/**\n * Invalidates a specific session.\n * @param sessionId The ID of the session to invalidate.\n * @returns A Result indicating success or AuthError.\n */\nexport async function invalidateSessionById(sessionId: string): Promise<Result<void, AuthError>> {\n  try {\n    await invalidateSession(sessionId);\n    return ok(undefined);\n  } catch (error) {\n    console.error('Invalidate session error:', error);\n    return err(AuthError.DatabaseError);\n  }\n}\n\n/**\n * Resets a user's password using a one-time token.\n * This function performs a transactional update:\n * 1. Verifies the password reset token.\n * 2. Hashes the new password.\n * 3. Updates the user's password.\n * 4. Invalidates the used password reset token.\n * 5. Invalidates all existing sessions for that user.\n *\n * @param token The one-time password reset token.\n * @param newPassword The new plain text password.\n * @returns A Result indicating success or an AuthError.\n */\nexport async function resetPassword(token: string, newPassword: string): Promise<Result<void, AuthError>> {\n  try {\n    // 1. Find"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 851
+      }
+    ],
+    "durationMs": 1858
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 836
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 507
+      }
+    ],
+    "durationMs": 1346
+  }
+}

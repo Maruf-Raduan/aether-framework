@@ -1,0 +1,53 @@
+{
+  "promptId": "P19",
+  "condition": "vanilla",
+  "iteration": 1,
+  "passed": true,
+  "tokensIn": 124,
+  "tokensOut": 1632,
+  "tokensTotal": 1756,
+  "latencyMs": 118704,
+  "wallMs": 118704,
+  "files": [
+    {
+      "path": "src/team.ts",
+      "length": 931
+    },
+    {
+      "path": "src/team_route.ts",
+      "length": 1135
+    },
+    {
+      "path": "src/index.ts",
+      "length": 401
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

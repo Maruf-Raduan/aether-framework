@@ -1,0 +1,34 @@
+{
+  "name": "my-app",
+  "version": "1.0.0",
+  "aether": "0.1.0",
+
+  "intent": "A task management SaaS for small remote teams.",
+
+  "stack": {
+    "runtime": "bun",
+    "language": "typescript",
+    "rendering": "server-first",
+    "database": "postgres"
+  },
+
+  "patterns": {
+    "routing": "file-based",
+    "dataFetching": "loader-pattern",
+    "errorHandling": "result-type"
+  },
+
+  "ai": {
+    "context": "./ai-context.md",
+    "constraints": [
+      "No client-side state libraries",
+      "DB access only via /lib/db.ts",
+      "Auth checks must use requireUser()"
+    ]
+  },
+
+  "modules": [
+    { "name": "auth",  "path": "/modules/auth" },
+    { "name": "tasks", "path": "/modules/tasks" }
+  ]
+}

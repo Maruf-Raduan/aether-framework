@@ -1,0 +1,113 @@
+{
+  "promptId": "P04",
+  "targetDesc": "Create a list-tasks route that returns all tasks for the current user's team, paginated by limit/offset query params.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 15121,
+      "tokensIn": 135,
+      "tokensOut": 343,
+      "wallMs": 16347,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/list-tasks.ts",
+          "content": "import { Hono } from 'hono';\nimport { Context } from 'hono/types';\n\nconst app = new Hono();\n\napp.get('/list-tasks', async (c: Context) => {\n  const limit = parseInt(c.req.query('limit')) || 10;\n  const offset = parseInt(c.req.query('offset')) || 0;\n\n  // Assuming you have a function to fetch tasks for the current user's team\n  const tasks = await getTasksForCurrentTeam(limit, offset);\n\n  return c.json(tasks);\n});\n\nasync function getTasksForCurrentTeam(limit: number, offset: number): Promise<any[]> {\n  // Replace this with your actual implementation to fetch tasks from the database or any other data source\n  // For demonstration purposes, let's assume we have a static array of tasks\n  const allTasks = [\n    { id: 1, title: 'Task 1', description: 'Description for Task 1' },\n    { id: 2, title: 'Task 2', description: 'Description for Task 2' },\n    // ... more tasks\n  ];\n\n  return allTasks.slice(offset, offset + limit);\n}\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 16347,
+  "finalFiles": [
+    {
+      "path": "/src/routes/list-tasks.ts",
+      "content": "import { Hono } from 'hono';\nimport { Context } from 'hono/types';\n\nconst app = new Hono();\n\napp.get('/list-tasks', async (c: Context) => {\n  const limit = parseInt(c.req.query('limit')) || 10;\n  const offset = parseInt(c.req.query('offset')) || 0;\n\n  // Assuming you have a function to fetch tasks for the current user's team\n  const tasks = await getTasksForCurrentTeam(limit, offset);\n\n  return c.json(tasks);\n});\n\nasync function getTasksForCurrentTeam(limit: number, offset: number): Promise<any[]> {\n  // Replace this with your actual implementation to fetch tasks from the database or any other data source\n  // For demonstration purposes, let's assume we have a static array of tasks\n  const allTasks = [\n    { id: 1, title: 'Task 1', description: 'Description for Task 1' },\n    { id: 2, title: 'Task 2', description: 'Description for Task 2' },\n    // ... more tasks\n  ];\n\n  return allTasks.slice(offset, offset + limit);\n}\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 786
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 439
+      }
+    ],
+    "durationMs": 1226
+  }
+}

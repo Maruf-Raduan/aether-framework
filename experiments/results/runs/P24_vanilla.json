@@ -1,0 +1,113 @@
+{
+  "promptId": "P24",
+  "targetDesc": "Create a route that lists the current user's notifications, paginated, with unread-first ordering.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 18508,
+      "tokensIn": 173,
+      "tokensOut": 1777,
+      "wallMs": 19781,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types.ts\nexport interface User {\n  id: string;\n  username: string;\n  email: string;\n}\n\nexport interface Notification {\n  id: string;\n  userId: string;\n  message: string;\n  isRead: boolean;\n  createdAt: Date;\n}\n```\n```aether:src/db.ts\nimport { Notification } from './types';\n\n// Simulate a database with mock data\nconst mockNotifications: Notification[] = [\n  { id: 'n1', userId: 'user1', message: 'Welcome to the platform!', isRead: true, createdAt: new Date('2023-01-01T10:00:00Z') },\n  { id: 'n2', userId: 'user1', message: 'Your subscription is expiring soon.', isRead: false, createdAt: new Date('2023-01-05T11:30:00Z') },\n  { id: 'n3', userId: 'user2', message: 'New feature available!', isRead: false, createdAt: new Date('2023-01-02T09:00:00Z') },\n  { id: 'n4', userId: 'user1', message: 'You have a new follower!', isRead: false, createdAt: new Date('2023-01-07T14:00:00Z') },\n  { id: 'n5', userId: 'user1', message: 'Your post received 100 likes.', isRead: true, createdAt: new Date('2023-01-03T16:00:00Z') },\n  { id: 'n6', userId: 'user1', message: 'Reminder: Meeting at 3 PM.', isRead: false, createdAt: new Date('2023-01-08T09:00:00Z') },\n  { id: 'n7', userId: 'user2', message: 'Your order has shipped.', isRead: true, createdAt: new Date('2023-01-04T12:00:00Z') },\n  { id: 'n8', userId: 'user1', message: 'Security alert: Unusual login attempt.', isRead: false, createdAt: new Date('2023-01-09T10:00:00Z') },\n  { id: 'n9', userId: 'user1', message: 'Your profile was updated.', isRead: true, createdAt: new Date('2023-01-06T18:00:00Z') },\n  { id: 'n10', userId: 'user1', message: 'New message from support.', isRead: false, createdAt: new Date('2023-01-10T11:00:00Z') },\n  { id: 'n11', userId: 'user1', message: 'Your trial period ends tomorrow.', isRead: false, createdAt: new Date('2023-01-11T08:00:00Z') },\n  { id: 'n12', userId: 'user1', message: 'Monthly report is ready.', isRead: true, createdAt: new Date('2023-01-12T13:00:00Z') },\n];\n\n/**\n * Retrieves a user's notifications, paginated and ordered unread-first.\n * @param userId The ID of the user.\n * @param page The current page number (1-indexed).\n * @param limit The number of notifications per page.\n * @returns An object containing the total count and the paginated list of notifications.\n */\nexport async function getNotificationsByUserId(\n  userId: string,\n  page: number,\n  limit: number\n): Promise<{ total: number; notifications: Notification[] }> {\n  // Simulate async database call\n  await new Promise(resolve => setTimeout(resolve, 50));\n\n  const userNotifications = mockNotifications.filter(n => n.userId === userId);\n\n  // Sort: unread (isRead: false) first, then by createdAt descending\n  userNotifications.sort((a, b) => {\n    // If one is unread and the other is read, unread comes first\n    if (a.isRead !== b.isRead) {\n      return a.isRead ? 1 : -1; // false (unread) comes before true (read)\n    }\n    // If both are read or both are unread, sort by createdAt descending\n    return b.createdAt.getTime() - a.createdAt.getTime();\n  });\n\n  const total = userNotifications.length;\n  const startIndex = (page - 1) * limit;\n  const endIndex = startIndex + limit;\n\n  const paginatedNotifications = userNotifications.slice(startIndex, endIndex);\n\n  return {\n    total,\n    notifications: paginatedNotifications,\n  };\n}\n```\n```aether:src/routes/notifications.ts\nimport { Hono } from 'hono';\nimport { getNotificationsByUserId } from '../db';\n\n// Create a Hono router for notifications\nconst notificationsRouter = new Hono();\n\n/**\n * GET /notifications\n * Lists the current user's notifications, paginated, with unread-first ordering.\n * Query Parameters:\n *   - page: The page number (default: 1)\n *   - limit: The number of items per page (default: 10)\n *\n * For this exercise, we'll assume a 'user1' as the current user.\n * In a real application, the userId would come from an authentication context.\n */\nnotificationsRouter.get('/', async (c) => {\n  // In a real application, userId would be extracted from authentication context (e.g., JWT, session)\n  // For this exercise, we'll use a hardcoded userId.\n  const currentUserId = 'user1'; \n\n  const page = parseInt(c.req.query('page') || '1', 10);\n  const limit = parseInt(c.req.query('limit') || '10', 10);\n\n  if (isNaN(page) || page < 1) {\n    return c.json({ error: 'Invalid page number. Must be a positive integer.' }, 400);\n  }\n  if (isNaN(limit) || limit < 1) {\n    return c.json({ error: 'Invalid limit. Must be a positive integer.' }, 400);\n  }\n\n  try {\n    const { total, notifications } = await getNotificationsByUserId(currentUserId, page, limit);\n\n    return c.json({\n      page,\n      limit,\n      total,\n      totalPages: Math.ceil(total / limit),\n      notifications,\n    });\n  } catch (error) {\n    console.error('Failed to fetch notifications:', error);\n    return c.json({ error: 'Internal server error' }, 500);\n  }\n});\n\nexport default notificationsRouter;\n```\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { serve } from '@hono/node-server';\nimport notificationsRouter from './routes/notifications';\n\nconst app = new Hono();\n\n// Mount the notifications router under the /notifications path\napp.route('/notifications', notificationsRouter);\n\n// Basic root route\napp.get('/', (c) => {\n  return c.text('Welcome to the Notification API! Try /notifications');\n});\n\n// Start the server\nconst port = 3000;\nconsole.log(`Server is running on http://localhost:${port}`);\n\nserve({\n  fetch: app.fetch,\n  port,\n});\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 19781,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types.ts\nexport interface User {\n  id: string;\n  username: string;\n  email: string;\n}\n\nexport interface Notification {\n  id: string;\n  userId: string;\n  message: string;\n  isRead: boolean;\n  createdAt: Date;\n}\n```\n```aether:src/db.ts\nimport { Notification } from './types';\n\n// Simulate a database with mock data\nconst mockNotifications: Notification[] = [\n  { id: 'n1', userId: 'user1', message: 'Welcome to the platform!', isRead: true, createdAt: new Date('2023-01-01T10:00:00Z') },\n  { id: 'n2', userId: 'user1', message: 'Your subscription is expiring soon.', isRead: false, createdAt: new Date('2023-01-05T11:30:00Z') },\n  { id: 'n3', userId: 'user2', message: 'New feature available!', isRead: false, createdAt: new Date('2023-01-02T09:00:00Z') },\n  { id: 'n4', userId: 'user1', message: 'You have a new follower!', isRead: false, createdAt: new Date('2023-01-07T14:00:00Z') },\n  { id: 'n5', userId: 'user1', message: 'Your post received 100 likes.', isRead: true, createdAt: new Date('2023-01-03T16:00:00Z') },\n  { id: 'n6', userId: 'user1', message: 'Reminder: Meeting at 3 PM.', isRead: false, createdAt: new Date('2023-01-08T09:00:00Z') },\n  { id: 'n7', userId: 'user2', message: 'Your order has shipped.', isRead: true, createdAt: new Date('2023-01-04T12:00:00Z') },\n  { id: 'n8', userId: 'user1', message: 'Security alert: Unusual login attempt.', isRead: false, createdAt: new Date('2023-01-09T10:00:00Z') },\n  { id: 'n9', userId: 'user1', message: 'Your profile was updated.', isRead: true, createdAt: new Date('2023-01-06T18:00:00Z') },\n  { id: 'n10', userId: 'user1', message: 'New message from support.', isRead: false, createdAt: new Date('2023-01-10T11:00:00Z') },\n  { id: 'n11', userId: 'user1', message: 'Your trial period ends tomorrow.', isRead: false, createdAt: new Date('2023-01-11T08:00:00Z') },\n  { id: 'n12', userId: 'user1', message: 'Monthly report is ready.', isRead: true, createdAt: new Date('2023-01-12T13:00:00Z') },\n];\n\n/**\n * Retrieves a user's notifications, paginated and ordered unread-first.\n * @param userId The ID of the user.\n * @param page The current page number (1-indexed).\n * @param limit The number of notifications per page.\n * @returns An object containing the total count and the paginated list of notifications.\n */\nexport async function getNotificationsByUserId(\n  userId: string,\n  page: number,\n  limit: number\n): Promise<{ total: number; notifications: Notification[] }> {\n  // Simulate async database call\n  await new Promise(resolve => setTimeout(resolve, 50));\n\n  const userNotifications = mockNotifications.filter(n => n.userId === userId);\n\n  // Sort: unread (isRead: false) first, then by createdAt descending\n  userNotifications.sort((a, b) => {\n    // If one is unread and the other is read, unread comes first\n    if (a.isRead !== b.isRead) {\n      return a.isRead ? 1 : -1; // false (unread) comes before true (read)\n    }\n    // If both are read or both are unread, sort by createdAt descending\n    return b.createdAt.getTime() - a.createdAt.getTime();\n  });\n\n  const total = userNotifications.length;\n  const startIndex = (page - 1) * limit;\n  const endIndex = startIndex + limit;\n\n  const paginatedNotifications = userNotifications.slice(startIndex, endIndex);\n\n  return {\n    total,\n    notifications: paginatedNotifications,\n  };\n}\n```\n```aether:src/routes/notifications.ts\nimport { Hono } from 'hono';\nimport { getNotificationsByUserId } from '../db';\n\n// Create a Hono router for notifications\nconst notificationsRouter = new Hono();\n\n/**\n * GET /notifications\n * Lists the current user's notifications, paginated, with unread-first ordering.\n * Query Parameters:\n *   - page: The page number (default: 1)\n *   - limit: The number of items per page (default: 10)\n *\n * For this exercise, we'll assume a 'user1' as the current user.\n * In a real application, the userId would come from an authentication context.\n */\nnotificationsRouter.get('/', async (c) => {\n  // In a real application, userId would be extracted from authentication context (e.g., JWT, session)\n  // For this exercise, we'll use a hardcoded userId.\n  const currentUserId = 'user1'; \n\n  const page = parseInt(c.req.query('page') || '1', 10);\n  const limit = parseInt(c.req.query('limit') || '10', 10);\n\n  if (isNaN(page) || page < 1) {\n    return c.json({ error: 'Invalid page number. Must be a positive integer.' }, 400);\n  }\n  if (isNaN(limit) || limit < 1) {\n    return c.json({ error: 'Invalid limit. Must be a positive integer.' }, 400);\n  }\n\n  try {\n    const { total, notifications } = await getNotificationsByUserId(currentUserId, page, limit);\n\n    return c.json({\n      page,\n      limit,\n      total,\n      totalPages: Math.ceil(total / limit),\n      notifications,\n    });\n  } catch (error) {\n    console.error('Failed to fetch notifications:', error);\n    return c.json({ error: 'Internal server error' }, 500);\n  }\n});\n\nexport default notificationsRouter;\n```\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { serve } from '@hono/node-server';\nimport notificationsRouter from './routes/notifications';\n\nconst app = new Hono();\n\n// Mount the notifications router under the /notifications path\napp.route('/notifications', notificationsRouter);\n\n// Basic root route\napp.get('/', (c) => {\n  return c.text('Welcome to the Notification API! Try /notifications');\n});\n\n// Start the server\nconst port = 3000;\nconsole.log(`Server is running on http://localhost:${port}`);\n\nserve({\n  fetch: app.fetch,\n  port,\n});\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 817
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 451
+      }
+    ],
+    "durationMs": 1273
+  }
+}

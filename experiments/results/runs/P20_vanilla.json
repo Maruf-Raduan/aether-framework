@@ -1,0 +1,113 @@
+{
+  "promptId": "P20",
+  "targetDesc": "Create an invite-member route that generates a single-use invite token, emails it, and (if a valid session exists) immediately adds the invitee. Caller must be admin.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 20075,
+      "tokensIn": 188,
+      "tokensOut": 2729,
+      "wallMs": 21442,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types.ts\nexport type UserId = string;\nexport type OrganizationId = string;\nexport type InviteTokenId = string;\n\nexport interface User {\n  id: UserId;\n  email: string;\n  passwordHash: string; // In a real app, this would be hashed\n  role: 'admin' | 'member';\n  organizationId: OrganizationId;\n}\n\nexport interface Session {\n  userId: UserId;\n  organizationId: OrganizationId;\n  role: 'admin' | 'member';\n}\n\nexport interface InviteToken {\n  id: InviteTokenId;\n  email: string;\n  role: 'admin' | 'member';\n  organizationId: OrganizationId;\n  expiresAt: Date;\n  createdAt: Date;\n  createdBy: UserId;\n  usedAt: Date | null;\n  usedBy: UserId | null;\n}\n\nexport interface InviteRequest {\n  email: string;\n  role: 'admin' | 'member';\n}\n```\n```aether:src/db.ts\nimport { User, InviteToken, UserId, OrganizationId, InviteTokenId } from './types';\n\n// --- Simulated Database ---\n// In a real application, this would be a database client (e.g., Prisma, TypeORM, raw SQL)\n// and these would be database tables.\n\nclass Database {\n  public users: User[] = [];\n  public inviteTokens: InviteToken[] = [];\n\n  constructor() {\n    // Seed with a default admin user for testing\n    const defaultOrgId: OrganizationId = 'org-123';\n    this.users.push({\n      id: 'user-admin-1',\n      email: 'admin@example.com',\n      passwordHash: 'hashed_password_admin', // Placeholder\n      role: 'admin',\n      organizationId: defaultOrgId,\n    });\n    this.users.push({\n      id: 'user-member-1',\n      email: 'member@example.com',\n      passwordHash: 'hashed_password_member', // Placeholder\n      role: 'member',\n      organizationId: defaultOrgId,\n    });\n  }\n\n  findUserById(id: UserId): User | undefined {\n    return this.users.find(u => u.id === id);\n  }\n\n  findUserByEmail(email: string): User | undefined {\n    return this.users.find(u => u.email === email);\n  }\n\n  addUser(user: User): User {\n    this.users.push(user);\n    return user;\n  }\n\n  addInviteToken(token: InviteToken): InviteToken {\n    this.inviteTokens.push(token);\n    return token;\n  }\n\n  findInviteTokenById(id: InviteTokenId): InviteToken | undefined {\n    return this.inviteTokens.find(t => t.id === id);\n  }\n\n  updateInviteToken(id: InviteTokenId, updates: Partial<InviteToken>): InviteToken | undefined {\n    const index = this.inviteTokens.findIndex(t => t.id === id);\n    if (index !== -1) {\n      this.inviteTokens[index] = { ...this.inviteTokens[index], ...updates };\n      return this.inviteTokens[index];\n    }\n    return undefined;\n  }\n}\n\nexport const db = new Database();\n```\n```aether:src/services/auth.ts\nimport { Session, User, UserId } from '../types';\nimport { db } from '../db';\n\n// --- Simulated Authentication Service ---\n// In a real application, this would handle JWTs, session cookies, etc.\n\nexport class AuthService {\n  // This is a highly simplified simulation.\n  // In a real app, you'd validate credentials and create a secure session token.\n  public createSession(userId: UserId): Session | undefined {\n    const user = db.findUserById(userId);\n    if (!user) {\n      return undefined;\n    }\n    return {\n      userId: user.id,\n      organizationId: user.organizationId,\n      role: user.role,\n    };\n  }\n\n  // For this exercise, we'll simulate a session being passed directly\n  // or derived from a simple header for testing.\n  // In a real app, this would parse a JWT or look up a session ID.\n  public async validateSession(sessionData: Partial<Session>): Promise<Session | undefined> {\n    if (!sessionData.userId || !sessionData.organizationId || !sessionData.role) {\n      return undefined;\n    }\n    const user = db.findUserById(sessionData.userId);\n    if (user && user.organizationId === sessionData.organizationId && user.role === sessionData.role) {\n      return {\n        userId: user.id,\n        organizationId: user.organizationId,\n        role: user.role,\n      };\n    }\n    return undefined;\n  }\n}\n\nexport const authService = new AuthService();\n```\n```aether:src/services/email.ts\n// --- Simulated Email Service ---\n// In a real application, this would integrate with an email provider (e.g., SendGrid, Mailgun, AWS SES).\n\nexport class EmailService {\n  public async sendInviteEmail(to: string, inviteLink: string): Promise<void> {\n    console.log(`--- Sending Invite Email ---`);\n    console.log(`To: ${to}`);\n    console.log(`Subject: You're invited to join our team!`);\n    console.log(`Body: Click the link to accept your invitation: ${inviteLink}`);\n    console.log(`----------------------------`);\n    // In a real app:\n    // await emailProvider.send({\n    //   to,\n    //   subject: \"You're invited to join our team!\",\n    //   html: `<p>Click the link to accept your invitation: <a href=\"${inviteLink}\">${inviteLink}</a></p>`,\n    // });\n    return Promise.resolve();\n  }\n}\n\nexport const emailService = new EmailService();\n```\n```aether:src/services/invite.ts\nimport { InviteToken, InviteRequest, Session, UserId, OrganizationId } from '../types';\nimport { db } from '../db';\n\nexport class InviteService {\n  private readonly INVITE_EXPIRATION_HOURS = 24; // Invite tokens expire in 24 hours\n\n  public async createInvite(\n    inviteRequest: InviteRequest,\n    inviterSession: Session,\n    baseUrl: string // Base URL for the invite link\n  ): Promise<{ inviteToken: InviteToken; inviteLink: string }> {\n    const { email, role } = inviteRequest;\n    const { userId: createdBy, organizationId } = inviterSession;\n\n    // Check if a user with this email already exists in the organization\n    const existingUser = db.findUserByEmail(email);\n    if (existingUser && existingUser.organizationId === organizationId) {\n      throw new Error('User with this email already exists in the organization.');\n    }\n\n    const inviteTokenId = crypto.randomUUID();\n    const expiresAt = new Date(Date.now() + this.INVITE_EXPIRATION_HOURS * 60 * 60 * 1000);\n\n    const newInviteToken: InviteToken = {\n      id: inviteTokenId,\n      email,\n      role,\n      organizationId,\n      expiresAt,\n      createdAt: new Date(),\n      createdBy,\n      usedAt: null,\n      usedBy: null,\n    };\n\n    db.addInviteToken(newInviteToken);\n\n    const inviteLink = `${baseUrl}/accept-invite?token=${inviteTokenId}`;\n\n    return { inviteToken: newInviteToken, inviteLink };\n  }\n\n  public async redeemInvite(tokenId: string, newUserId: UserId): Promise<User> {\n    const invite = db.findInviteTokenById(tokenId);\n\n    if (!invite) {\n      throw new Error('Invite token not found.');\n    }\n    if (invite.usedAt) {\n      throw new Error('Invite token has already been used.');\n    }\n    if (invite.expiresAt < new Date()) {\n      throw new Error('Invite token has expired.');\n    }\n\n    // Mark the token as used\n    db.updateInviteToken(tokenId, { usedAt: new Date(), usedBy: newUserId });\n\n    // Create the new user in the organization\n    const newUser: User = {\n      id: newUserId,\n      email: invite.email,\n      passwordHash: 'placeholder_for_new_user_password', // This would be set during the actual registration process\n      role: invite.role,\n      organizationId: invite.organizationId,\n    };\n\n    db.addUser(newUser);\n    return newUser;\n  }\n}\n\nexport const inviteService = new InviteService();\n```\n```aether:src/middleware/auth.ts\nimport { Context, Next } from 'hono';\nimport { authService } from '../services/auth';\nimport { Session } from '../types';\n\n// This middleware simulates authentication.\n// In a real app, it would parse a JWT from a header or a session cookie.\n// For this exercise, we'll assume a simplified session object is available\n// (e.g., from a test setup or a very basic header).\nexport const authMiddleware = async (c: Context, next: Next) => {\n  // Simulate getting session data. In a real app, this would be from a JWT or cookie.\n  // For demonstration, we'll use a hardcoded admin session.\n  // In a real Hono app, you might get this from `c.req.header('Authorization')`\n  // and then decode a JWT.\n  const simulatedSession: Partial<Session> = {\n    userId: 'user-admin-1', // Assuming 'admin@example.com' is logged in\n    organizationId: 'org-123',\n    role: 'admin',\n  };\n\n  const session = await authService.validateSession(simulatedSession);\n\n  if (!session) {\n    return c.json({ error: 'Unauthorized' }, 401);\n  }\n\n  // Attach the session to the context for downstream handlers\n  c.set('session', session);\n  await next();\n};\n```\n```aether:src/middleware/admin.ts\nimport { Context, Next } from 'hono';\nimport { Session } from '../types';\n\nexport const adminMiddleware = async (c: Context, next: Next) => {\n  const session: Session | undefined = c.get('session');\n\n  if (!session) {\n    // This should ideally be caught by authMiddleware, but as a safeguard\n    return c.json({ error: 'Unauthorized: No session found' }, 401);\n  }\n\n  if (session.role !== 'admin') {\n    return c.json({ error: 'Forbidden: Admin access required' }, 403);\n  }\n\n  await next();\n};\n```\n```aether:src/routes/invite.ts\nimport { Hono } from 'hono';\nimport { z } from 'zod';\nimport { zValidator } from '@hono/zod-validator';\nimport { inviteService } from '../services/invite';\nimport { emailService } from '../services/email';\nimport { Session } from '../types';\n\nconst inviteMemberSchema = z.object({\n  email: z.string().email('Invalid email address'),\n  role: z.enum(['admin', 'member'], {\n    errorMap: () => ({ message: 'Role must be either \"admin\" or \"member\"' }),\n  }),\n});\n\nexport const inviteRoutes = new Hono();\n\ninviteRoutes.post(\n  '/',\n  zValidator('json', inviteMemberSchema),\n  async (c) => {\n    const { email, role } = c.req.valid('json');\n    const session: Session = c.get('session'); // Session guaranteed by authMiddleware\n\n    try {\n      //"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 21442,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types.ts\nexport type UserId = string;\nexport type OrganizationId = string;\nexport type InviteTokenId = string;\n\nexport interface User {\n  id: UserId;\n  email: string;\n  passwordHash: string; // In a real app, this would be hashed\n  role: 'admin' | 'member';\n  organizationId: OrganizationId;\n}\n\nexport interface Session {\n  userId: UserId;\n  organizationId: OrganizationId;\n  role: 'admin' | 'member';\n}\n\nexport interface InviteToken {\n  id: InviteTokenId;\n  email: string;\n  role: 'admin' | 'member';\n  organizationId: OrganizationId;\n  expiresAt: Date;\n  createdAt: Date;\n  createdBy: UserId;\n  usedAt: Date | null;\n  usedBy: UserId | null;\n}\n\nexport interface InviteRequest {\n  email: string;\n  role: 'admin' | 'member';\n}\n```\n```aether:src/db.ts\nimport { User, InviteToken, UserId, OrganizationId, InviteTokenId } from './types';\n\n// --- Simulated Database ---\n// In a real application, this would be a database client (e.g., Prisma, TypeORM, raw SQL)\n// and these would be database tables.\n\nclass Database {\n  public users: User[] = [];\n  public inviteTokens: InviteToken[] = [];\n\n  constructor() {\n    // Seed with a default admin user for testing\n    const defaultOrgId: OrganizationId = 'org-123';\n    this.users.push({\n      id: 'user-admin-1',\n      email: 'admin@example.com',\n      passwordHash: 'hashed_password_admin', // Placeholder\n      role: 'admin',\n      organizationId: defaultOrgId,\n    });\n    this.users.push({\n      id: 'user-member-1',\n      email: 'member@example.com',\n      passwordHash: 'hashed_password_member', // Placeholder\n      role: 'member',\n      organizationId: defaultOrgId,\n    });\n  }\n\n  findUserById(id: UserId): User | undefined {\n    return this.users.find(u => u.id === id);\n  }\n\n  findUserByEmail(email: string): User | undefined {\n    return this.users.find(u => u.email === email);\n  }\n\n  addUser(user: User): User {\n    this.users.push(user);\n    return user;\n  }\n\n  addInviteToken(token: InviteToken): InviteToken {\n    this.inviteTokens.push(token);\n    return token;\n  }\n\n  findInviteTokenById(id: InviteTokenId): InviteToken | undefined {\n    return this.inviteTokens.find(t => t.id === id);\n  }\n\n  updateInviteToken(id: InviteTokenId, updates: Partial<InviteToken>): InviteToken | undefined {\n    const index = this.inviteTokens.findIndex(t => t.id === id);\n    if (index !== -1) {\n      this.inviteTokens[index] = { ...this.inviteTokens[index], ...updates };\n      return this.inviteTokens[index];\n    }\n    return undefined;\n  }\n}\n\nexport const db = new Database();\n```\n```aether:src/services/auth.ts\nimport { Session, User, UserId } from '../types';\nimport { db } from '../db';\n\n// --- Simulated Authentication Service ---\n// In a real application, this would handle JWTs, session cookies, etc.\n\nexport class AuthService {\n  // This is a highly simplified simulation.\n  // In a real app, you'd validate credentials and create a secure session token.\n  public createSession(userId: UserId): Session | undefined {\n    const user = db.findUserById(userId);\n    if (!user) {\n      return undefined;\n    }\n    return {\n      userId: user.id,\n      organizationId: user.organizationId,\n      role: user.role,\n    };\n  }\n\n  // For this exercise, we'll simulate a session being passed directly\n  // or derived from a simple header for testing.\n  // In a real app, this would parse a JWT or look up a session ID.\n  public async validateSession(sessionData: Partial<Session>): Promise<Session | undefined> {\n    if (!sessionData.userId || !sessionData.organizationId || !sessionData.role) {\n      return undefined;\n    }\n    const user = db.findUserById(sessionData.userId);\n    if (user && user.organizationId === sessionData.organizationId && user.role === sessionData.role) {\n      return {\n        userId: user.id,\n        organizationId: user.organizationId,\n        role: user.role,\n      };\n    }\n    return undefined;\n  }\n}\n\nexport const authService = new AuthService();\n```\n```aether:src/services/email.ts\n// --- Simulated Email Service ---\n// In a real application, this would integrate with an email provider (e.g., SendGrid, Mailgun, AWS SES).\n\nexport class EmailService {\n  public async sendInviteEmail(to: string, inviteLink: string): Promise<void> {\n    console.log(`--- Sending Invite Email ---`);\n    console.log(`To: ${to}`);\n    console.log(`Subject: You're invited to join our team!`);\n    console.log(`Body: Click the link to accept your invitation: ${inviteLink}`);\n    console.log(`----------------------------`);\n    // In a real app:\n    // await emailProvider.send({\n    //   to,\n    //   subject: \"You're invited to join our team!\",\n    //   html: `<p>Click the link to accept your invitation: <a href=\"${inviteLink}\">${inviteLink}</a></p>`,\n    // });\n    return Promise.resolve();\n  }\n}\n\nexport const emailService = new EmailService();\n```\n```aether:src/services/invite.ts\nimport { InviteToken, InviteRequest, Session, UserId, OrganizationId } from '../types';\nimport { db } from '../db';\n\nexport class InviteService {\n  private readonly INVITE_EXPIRATION_HOURS = 24; // Invite tokens expire in 24 hours\n\n  public async createInvite(\n    inviteRequest: InviteRequest,\n    inviterSession: Session,\n    baseUrl: string // Base URL for the invite link\n  ): Promise<{ inviteToken: InviteToken; inviteLink: string }> {\n    const { email, role } = inviteRequest;\n    const { userId: createdBy, organizationId } = inviterSession;\n\n    // Check if a user with this email already exists in the organization\n    const existingUser = db.findUserByEmail(email);\n    if (existingUser && existingUser.organizationId === organizationId) {\n      throw new Error('User with this email already exists in the organization.');\n    }\n\n    const inviteTokenId = crypto.randomUUID();\n    const expiresAt = new Date(Date.now() + this.INVITE_EXPIRATION_HOURS * 60 * 60 * 1000);\n\n    const newInviteToken: InviteToken = {\n      id: inviteTokenId,\n      email,\n      role,\n      organizationId,\n      expiresAt,\n      createdAt: new Date(),\n      createdBy,\n      usedAt: null,\n      usedBy: null,\n    };\n\n    db.addInviteToken(newInviteToken);\n\n    const inviteLink = `${baseUrl}/accept-invite?token=${inviteTokenId}`;\n\n    return { inviteToken: newInviteToken, inviteLink };\n  }\n\n  public async redeemInvite(tokenId: string, newUserId: UserId): Promise<User> {\n    const invite = db.findInviteTokenById(tokenId);\n\n    if (!invite) {\n      throw new Error('Invite token not found.');\n    }\n    if (invite.usedAt) {\n      throw new Error('Invite token has already been used.');\n    }\n    if (invite.expiresAt < new Date()) {\n      throw new Error('Invite token has expired.');\n    }\n\n    // Mark the token as used\n    db.updateInviteToken(tokenId, { usedAt: new Date(), usedBy: newUserId });\n\n    // Create the new user in the organization\n    const newUser: User = {\n      id: newUserId,\n      email: invite.email,\n      passwordHash: 'placeholder_for_new_user_password', // This would be set during the actual registration process\n      role: invite.role,\n      organizationId: invite.organizationId,\n    };\n\n    db.addUser(newUser);\n    return newUser;\n  }\n}\n\nexport const inviteService = new InviteService();\n```\n```aether:src/middleware/auth.ts\nimport { Context, Next } from 'hono';\nimport { authService } from '../services/auth';\nimport { Session } from '../types';\n\n// This middleware simulates authentication.\n// In a real app, it would parse a JWT from a header or a session cookie.\n// For this exercise, we'll assume a simplified session object is available\n// (e.g., from a test setup or a very basic header).\nexport const authMiddleware = async (c: Context, next: Next) => {\n  // Simulate getting session data. In a real app, this would be from a JWT or cookie.\n  // For demonstration, we'll use a hardcoded admin session.\n  // In a real Hono app, you might get this from `c.req.header('Authorization')`\n  // and then decode a JWT.\n  const simulatedSession: Partial<Session> = {\n    userId: 'user-admin-1', // Assuming 'admin@example.com' is logged in\n    organizationId: 'org-123',\n    role: 'admin',\n  };\n\n  const session = await authService.validateSession(simulatedSession);\n\n  if (!session) {\n    return c.json({ error: 'Unauthorized' }, 401);\n  }\n\n  // Attach the session to the context for downstream handlers\n  c.set('session', session);\n  await next();\n};\n```\n```aether:src/middleware/admin.ts\nimport { Context, Next } from 'hono';\nimport { Session } from '../types';\n\nexport const adminMiddleware = async (c: Context, next: Next) => {\n  const session: Session | undefined = c.get('session');\n\n  if (!session) {\n    // This should ideally be caught by authMiddleware, but as a safeguard\n    return c.json({ error: 'Unauthorized: No session found' }, 401);\n  }\n\n  if (session.role !== 'admin') {\n    return c.json({ error: 'Forbidden: Admin access required' }, 403);\n  }\n\n  await next();\n};\n```\n```aether:src/routes/invite.ts\nimport { Hono } from 'hono';\nimport { z } from 'zod';\nimport { zValidator } from '@hono/zod-validator';\nimport { inviteService } from '../services/invite';\nimport { emailService } from '../services/email';\nimport { Session } from '../types';\n\nconst inviteMemberSchema = z.object({\n  email: z.string().email('Invalid email address'),\n  role: z.enum(['admin', 'member'], {\n    errorMap: () => ({ message: 'Role must be either \"admin\" or \"member\"' }),\n  }),\n});\n\nexport const inviteRoutes = new Hono();\n\ninviteRoutes.post(\n  '/',\n  zValidator('json', inviteMemberSchema),\n  async (c) => {\n    const { email, role } = c.req.valid('json');\n    const session: Session = c.get('session'); // Session guaranteed by authMiddleware\n\n    try {\n      //"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 871
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 488
+      }
+    ],
+    "durationMs": 1366
+  }
+}

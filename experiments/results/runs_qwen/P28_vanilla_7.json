@@ -1,0 +1,113 @@
+{
+  "promptId": "P28",
+  "targetDesc": "Create a file-upload route that accepts a multipart form, validates size and mime type, stores the file in object storage, and writes a row to the files table. Returns the file id.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 30531,
+      "tokensIn": 147,
+      "tokensOut": 663,
+      "wallMs": 31910,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/upload.ts",
+          "content": "import { Hono } from 'hono';\nimport { serveStatic } from 'hono/static';\nimport { createClient } from '@supabase/supabase-js';\nimport { v4 as uuidv4 } from 'uuid';\n\nconst app = new Hono();\n\n// Configure Supabase client\nconst supabaseUrl = process.env.SUPABASE_URL || 'https://your-supabase-url.supabase.co';\nconst supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'your-anon-key';\nconst supabaseClient = createClient(supabaseUrl, supabaseAnonKey);\n\n// Configure object storage\nconst storageBucketName = process.env.STORAGE_BUCKET_NAME || 'your-storage-bucket-name';\n\napp.post('/upload', async (c) => {\n  const maxSizeInBytes = 10 * 1024 * 1024; // 10MB\n  const allowedMimeTypes = ['image/jpeg', 'image/png'];\n\n  const form = await c.req.parseForm({ type: 'multipart/form-data' });\n  const file = form.file;\n\n  if (!file) {\n    return c.json({ error: 'No file provided' }, 400);\n  }\n\n  // Validate file size\n  if (file.size > maxSizeInBytes) {\n    return c.json({ error: 'File size exceeds limit' }, 413);\n  }\n\n  // Validate mime type\n  if (!allowedMimeTypes.includes(file.mimetype)) {\n    return c.json({ error: 'Invalid file type' }, 400);\n  }\n\n  try {\n    // Upload file to object storage\n    const response = await supabaseClient.storage.from(storageBucketName).upload(`files/${uuidv4()}`, file.file, {\n      upsert: false,\n      cacheControl: '3600',\n      contentType: file.mimetype,\n    });\n\n    if (response.error) {\n      return c.json({ error: response.error.message }, 500);\n    }\n\n    // Insert file metadata into database\n    const { data, error } = await supabaseClient.from('files').insert([\n      {\n        id: response.data.path.split('/').pop(),\n        name: file.name,\n        size: file.size,\n        mime_type: file.mimetype,\n      },\n    ]);\n\n    if (error) {\n      return c.json({ error: error.message }, 500);\n    }\n\n    return c.json({ fileId: data[0].id });\n  } catch (error) {\n    console.error(error);\n    return c.json({ error: 'Internal server error' }, 500);\n  }\n});\n\napp.use('/static/*', serveStatic({ root: './public' }));\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 31910,
+  "finalFiles": [
+    {
+      "path": "/src/routes/upload.ts",
+      "content": "import { Hono } from 'hono';\nimport { serveStatic } from 'hono/static';\nimport { createClient } from '@supabase/supabase-js';\nimport { v4 as uuidv4 } from 'uuid';\n\nconst app = new Hono();\n\n// Configure Supabase client\nconst supabaseUrl = process.env.SUPABASE_URL || 'https://your-supabase-url.supabase.co';\nconst supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'your-anon-key';\nconst supabaseClient = createClient(supabaseUrl, supabaseAnonKey);\n\n// Configure object storage\nconst storageBucketName = process.env.STORAGE_BUCKET_NAME || 'your-storage-bucket-name';\n\napp.post('/upload', async (c) => {\n  const maxSizeInBytes = 10 * 1024 * 1024; // 10MB\n  const allowedMimeTypes = ['image/jpeg', 'image/png'];\n\n  const form = await c.req.parseForm({ type: 'multipart/form-data' });\n  const file = form.file;\n\n  if (!file) {\n    return c.json({ error: 'No file provided' }, 400);\n  }\n\n  // Validate file size\n  if (file.size > maxSizeInBytes) {\n    return c.json({ error: 'File size exceeds limit' }, 413);\n  }\n\n  // Validate mime type\n  if (!allowedMimeTypes.includes(file.mimetype)) {\n    return c.json({ error: 'Invalid file type' }, 400);\n  }\n\n  try {\n    // Upload file to object storage\n    const response = await supabaseClient.storage.from(storageBucketName).upload(`files/${uuidv4()}`, file.file, {\n      upsert: false,\n      cacheControl: '3600',\n      contentType: file.mimetype,\n    });\n\n    if (response.error) {\n      return c.json({ error: response.error.message }, 500);\n    }\n\n    // Insert file metadata into database\n    const { data, error } = await supabaseClient.from('files').insert([\n      {\n        id: response.data.path.split('/').pop(),\n        name: file.name,\n        size: file.size,\n        mime_type: file.mimetype,\n      },\n    ]);\n\n    if (error) {\n      return c.json({ error: error.message }, 500);\n    }\n\n    return c.json({ fileId: data[0].id });\n  } catch (error) {\n    console.error(error);\n    return c.json({ error: 'Internal server error' }, 500);\n  }\n});\n\napp.use('/static/*', serveStatic({ root: './public' }));\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 865
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 511
+      }
+    ],
+    "durationMs": 1379
+  }
+}

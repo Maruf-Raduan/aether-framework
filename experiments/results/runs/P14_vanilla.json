@@ -1,0 +1,113 @@
+{
+  "promptId": "P14",
+  "targetDesc": "Create a loader route that returns a billing summary for the current user: current plan, next invoice date, lifetime spend, and any outstanding credit. Cache the response for 60 seconds.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 10210,
+      "tokensIn": 189,
+      "tokensOut": 844,
+      "wallMs": 11491,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types.ts\nexport interface BillingSummary {\n  /** The user's current subscription plan. */\n  currentPlan: string;\n  /** The date of the next scheduled invoice, in ISO 8601 format (YYYY-MM-DD). */\n  nextInvoiceDate: string;\n  /** The total amount of money spent by the user over their lifetime, in USD. */\n  lifetimeSpend: number;\n  /** Any outstanding credit the user has, in USD. */\n  outstandingCredit: number;\n}\n```\n```aether:src/services/billing.ts\nimport { BillingSummary } from '../types';\n\n/**\n * Simulates fetching billing summary data for a given user.\n * In a real application, this would interact with a database or a third-party billing API.\n *\n * @param userId The ID of the user for whom to fetch the billing summary.\n * @returns A promise that resolves to the BillingSummary object.\n */\nexport async function getBillingSummaryForUser(userId: string): Promise<BillingSummary> {\n  console.log(`[BillingService] Fetching billing summary for user: ${userId}`);\n\n  // Simulate a network delay or database query time\n  await new Promise(resolve => setTimeout(resolve, 150));\n\n  // Generate mock data for demonstration purposes\n  const now = new Date();\n  // Set next invoice date to the 15th of the next month\n  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 15);\n  const nextInvoiceDate = nextMonth.toISOString().split('T')[0]; // Format as YYYY-MM-DD\n\n  return {\n    currentPlan: 'Premium Pro',\n    nextInvoiceDate: nextInvoiceDate,\n    lifetimeSpend: 2500.50,\n    outstandingCredit: 75.25,\n  };\n}\n```\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { getBillingSummaryForUser } from './services/billing';\nimport { BillingSummary } from './types';\n\nconst app = new Hono();\n\n/**\n * Root route for basic API health check.\n */\napp.get('/', (c) => {\n  return c.text('Hono Billing Summary Loader API is running!');\n});\n\n/**\n * Loader route to fetch the billing summary for the current user.\n *\n * This route returns the current plan, next invoice date, lifetime spend,\n * and any outstanding credit. The response is cached for 60 seconds.\n */\napp.get('/billing-summary', async (c) => {\n  // In a real application, the user ID would be extracted from an\n  // authentication token or session. For this exercise, we use a placeholder.\n  const userId = 'current-authenticated-user-id'; // Example placeholder user ID\n\n  try {\n    const summary: BillingSummary = await getBillingSummaryForUser(userId);\n\n    // Set Cache-Control header to cache the response for 60 seconds.\n    // 'public' allows caching by any cache (browser, CDN, proxy).\n    // 'max-age=60' specifies the maximum amount of time (in seconds)\n    // a resource is considered fresh.\n    c.header('Cache-Control', 'public, max-age=60');\n\n    return c.json(summary);\n  } catch (error) {\n    console.error(`[API Error] Failed to fetch billing summary for user ${userId}:`, error);\n    // Return a 500 Internal Server Error with a generic message\n    return c.json({ error: 'Failed to retrieve billing summary due to an internal error.' }, 500);\n  }\n});\n\nexport default app;\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 11491,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types.ts\nexport interface BillingSummary {\n  /** The user's current subscription plan. */\n  currentPlan: string;\n  /** The date of the next scheduled invoice, in ISO 8601 format (YYYY-MM-DD). */\n  nextInvoiceDate: string;\n  /** The total amount of money spent by the user over their lifetime, in USD. */\n  lifetimeSpend: number;\n  /** Any outstanding credit the user has, in USD. */\n  outstandingCredit: number;\n}\n```\n```aether:src/services/billing.ts\nimport { BillingSummary } from '../types';\n\n/**\n * Simulates fetching billing summary data for a given user.\n * In a real application, this would interact with a database or a third-party billing API.\n *\n * @param userId The ID of the user for whom to fetch the billing summary.\n * @returns A promise that resolves to the BillingSummary object.\n */\nexport async function getBillingSummaryForUser(userId: string): Promise<BillingSummary> {\n  console.log(`[BillingService] Fetching billing summary for user: ${userId}`);\n\n  // Simulate a network delay or database query time\n  await new Promise(resolve => setTimeout(resolve, 150));\n\n  // Generate mock data for demonstration purposes\n  const now = new Date();\n  // Set next invoice date to the 15th of the next month\n  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 15);\n  const nextInvoiceDate = nextMonth.toISOString().split('T')[0]; // Format as YYYY-MM-DD\n\n  return {\n    currentPlan: 'Premium Pro',\n    nextInvoiceDate: nextInvoiceDate,\n    lifetimeSpend: 2500.50,\n    outstandingCredit: 75.25,\n  };\n}\n```\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { getBillingSummaryForUser } from './services/billing';\nimport { BillingSummary } from './types';\n\nconst app = new Hono();\n\n/**\n * Root route for basic API health check.\n */\napp.get('/', (c) => {\n  return c.text('Hono Billing Summary Loader API is running!');\n});\n\n/**\n * Loader route to fetch the billing summary for the current user.\n *\n * This route returns the current plan, next invoice date, lifetime spend,\n * and any outstanding credit. The response is cached for 60 seconds.\n */\napp.get('/billing-summary', async (c) => {\n  // In a real application, the user ID would be extracted from an\n  // authentication token or session. For this exercise, we use a placeholder.\n  const userId = 'current-authenticated-user-id'; // Example placeholder user ID\n\n  try {\n    const summary: BillingSummary = await getBillingSummaryForUser(userId);\n\n    // Set Cache-Control header to cache the response for 60 seconds.\n    // 'public' allows caching by any cache (browser, CDN, proxy).\n    // 'max-age=60' specifies the maximum amount of time (in seconds)\n    // a resource is considered fresh.\n    c.header('Cache-Control', 'public, max-age=60');\n\n    return c.json(summary);\n  } catch (error) {\n    console.error(`[API Error] Failed to fetch billing summary for user ${userId}:`, error);\n    // Return a 500 Internal Server Error with a generic message\n    return c.json({ error: 'Failed to retrieve billing summary due to an internal error.' }, 500);\n  }\n});\n\nexport default app;\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 802
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 474
+      }
+    ],
+    "durationMs": 1281
+  }
+}

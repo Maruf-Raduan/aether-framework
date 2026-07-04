@@ -1,0 +1,65 @@
+{
+  "promptId": "P29",
+  "condition": "vanilla",
+  "iteration": 7,
+  "passed": true,
+  "tokensIn": 130,
+  "tokensOut": 1053,
+  "tokensTotal": 1183,
+  "latencyMs": 26801,
+  "wallMs": 26801,
+  "files": [
+    {
+      "path": "src/routes/download.ts",
+      "length": 0
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 2088
+    },
+    {
+      "path": "src/utils/object-storage.ts",
+      "length": 0
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 1016
+    },
+    {
+      "path": "src/types/team-membership-status.ts",
+      "length": 0
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 91
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

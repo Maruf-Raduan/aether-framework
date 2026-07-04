@@ -1,0 +1,250 @@
+{
+  "promptId": "P08",
+  "targetDesc": "Create a soft-delete route for tasks. The task must remain in the database with a deletedAt timestamp; never hard-delete.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 17486,
+      "tokensIn": 1071,
+      "tokensOut": 249,
+      "wallMs": 25319,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Handles task creation, retrieval, and deletion utilities.',\n\n  dependencies: { modules: ['auth'] },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/tasks', auth: true },\n      { method: 'GET', path: '/tasks/:id', auth: true },\n      { method: 'PUT', path: '/tasks/:id', auth: true },\n      { method: 'DELETE', path: '/tasks/:id', auth: true }, // New route for soft-delete\n    ],\n    functions: ['createTask', 'getTask', 'updateTask', 'softDeleteTask'],\n    types: ['Task', 'TaskError'],\n  },\n\n  sideEffects: [\n    'writes to: tasks table',\n    'reads from: users table',\n  ],\n\n  invariants: [\n    'A task must always be associated with exactly one user',\n    'Soft-deleted tasks must have a non-null deletedAt timestamp',\n    'Deleting a task should invalidate any related sessions or notifications',\n  ],\n});"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 25319,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Handles task creation, retrieval, and deletion utilities.',\n\n  dependencies: { modules: ['auth'] },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/tasks', auth: true },\n      { method: 'GET', path: '/tasks/:id', auth: true },\n      { method: 'PUT', path: '/tasks/:id', auth: true },\n      { method: 'DELETE', path: '/tasks/:id', auth: true }, // New route for soft-delete\n    ],\n    functions: ['createTask', 'getTask', 'updateTask', 'softDeleteTask'],\n    types: ['Task', 'TaskError'],\n  },\n\n  sideEffects: [\n    'writes to: tasks table',\n    'reads from: users table',\n  ],\n\n  invariants: [\n    'A task must always be associated with exactly one user',\n    'Soft-deleted tasks must have a non-null deletedAt timestamp',\n    'Deleting a task should invalidate any related sessions or notifications',\n  ],\n});"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 2141
+      }
+    ],
+    "durationMs": 4346
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 2247
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1236
+      }
+    ],
+    "durationMs": 3488
+  }
+}

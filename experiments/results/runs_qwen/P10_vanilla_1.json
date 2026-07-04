@@ -1,0 +1,113 @@
+{
+  "promptId": "P10",
+  "targetDesc": "Create a route that returns the audit-log history of a single task (status changes, reassignments).",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 61020,
+      "tokensIn": 129,
+      "tokensOut": 460,
+      "wallMs": 62406,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/task-audit-log.ts",
+          "content": "import { Hono } from 'hono';\nimport { Context } from 'hono/types';\n\nconst app = new Hono();\n\napp.get('/task/:taskId/audit-log', async (c: Context) => {\n  const taskId = c.req.param('taskId');\n\n  // Simulate fetching the audit log history for a task\n  const auditLogHistory = await fetchAuditLogHistory(taskId);\n\n  if (!auditLogHistory) {\n    return c.json({ error: 'Task not found' }, 404);\n  }\n\n  return c.json(auditLogHistory, 200);\n});\n\nasync function fetchAuditLogHistory(taskId: string): Promise<any | null> {\n  // Replace this with actual logic to fetch the audit log history from your data source\n  // For example, you might query a database or an external API\n  const mockData = [\n    { taskId: '123', action: 'created', timestamp: new Date('2023-04-01T10:00:00Z') },\n    { taskId: '123', action: 'reassigned to John Doe', timestamp: new Date('2023-04-02T15:00:00Z') },\n    { taskId: '123', action: 'status changed to completed', timestamp: new Date('2023-04-03T09:00:00Z') }\n  ];\n\n  return mockData.filter(log => log.taskId === taskId);\n}\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 62406,
+  "finalFiles": [
+    {
+      "path": "/src/routes/task-audit-log.ts",
+      "content": "import { Hono } from 'hono';\nimport { Context } from 'hono/types';\n\nconst app = new Hono();\n\napp.get('/task/:taskId/audit-log', async (c: Context) => {\n  const taskId = c.req.param('taskId');\n\n  // Simulate fetching the audit log history for a task\n  const auditLogHistory = await fetchAuditLogHistory(taskId);\n\n  if (!auditLogHistory) {\n    return c.json({ error: 'Task not found' }, 404);\n  }\n\n  return c.json(auditLogHistory, 200);\n});\n\nasync function fetchAuditLogHistory(taskId: string): Promise<any | null> {\n  // Replace this with actual logic to fetch the audit log history from your data source\n  // For example, you might query a database or an external API\n  const mockData = [\n    { taskId: '123', action: 'created', timestamp: new Date('2023-04-01T10:00:00Z') },\n    { taskId: '123', action: 'reassigned to John Doe', timestamp: new Date('2023-04-02T15:00:00Z') },\n    { taskId: '123', action: 'status changed to completed', timestamp: new Date('2023-04-03T09:00:00Z') }\n  ];\n\n  return mockData.filter(log => log.taskId === taskId);\n}\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 890
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 493
+      }
+    ],
+    "durationMs": 1386
+  }
+}

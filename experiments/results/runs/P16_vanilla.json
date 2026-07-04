@@ -1,0 +1,113 @@
+{
+  "promptId": "P16",
+  "targetDesc": "Create a token-refresh route that exchanges a refresh token for a new access token. Rotate the refresh token on every use.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 14756,
+      "tokensIn": 176,
+      "tokensOut": 2022,
+      "wallMs": 16096,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types.ts\nexport interface JwtPayload {\n  userId: string;\n  [key: string]: any;\n}\n\nexport interface RefreshTokenData {\n  userId: string;\n  createdAt: number; // Timestamp\n  expiresAt: number; // Timestamp\n  isValid: boolean; // To mark tokens as invalidated\n}\n```\n\n```aether:src/utils/jwt.ts\nimport { sign, verify } from 'jsonwebtoken';\nimport { JwtPayload } from '../types';\n\n// In a real application, these would be loaded from environment variables\n// and should be strong, randomly generated secrets.\nconst ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'supersecretaccesstokenkey';\nconst REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'supersecretrefreshtokenkey';\n\n// Expiration times (e.g., '15m', '7d')\nconst ACCESS_TOKEN_EXPIRATION = process.env.ACCESS_TOKEN_EXPIRATION || '15m';\nconst REFRESH_TOKEN_EXPIRATION = process.env.REFRESH_TOKEN_EXPIRATION || '7d';\n\nexport const generateAccessToken = (payload: JwtPayload): string => {\n  return sign(payload, ACCESS_TOKEN_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRATION });\n};\n\nexport const generateRefreshToken = (payload: JwtPayload): string => {\n  return sign(payload, REFRESH_TOKEN_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRATION });\n};\n\nexport const verifyAccessToken = (token: string): JwtPayload | null => {\n  try {\n    return verify(token, ACCESS_TOKEN_SECRET) as JwtPayload;\n  } catch (error) {\n    return null;\n  }\n};\n\nexport const verifyRefreshToken = (token: string): JwtPayload | null => {\n  try {\n    return verify(token, REFRESH_TOKEN_SECRET) as JwtPayload;\n  } catch (error) {\n    return null;\n  }\n};\n\nexport const getRefreshTokenExpirationTime = (): number => {\n  // This is a simplified way to get the expiration time in milliseconds.\n  // In a real app, you'd parse REFRESH_TOKEN_EXPIRATION string more robustly.\n  const days = parseInt(REFRESH_TOKEN_EXPIRATION.replace('d', ''), 10);\n  return Date.now() + (days * 24 * 60 * 60 * 1000);\n};\n```\n\n```aether:src/utils/refreshTokenStore.ts\nimport { RefreshTokenData } from '../types';\nimport { getRefreshTokenExpirationTime } from './jwt';\n\n/**\n * A simple in-memory store for refresh tokens.\n * In a production environment, this would be replaced by a persistent store\n * like a database (e.g., Redis, PostgreSQL) to ensure durability and scalability.\n *\n * Key: The refresh token string itself.\n * Value: RefreshTokenData containing userId, creation/expiration timestamps, and validity status.\n */\nconst refreshTokenStore = new Map<string, RefreshTokenData>();\n\nexport const storeRefreshToken = (token: string, userId: string): void => {\n  const now = Date.now();\n  const expiresAt = getRefreshTokenExpirationTime(); // Get expiration based on JWT config\n  refreshTokenStore.set(token, { userId, createdAt: now, expiresAt, isValid: true });\n  console.log(`Stored refresh token for user ${userId}. Total tokens: ${refreshTokenStore.size}`);\n};\n\nexport const getRefreshToken = (token: string): RefreshTokenData | undefined => {\n  const tokenData = refreshTokenStore.get(token);\n  if (tokenData && tokenData.expiresAt < Date.now()) {\n    // Token has expired in our store, even if JWT verification might still pass for a short while.\n    // Remove it and return undefined.\n    refreshTokenStore.delete(token);\n    return undefined;\n  }\n  return tokenData;\n};\n\nexport const invalidateRefreshToken = (token: string): void => {\n  const tokenData = refreshTokenStore.get(token);\n  if (tokenData) {\n    tokenData.isValid = false;\n    // Optionally, remove it immediately or after a grace period\n    refreshTokenStore.delete(token); // For simplicity, remove immediately\n    console.log(`Invalidated and removed refresh token.`);\n  }\n};\n\n/**\n * Cleans up expired tokens from the store.\n * In a real app, this would be a scheduled task.\n */\nexport const cleanupExpiredTokens = (): void => {\n  const now = Date.now();\n  let cleanedCount = 0;\n  for (const [token, data] of refreshTokenStore.entries()) {\n    if (data.expiresAt < now || !data.isValid) {\n      refreshTokenStore.delete(token);\n      cleanedCount++;\n    }\n  }\n  if (cleanedCount > 0) {\n    console.log(`Cleaned up ${cleanedCount} expired/invalidated refresh tokens.`);\n  }\n};\n\n// Example: Run cleanup every hour (in a real app, this would be a background job)\nsetInterval(cleanupExpiredTokens, 60 * 60 * 1000);\n```\n\n```aether:src/routes/auth.ts\nimport { Hono } from 'hono';\nimport { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';\nimport { getRefreshToken, invalidateRefreshToken, storeRefreshToken } from '../utils/refreshTokenStore';\n\nconst authRoutes = new Hono();\n\nauthRoutes.post('/refresh', async (c) => {\n  const { refreshToken } = await c.req.json();\n\n  if (!refreshToken) {\n    return c.json({ message: 'Refresh token is required' }, 400);\n  }\n\n  // 1. Verify the refresh token's signature and expiration\n  const decodedRefreshToken = verifyRefreshToken(refreshToken);\n  if (!decodedRefreshToken) {\n    // If the token is invalid or expired, respond with 401\n    return c.json({ message: 'Invalid or expired refresh token' }, 401);\n  }\n\n  // 2. Check if the refresh token exists and is valid in our store\n  const storedTokenData = getRefreshToken(refreshToken);\n  if (!storedTokenData || !storedTokenData.isValid || storedTokenData.userId !== decodedRefreshToken.userId) {\n    // If the token is not found, invalidated, or doesn't match the decoded user,\n    // it might indicate a stolen token or an attempt to use an invalidated token.\n    // Invalidate all tokens for this user to prevent further use of potentially compromised tokens.\n    // (This is a security measure, might be too aggressive for some apps)\n    // For simplicity, we just return 401 here.\n    return c.json({ message: 'Invalid or revoked refresh token' }, 401);\n  }\n\n  // 3. Invalidate the old refresh token (rotation)\n  invalidateRefreshToken(refreshToken);\n\n  // 4. Generate a new access token\n  const newAccessToken = generateAccessToken({ userId: decodedRefreshToken.userId });\n\n  // 5. Generate a new refresh token\n  const newRefreshToken = generateRefreshToken({ userId: decodedRefreshToken.userId });\n\n  // 6. Store the new refresh token\n  storeRefreshToken(newRefreshToken, decodedRefreshToken.userId);\n\n  return c.json({\n    accessToken: newAccessToken,\n    refreshToken: newRefreshToken,\n  });\n});\n\n// Example login route for demonstration purposes (not part of the core feature request, but useful for testing)\nauthRoutes.post('/login', async (c) => {\n  const { username, password } = await c.req.json();\n\n  // In a real app, you'd verify username/password against a database\n  if (username === 'user' && password === 'password') {\n    const userId = 'user123'; // Example user ID\n\n    const accessToken = generateAccessToken({ userId });\n    const refreshToken = generateRefreshToken({ userId });\n\n    storeRefreshToken(refreshToken, userId);\n\n    return c.json({\n      message: 'Login successful',\n      accessToken,\n      refreshToken,\n    });\n  } else {\n    return c.json({ message: 'Invalid credentials' }, 401);\n  }\n});\n\n\nexport default authRoutes;\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport authRoutes from './routes/auth';\n\nconst app = new Hono();\n\napp.get('/', (c) => {\n  return c.text('Hono API is running!');\n});\n\n// Mount authentication routes under /auth\napp.route('/auth', authRoutes);\n\n// Global error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ message: 'Internal Server Error' }, 500);\n});\n\nexport default app;\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 16096,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types.ts\nexport interface JwtPayload {\n  userId: string;\n  [key: string]: any;\n}\n\nexport interface RefreshTokenData {\n  userId: string;\n  createdAt: number; // Timestamp\n  expiresAt: number; // Timestamp\n  isValid: boolean; // To mark tokens as invalidated\n}\n```\n\n```aether:src/utils/jwt.ts\nimport { sign, verify } from 'jsonwebtoken';\nimport { JwtPayload } from '../types';\n\n// In a real application, these would be loaded from environment variables\n// and should be strong, randomly generated secrets.\nconst ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'supersecretaccesstokenkey';\nconst REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'supersecretrefreshtokenkey';\n\n// Expiration times (e.g., '15m', '7d')\nconst ACCESS_TOKEN_EXPIRATION = process.env.ACCESS_TOKEN_EXPIRATION || '15m';\nconst REFRESH_TOKEN_EXPIRATION = process.env.REFRESH_TOKEN_EXPIRATION || '7d';\n\nexport const generateAccessToken = (payload: JwtPayload): string => {\n  return sign(payload, ACCESS_TOKEN_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRATION });\n};\n\nexport const generateRefreshToken = (payload: JwtPayload): string => {\n  return sign(payload, REFRESH_TOKEN_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRATION });\n};\n\nexport const verifyAccessToken = (token: string): JwtPayload | null => {\n  try {\n    return verify(token, ACCESS_TOKEN_SECRET) as JwtPayload;\n  } catch (error) {\n    return null;\n  }\n};\n\nexport const verifyRefreshToken = (token: string): JwtPayload | null => {\n  try {\n    return verify(token, REFRESH_TOKEN_SECRET) as JwtPayload;\n  } catch (error) {\n    return null;\n  }\n};\n\nexport const getRefreshTokenExpirationTime = (): number => {\n  // This is a simplified way to get the expiration time in milliseconds.\n  // In a real app, you'd parse REFRESH_TOKEN_EXPIRATION string more robustly.\n  const days = parseInt(REFRESH_TOKEN_EXPIRATION.replace('d', ''), 10);\n  return Date.now() + (days * 24 * 60 * 60 * 1000);\n};\n```\n\n```aether:src/utils/refreshTokenStore.ts\nimport { RefreshTokenData } from '../types';\nimport { getRefreshTokenExpirationTime } from './jwt';\n\n/**\n * A simple in-memory store for refresh tokens.\n * In a production environment, this would be replaced by a persistent store\n * like a database (e.g., Redis, PostgreSQL) to ensure durability and scalability.\n *\n * Key: The refresh token string itself.\n * Value: RefreshTokenData containing userId, creation/expiration timestamps, and validity status.\n */\nconst refreshTokenStore = new Map<string, RefreshTokenData>();\n\nexport const storeRefreshToken = (token: string, userId: string): void => {\n  const now = Date.now();\n  const expiresAt = getRefreshTokenExpirationTime(); // Get expiration based on JWT config\n  refreshTokenStore.set(token, { userId, createdAt: now, expiresAt, isValid: true });\n  console.log(`Stored refresh token for user ${userId}. Total tokens: ${refreshTokenStore.size}`);\n};\n\nexport const getRefreshToken = (token: string): RefreshTokenData | undefined => {\n  const tokenData = refreshTokenStore.get(token);\n  if (tokenData && tokenData.expiresAt < Date.now()) {\n    // Token has expired in our store, even if JWT verification might still pass for a short while.\n    // Remove it and return undefined.\n    refreshTokenStore.delete(token);\n    return undefined;\n  }\n  return tokenData;\n};\n\nexport const invalidateRefreshToken = (token: string): void => {\n  const tokenData = refreshTokenStore.get(token);\n  if (tokenData) {\n    tokenData.isValid = false;\n    // Optionally, remove it immediately or after a grace period\n    refreshTokenStore.delete(token); // For simplicity, remove immediately\n    console.log(`Invalidated and removed refresh token.`);\n  }\n};\n\n/**\n * Cleans up expired tokens from the store.\n * In a real app, this would be a scheduled task.\n */\nexport const cleanupExpiredTokens = (): void => {\n  const now = Date.now();\n  let cleanedCount = 0;\n  for (const [token, data] of refreshTokenStore.entries()) {\n    if (data.expiresAt < now || !data.isValid) {\n      refreshTokenStore.delete(token);\n      cleanedCount++;\n    }\n  }\n  if (cleanedCount > 0) {\n    console.log(`Cleaned up ${cleanedCount} expired/invalidated refresh tokens.`);\n  }\n};\n\n// Example: Run cleanup every hour (in a real app, this would be a background job)\nsetInterval(cleanupExpiredTokens, 60 * 60 * 1000);\n```\n\n```aether:src/routes/auth.ts\nimport { Hono } from 'hono';\nimport { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';\nimport { getRefreshToken, invalidateRefreshToken, storeRefreshToken } from '../utils/refreshTokenStore';\n\nconst authRoutes = new Hono();\n\nauthRoutes.post('/refresh', async (c) => {\n  const { refreshToken } = await c.req.json();\n\n  if (!refreshToken) {\n    return c.json({ message: 'Refresh token is required' }, 400);\n  }\n\n  // 1. Verify the refresh token's signature and expiration\n  const decodedRefreshToken = verifyRefreshToken(refreshToken);\n  if (!decodedRefreshToken) {\n    // If the token is invalid or expired, respond with 401\n    return c.json({ message: 'Invalid or expired refresh token' }, 401);\n  }\n\n  // 2. Check if the refresh token exists and is valid in our store\n  const storedTokenData = getRefreshToken(refreshToken);\n  if (!storedTokenData || !storedTokenData.isValid || storedTokenData.userId !== decodedRefreshToken.userId) {\n    // If the token is not found, invalidated, or doesn't match the decoded user,\n    // it might indicate a stolen token or an attempt to use an invalidated token.\n    // Invalidate all tokens for this user to prevent further use of potentially compromised tokens.\n    // (This is a security measure, might be too aggressive for some apps)\n    // For simplicity, we just return 401 here.\n    return c.json({ message: 'Invalid or revoked refresh token' }, 401);\n  }\n\n  // 3. Invalidate the old refresh token (rotation)\n  invalidateRefreshToken(refreshToken);\n\n  // 4. Generate a new access token\n  const newAccessToken = generateAccessToken({ userId: decodedRefreshToken.userId });\n\n  // 5. Generate a new refresh token\n  const newRefreshToken = generateRefreshToken({ userId: decodedRefreshToken.userId });\n\n  // 6. Store the new refresh token\n  storeRefreshToken(newRefreshToken, decodedRefreshToken.userId);\n\n  return c.json({\n    accessToken: newAccessToken,\n    refreshToken: newRefreshToken,\n  });\n});\n\n// Example login route for demonstration purposes (not part of the core feature request, but useful for testing)\nauthRoutes.post('/login', async (c) => {\n  const { username, password } = await c.req.json();\n\n  // In a real app, you'd verify username/password against a database\n  if (username === 'user' && password === 'password') {\n    const userId = 'user123'; // Example user ID\n\n    const accessToken = generateAccessToken({ userId });\n    const refreshToken = generateRefreshToken({ userId });\n\n    storeRefreshToken(refreshToken, userId);\n\n    return c.json({\n      message: 'Login successful',\n      accessToken,\n      refreshToken,\n    });\n  } else {\n    return c.json({ message: 'Invalid credentials' }, 401);\n  }\n});\n\n\nexport default authRoutes;\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport authRoutes from './routes/auth';\n\nconst app = new Hono();\n\napp.get('/', (c) => {\n  return c.text('Hono API is running!');\n});\n\n// Mount authentication routes under /auth\napp.route('/auth', authRoutes);\n\n// Global error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ message: 'Internal Server Error' }, 500);\n});\n\nexport default app;\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 866
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 468
+      }
+    ],
+    "durationMs": 1340
+  }
+}

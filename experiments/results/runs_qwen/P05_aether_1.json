@@ -1,0 +1,306 @@
+{
+  "promptId": "P05",
+  "targetDesc": "Create a create-task route that accepts { title, description, assigneeId }, validates with Zod, and inserts a new task belonging to the caller's team. Enforce the invariant that a task must belong to exactly one team.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 34520,
+      "tokensIn": 1083,
+      "tokensOut": 1104,
+      "wallMs": 37579,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Handles task creation, retrieval, and management utilities.',\n\n  dependencies: { modules: ['auth'] },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/tasks/create', auth: true },\n    ],\n    functions: ['createTask'],\n    types: ['Task', 'TaskError'],\n  },\n\n  sideEffects: [\n    'writes to: tasks table',\n  ],\n\n  invariants: [\n    'A task must always be bound to exactly one team',\n  ],\n});"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/lib/queries.ts\nimport { query } from '../lib/db';\nimport { Task, TaskError } from '../lib/types';\n\nexport async function createTask(title: string, description: string, assigneeId: number): Promise<Result<Task, TaskError>> {\n  try {\n    const result = await query<Task>('INSERT INTO tasks (title, description, assignee_id) VALUES ($1, $2, $3) RETURNING *', [title, description, assigneeId]);\n    return ok(result.rows[0]);\n  } catch (error) {\n    return err({ code: 'TASK_CREATE_ERROR', message: 'Failed to create task' });\n  }\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/routes/create-task.ts\nimport { requireUser } from '../lib/auth';\nimport { parseBody, Result, ok, err } from '../lib/result';\nimport { TaskError } from '../lib/types';\nimport { createTask } from '../lib/queries';\n\nexport async function createTaskHandler(req: Request): Promise<Response> {\n  const user = await requireUser(req);\n  if (!user) return err({ code: 'UNAUTHORIZED', message: 'Unauthorized' });\n\n  const body = parseBody<{ title: string, description: string, assigneeId: number }>(req.body);\n  if (body.isErr()) return body;\n\n  const { title, description, assigneeId } = body.value;\n  if (!assigneeId) return err({ code: 'INVALID_INPUT', message: 'Assignee ID is required' });\n\n  const result = await createTask(title, description, assigneeId);\n  if (result.isErr()) return err(result.error);\n\n  return ok({ status: 201, body: result.value });\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/lib/types.ts\nimport { Result } from '../lib/result';\n\nexport interface Task {\n  id: number;\n  title: string;\n  description: string;\n  assignee_id: number;\n}\n\nexport interface TaskError {\n  code: string;\n  message: string;\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// lib/db.ts\nimport { Pool, Client } from 'pg';\nimport { query as pgQuery } from 'pg';\n\nconst pool = new Pool({\n  user: 'your_user',\n  host: 'localhost',\n  database: 'your_database',\n  password: 'your_password',\n  port: 5432,\n});\n\nexport async function query<T>(text: string, params?: any[]): Promise<Result<T[], Error>> {\n  try {\n    const client = await pool.connect();\n    const result = await client.query(text, params);\n    client.release();\n    return ok(result.rows as T[]);\n  } catch (error) {\n    return err(error);\n  }\n}\n\nexport async function transaction<T>(fn: (client: Client) => Promise<Result<T[], Error>>): Promise<Result<T[], Error>> {\n  try {\n    const client = await pool.connect();\n    await client.query('BEGIN');\n    const result = await fn(client);\n    if (result.isOk()) {\n      await client.query('COMMIT');\n    } else {\n      await client.query('ROLLBACK');\n    }\n    client.release();\n    return result;\n  } catch (error) {\n    return err(error);\n  }\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// lib/auth.ts\nimport { requireUser as authRequireUser } from '../modules/auth/lib/queries';\n\nexport async function requireUser(req: Request): Promise<User | null> {\n  const token = req.headers.authorization?.split(' ')[1];\n  if (!token) return null;\n  return await authRequireUser(token);\n}\n\nexport async function getSession(req: Request): Promise<Session | null> {\n  const user = await requireUser(req);\n  if (!user) return null;\n  // Implement session retrieval logic here\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// lib/result.ts\nexport type Result<T, E> = Ok<T> | Err<E>;\n\ninterface Ok<T> {\n  readonly isOk: true;\n  readonly value: T;\n}\n\ninterface Err<E> {\n  readonly isOk: false;\n  readonly error: E;\n}\n\nexport function ok<T>(value: T): Ok<T> {\n  return { isOk: true, value };\n}\n\nexport function err<E>(error: E): Err<E> {\n  return { isOk: false, error };\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// lib/types.ts\nexport interface User {\n  id: number;\n  username: string;\n  email: string;\n}\n\nexport interface Session {\n  id: number;\n  user_id: number;\n  token: string;\n  expires_at: Date;\n}"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 37579,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Handles task creation, retrieval, and management utilities.',\n\n  dependencies: { modules: ['auth'] },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/tasks/create', auth: true },\n    ],\n    functions: ['createTask'],\n    types: ['Task', 'TaskError'],\n  },\n\n  sideEffects: [\n    'writes to: tasks table',\n  ],\n\n  invariants: [\n    'A task must always be bound to exactly one team',\n  ],\n});"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/lib/queries.ts\nimport { query } from '../lib/db';\nimport { Task, TaskError } from '../lib/types';\n\nexport async function createTask(title: string, description: string, assigneeId: number): Promise<Result<Task, TaskError>> {\n  try {\n    const result = await query<Task>('INSERT INTO tasks (title, description, assignee_id) VALUES ($1, $2, $3) RETURNING *', [title, description, assigneeId]);\n    return ok(result.rows[0]);\n  } catch (error) {\n    return err({ code: 'TASK_CREATE_ERROR', message: 'Failed to create task' });\n  }\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/routes/create-task.ts\nimport { requireUser } from '../lib/auth';\nimport { parseBody, Result, ok, err } from '../lib/result';\nimport { TaskError } from '../lib/types';\nimport { createTask } from '../lib/queries';\n\nexport async function createTaskHandler(req: Request): Promise<Response> {\n  const user = await requireUser(req);\n  if (!user) return err({ code: 'UNAUTHORIZED', message: 'Unauthorized' });\n\n  const body = parseBody<{ title: string, description: string, assigneeId: number }>(req.body);\n  if (body.isErr()) return body;\n\n  const { title, description, assigneeId } = body.value;\n  if (!assigneeId) return err({ code: 'INVALID_INPUT', message: 'Assignee ID is required' });\n\n  const result = await createTask(title, description, assigneeId);\n  if (result.isErr()) return err(result.error);\n\n  return ok({ status: 201, body: result.value });\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/lib/types.ts\nimport { Result } from '../lib/result';\n\nexport interface Task {\n  id: number;\n  title: string;\n  description: string;\n  assignee_id: number;\n}\n\nexport interface TaskError {\n  code: string;\n  message: string;\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// lib/db.ts\nimport { Pool, Client } from 'pg';\nimport { query as pgQuery } from 'pg';\n\nconst pool = new Pool({\n  user: 'your_user',\n  host: 'localhost',\n  database: 'your_database',\n  password: 'your_password',\n  port: 5432,\n});\n\nexport async function query<T>(text: string, params?: any[]): Promise<Result<T[], Error>> {\n  try {\n    const client = await pool.connect();\n    const result = await client.query(text, params);\n    client.release();\n    return ok(result.rows as T[]);\n  } catch (error) {\n    return err(error);\n  }\n}\n\nexport async function transaction<T>(fn: (client: Client) => Promise<Result<T[], Error>>): Promise<Result<T[], Error>> {\n  try {\n    const client = await pool.connect();\n    await client.query('BEGIN');\n    const result = await fn(client);\n    if (result.isOk()) {\n      await client.query('COMMIT');\n    } else {\n      await client.query('ROLLBACK');\n    }\n    client.release();\n    return result;\n  } catch (error) {\n    return err(error);\n  }\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// lib/auth.ts\nimport { requireUser as authRequireUser } from '../modules/auth/lib/queries';\n\nexport async function requireUser(req: Request): Promise<User | null> {\n  const token = req.headers.authorization?.split(' ')[1];\n  if (!token) return null;\n  return await authRequireUser(token);\n}\n\nexport async function getSession(req: Request): Promise<Session | null> {\n  const user = await requireUser(req);\n  if (!user) return null;\n  // Implement session retrieval logic here\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// lib/result.ts\nexport type Result<T, E> = Ok<T> | Err<E>;\n\ninterface Ok<T> {\n  readonly isOk: true;\n  readonly value: T;\n}\n\ninterface Err<E> {\n  readonly isOk: false;\n  readonly error: E;\n}\n\nexport function ok<T>(value: T): Ok<T> {\n  return { isOk: true, value };\n}\n\nexport function err<E>(error: E): Err<E> {\n  return { isOk: false, error };\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// lib/types.ts\nexport interface User {\n  id: number;\n  username: string;\n  email: string;\n}\n\nexport interface Session {\n  id: number;\n  user_id: number;\n  token: string;\n  expires_at: Date;\n}"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 851
+      }
+    ],
+    "durationMs": 1671
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 877
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 509
+      }
+    ],
+    "durationMs": 1388
+  }
+}

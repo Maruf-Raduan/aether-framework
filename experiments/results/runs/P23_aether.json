@@ -1,0 +1,250 @@
+{
+  "promptId": "P23",
+  "targetDesc": "Create a route that sends a notification to a list of user ids. The notification is persisted in DB and dispatched via email/push. Caller must be a system service account.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 20370,
+      "tokensIn": 1199,
+      "tokensOut": 1537,
+      "wallMs": 23358,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:modules/notifications/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'notifications',\n  description: 'Handles sending and managing user notifications.',\n\n  dependencies: {\n    modules: ['auth'],\n  },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/notifications/send', auth: true }, // Auth required, but with internal role check\n    ],\n    functions: ['sendNotification'],\n    types: ['Notification', 'NotificationError'],\n  },\n\n  sideEffects: [\n    'writes to: notifications table',\n    'dispatches: email/push notifications',\n  ],\n\n  invariants: [\n    'Notifications must always be associated with a valid user ID.',\n    'Only system accounts can send notifications via the API.',\n  ],\n});\n```\n\n```aether:modules/notifications/types.ts\nimport { AuthError } from 'auth/module.contract'; // Assuming AuthError is exposed\n\nexport type Notification = {\n  id: string;\n  userId: string;\n  message: string;\n  status: 'pending' | 'sent' | 'failed';\n  createdAt: Date;\n  sentAt: Date | null;\n};\n\nexport type NotificationError =\n  | { type: 'DatabaseError'; message: string }\n  | { type: 'ValidationError'; message: string }\n  | { type: 'UnauthorizedError'; message: string }\n  | AuthError; // Re-exporting AuthError for convenience\n```\n\n```aether:modules/notifications/services/notificationService.ts\nimport { query } from 'lib/db';\nimport { ok, err, Result } from 'lib/result';\nimport { Notification, NotificationError } from '../types';\n\n/**\n * Persists notifications in the database and conceptually dispatches them.\n * In a real application, this would trigger an actual email/push service.\n */\nexport async function sendNotification(\n  userIds: string[],\n  message: string,\n): Promise<Result<true, NotificationError>> {\n  if (userIds.length === 0) {\n    return err({ type: 'ValidationError', message: 'No user IDs provided.' });\n  }\n  if (!message.trim()) {\n    return err({ type: 'ValidationError', message: 'Notification message cannot be empty.' });\n  }\n\n  const now = new Date();\n  const values = userIds.map(userId => `('${userId}', '${message}', 'pending', '${now.toISOString()}')`).join(',');\n\n  const insertSql = `\n    INSERT INTO notifications (user_id, message, status, created_at)\n    VALUES ${values}\n    RETURNING id;\n  `;\n\n  const dbResult = await query(insertSql);\n\n  if (dbResult.isErr()) {\n    console.error('Database error sending notification:', dbResult.error);\n    return err({ type: 'DatabaseError', message: 'Failed to persist notifications.' });\n  }\n\n  // In a real application, this is where you'd call an external service\n  // to send emails or push notifications for each user.\n  console.log(`[NOTIFICATION SERVICE] Dispatched notifications to ${userIds.length} users.`);\n\n  return ok(true);\n}\n```\n\n```aether:modules/notifications/routes/send.ts\nimport { requireUser } from 'lib/auth';\nimport { parseBody } from 'lib/validate';\nimport { ok, err } from 'lib/result';\nimport { sendNotification } from '../services/notificationService';\nimport { NotificationError } from '../types';\nimport { User } from 'auth/module.contract'; // Import User type from auth module contract\nimport { z } from 'zod';\n\n// Define the schema for the request body\nconst SendNotificationSchema = z.object({\n  userIds: z.array(z.string().uuid('Invalid user ID format')).min(1, 'At least one user ID is required.'),\n  message: z.string().min(1, 'Notification message cannot be empty.'),\n});\n\ntype SendNotificationBody = z.infer<typeof SendNotificationSchema>;\n\nexport default async function sendNotificationRoute(req: Request): Promise<Response> {\n  // 1. Authenticate the user and check for 'system' role\n  const userResult = await requireUser(req);\n  if (userResult.isErr()) {\n    // AuthError from requireUser is already a NotificationError type\n    return new Response(JSON.stringify({ error: userResult.error.message }), { status: 401, headers: { 'Content-Type': 'application/json' } });\n  }\n\n  const user: User = userResult.value;\n\n  // Explicit role check for system service account\n  if (user.role !== 'system') {\n    const error: NotificationError = { type: 'UnauthorizedError', message: 'Only system accounts can send notifications.' };\n    return new Response(JSON.stringify({ error: error.message }), { status: 403, headers: { 'Content-Type': 'application/json' } });\n  }\n\n  // 2. Validate the request body\n  const bodyResult = await parseBody<SendNotificationBody>(req, SendNotificationSchema);\n  if (bodyResult.isErr()) {\n    const error: NotificationError = { type: 'ValidationError', message: bodyResult.error.message };\n    return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { 'Content-Type': 'application/json' } });\n  }\n\n  const { userIds, message } = bodyResult.value;\n\n  // 3. Call the service to send notifications\n  const notificationResult = await sendNotification(userIds, message);\n\n  if (notificationResult.isErr()) {\n    const error = notificationResult.error;\n    let statusCode = 500; // Default to internal server error\n\n    switch (error.type) {\n      case 'ValidationError':\n        statusCode = 400;\n        break;\n      case 'DatabaseError':\n        statusCode = 500;\n        break;\n      // AuthError and UnauthorizedError are handled earlier, but included for completeness\n      case 'AuthError':\n        statusCode = 401;\n        break;\n      case 'UnauthorizedError':\n        statusCode = 403;\n        break;\n    }\n    return new Response(JSON.stringify({ error: error.message }), { status: statusCode, headers: { 'Content-Type': 'application/json' } });\n  }\n\n  // 4. Return success response\n  return new Response(JSON.stringify({ message: 'Notifications sent successfully.' }), { status: 200, headers: { 'Content-Type': 'application/json' } });\n}\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 23358,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:modules/notifications/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'notifications',\n  description: 'Handles sending and managing user notifications.',\n\n  dependencies: {\n    modules: ['auth'],\n  },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/notifications/send', auth: true }, // Auth required, but with internal role check\n    ],\n    functions: ['sendNotification'],\n    types: ['Notification', 'NotificationError'],\n  },\n\n  sideEffects: [\n    'writes to: notifications table',\n    'dispatches: email/push notifications',\n  ],\n\n  invariants: [\n    'Notifications must always be associated with a valid user ID.',\n    'Only system accounts can send notifications via the API.',\n  ],\n});\n```\n\n```aether:modules/notifications/types.ts\nimport { AuthError } from 'auth/module.contract'; // Assuming AuthError is exposed\n\nexport type Notification = {\n  id: string;\n  userId: string;\n  message: string;\n  status: 'pending' | 'sent' | 'failed';\n  createdAt: Date;\n  sentAt: Date | null;\n};\n\nexport type NotificationError =\n  | { type: 'DatabaseError'; message: string }\n  | { type: 'ValidationError'; message: string }\n  | { type: 'UnauthorizedError'; message: string }\n  | AuthError; // Re-exporting AuthError for convenience\n```\n\n```aether:modules/notifications/services/notificationService.ts\nimport { query } from 'lib/db';\nimport { ok, err, Result } from 'lib/result';\nimport { Notification, NotificationError } from '../types';\n\n/**\n * Persists notifications in the database and conceptually dispatches them.\n * In a real application, this would trigger an actual email/push service.\n */\nexport async function sendNotification(\n  userIds: string[],\n  message: string,\n): Promise<Result<true, NotificationError>> {\n  if (userIds.length === 0) {\n    return err({ type: 'ValidationError', message: 'No user IDs provided.' });\n  }\n  if (!message.trim()) {\n    return err({ type: 'ValidationError', message: 'Notification message cannot be empty.' });\n  }\n\n  const now = new Date();\n  const values = userIds.map(userId => `('${userId}', '${message}', 'pending', '${now.toISOString()}')`).join(',');\n\n  const insertSql = `\n    INSERT INTO notifications (user_id, message, status, created_at)\n    VALUES ${values}\n    RETURNING id;\n  `;\n\n  const dbResult = await query(insertSql);\n\n  if (dbResult.isErr()) {\n    console.error('Database error sending notification:', dbResult.error);\n    return err({ type: 'DatabaseError', message: 'Failed to persist notifications.' });\n  }\n\n  // In a real application, this is where you'd call an external service\n  // to send emails or push notifications for each user.\n  console.log(`[NOTIFICATION SERVICE] Dispatched notifications to ${userIds.length} users.`);\n\n  return ok(true);\n}\n```\n\n```aether:modules/notifications/routes/send.ts\nimport { requireUser } from 'lib/auth';\nimport { parseBody } from 'lib/validate';\nimport { ok, err } from 'lib/result';\nimport { sendNotification } from '../services/notificationService';\nimport { NotificationError } from '../types';\nimport { User } from 'auth/module.contract'; // Import User type from auth module contract\nimport { z } from 'zod';\n\n// Define the schema for the request body\nconst SendNotificationSchema = z.object({\n  userIds: z.array(z.string().uuid('Invalid user ID format')).min(1, 'At least one user ID is required.'),\n  message: z.string().min(1, 'Notification message cannot be empty.'),\n});\n\ntype SendNotificationBody = z.infer<typeof SendNotificationSchema>;\n\nexport default async function sendNotificationRoute(req: Request): Promise<Response> {\n  // 1. Authenticate the user and check for 'system' role\n  const userResult = await requireUser(req);\n  if (userResult.isErr()) {\n    // AuthError from requireUser is already a NotificationError type\n    return new Response(JSON.stringify({ error: userResult.error.message }), { status: 401, headers: { 'Content-Type': 'application/json' } });\n  }\n\n  const user: User = userResult.value;\n\n  // Explicit role check for system service account\n  if (user.role !== 'system') {\n    const error: NotificationError = { type: 'UnauthorizedError', message: 'Only system accounts can send notifications.' };\n    return new Response(JSON.stringify({ error: error.message }), { status: 403, headers: { 'Content-Type': 'application/json' } });\n  }\n\n  // 2. Validate the request body\n  const bodyResult = await parseBody<SendNotificationBody>(req, SendNotificationSchema);\n  if (bodyResult.isErr()) {\n    const error: NotificationError = { type: 'ValidationError', message: bodyResult.error.message };\n    return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { 'Content-Type': 'application/json' } });\n  }\n\n  const { userIds, message } = bodyResult.value;\n\n  // 3. Call the service to send notifications\n  const notificationResult = await sendNotification(userIds, message);\n\n  if (notificationResult.isErr()) {\n    const error = notificationResult.error;\n    let statusCode = 500; // Default to internal server error\n\n    switch (error.type) {\n      case 'ValidationError':\n        statusCode = 400;\n        break;\n      case 'DatabaseError':\n        statusCode = 500;\n        break;\n      // AuthError and UnauthorizedError are handled earlier, but included for completeness\n      case 'AuthError':\n        statusCode = 401;\n        break;\n      case 'UnauthorizedError':\n        statusCode = 403;\n        break;\n    }\n    return new Response(JSON.stringify({ error: error.message }), { status: statusCode, headers: { 'Content-Type': 'application/json' } });\n  }\n\n  // 4. Return success response\n  return new Response(JSON.stringify({ message: 'Notifications sent successfully.' }), { status: 200, headers: { 'Content-Type': 'application/json' } });\n}\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 820
+      }
+    ],
+    "durationMs": 1629
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 857
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 500
+      }
+    ],
+    "durationMs": 1359
+  }
+}

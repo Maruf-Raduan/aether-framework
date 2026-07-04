@@ -1,0 +1,113 @@
+{
+  "promptId": "P26",
+  "targetDesc": "Create a route that returns the team's task velocity over the last 30 days: tasks completed per day, average cycle time, WIP count. Read-only, no side effects.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 21761,
+      "tokensIn": 147,
+      "tokensOut": 481,
+      "wallMs": 23137,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/taskVelocity.ts",
+          "content": "import { Hono } from 'hono';\nimport { z } from 'zod';\n\nconst app = new Hono();\n\napp.get('/task-velocity', async (c) => {\n  // Simulated data for demonstration purposes\n  const tasks = [\n    { id: 1, completedAt: new Date('2023-10-01T08:00:00Z') },\n    { id: 2, completedAt: new Date('2023-10-02T14:00:00Z') },\n    // ... more tasks ...\n  ];\n\n  const today = new Date();\n  const thirtyDaysAgo = new Date(today);\n  thirtyDaysAgo.setDate(today.getDate() - 30);\n\n  const taskVelocityData = {\n    tasksCompletedPerDay: {},\n    averageCycleTime: 0,\n    wipCount: 0,\n  };\n\n  // Calculate tasks completed per day\n  for (const task of tasks) {\n    if (task.completedAt >= thirtyDaysAgo && task.completedAt <= today) {\n      const date = task.completedAt.toISOString().split('T')[0];\n      taskVelocityData.tasksCompletedPerDay[date] = (taskVelocityData.tasksCompletedPerDay[date] || 0) + 1;\n    }\n  }\n\n  // Calculate average cycle time\n  let totalCycleTime = 0;\n  for (const task of tasks) {\n    if (task.completedAt >= thirtyDaysAgo && task.completedAt <= today) {\n      const cycleTime = task.completedAt.getTime() - task.createdAt.getTime();\n      totalCycleTime += cycleTime;\n    }\n  }\n  taskVelocityData.averageCycleTime = tasks.length > 0 ? totalCycleTime / tasks.length : 0;\n\n  // Calculate WIP count\n  for (const task of tasks) {\n    if (task.completedAt >= thirtyDaysAgo && task.completedAt <= today) {\n      const wipCount = tasks.filter(t => t.completedAt === null).length;\n      taskVelocityData.wipCount = Math.max(taskVelocityData.wipCount, wipCount);\n    }\n  }\n\n  return c.json(taskVelocityData);\n});\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 23137,
+  "finalFiles": [
+    {
+      "path": "/src/routes/taskVelocity.ts",
+      "content": "import { Hono } from 'hono';\nimport { z } from 'zod';\n\nconst app = new Hono();\n\napp.get('/task-velocity', async (c) => {\n  // Simulated data for demonstration purposes\n  const tasks = [\n    { id: 1, completedAt: new Date('2023-10-01T08:00:00Z') },\n    { id: 2, completedAt: new Date('2023-10-02T14:00:00Z') },\n    // ... more tasks ...\n  ];\n\n  const today = new Date();\n  const thirtyDaysAgo = new Date(today);\n  thirtyDaysAgo.setDate(today.getDate() - 30);\n\n  const taskVelocityData = {\n    tasksCompletedPerDay: {},\n    averageCycleTime: 0,\n    wipCount: 0,\n  };\n\n  // Calculate tasks completed per day\n  for (const task of tasks) {\n    if (task.completedAt >= thirtyDaysAgo && task.completedAt <= today) {\n      const date = task.completedAt.toISOString().split('T')[0];\n      taskVelocityData.tasksCompletedPerDay[date] = (taskVelocityData.tasksCompletedPerDay[date] || 0) + 1;\n    }\n  }\n\n  // Calculate average cycle time\n  let totalCycleTime = 0;\n  for (const task of tasks) {\n    if (task.completedAt >= thirtyDaysAgo && task.completedAt <= today) {\n      const cycleTime = task.completedAt.getTime() - task.createdAt.getTime();\n      totalCycleTime += cycleTime;\n    }\n  }\n  taskVelocityData.averageCycleTime = tasks.length > 0 ? totalCycleTime / tasks.length : 0;\n\n  // Calculate WIP count\n  for (const task of tasks) {\n    if (task.completedAt >= thirtyDaysAgo && task.completedAt <= today) {\n      const wipCount = tasks.filter(t => t.completedAt === null).length;\n      taskVelocityData.wipCount = Math.max(taskVelocityData.wipCount, wipCount);\n    }\n  }\n\n  return c.json(taskVelocityData);\n});\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 883
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 490
+      }
+    ],
+    "durationMs": 1376
+  }
+}

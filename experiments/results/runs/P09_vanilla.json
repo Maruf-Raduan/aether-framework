@@ -1,0 +1,113 @@
+{
+  "promptId": "P09",
+  "targetDesc": "Create an archive route that moves finished tasks older than 30 days to an archived_tasks table. Use a single transaction.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 16194,
+      "tokensIn": 177,
+      "tokensOut": 2196,
+      "wallMs": 17708,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types.ts\nexport type TaskStatus = 'pending' | 'in_progress' | 'finished';\n\nexport interface Task {\n  id: string;\n  title: string;\n  description?: string;\n  status: TaskStatus;\n  created_at: Date;\n  updated_at: Date;\n  finished_at?: Date;\n}\n\nexport interface ArchivedTask extends Task {\n  archived_at: Date; // Add an archived_at timestamp for archived tasks\n}\n```\n\n```aether:src/db.ts\nimport { Pool, PoolClient } from 'pg';\n\n// Basic database configuration. In a real app, this would come from environment variables.\nconst pool = new Pool({\n  user: process.env.DB_USER || 'postgres',\n  host: process.env.DB_HOST || 'localhost',\n  database: process.env.DB_NAME || 'task_manager',\n  password: process.env.DB_PASSWORD || 'password',\n  port: parseInt(process.env.DB_PORT || '5432', 10),\n});\n\n/**\n * Executes a callback within a database transaction.\n * Automatically handles transaction start, commit, and rollback on error.\n *\n * @param callback The function to execute within the transaction. It receives a PoolClient.\n * @returns The result of the callback function.\n * @throws Any error thrown by the callback or during transaction management.\n */\nexport async function transaction<T>(callback: (client: PoolClient) => Promise<T>): Promise<T> {\n  const client = await pool.connect();\n  try {\n    await client.query('BEGIN');\n    const result = await callback(client);\n    await client.query('COMMIT');\n    return result;\n  } catch (error) {\n    await client.query('ROLLBACK');\n    console.error('Transaction rolled back due to error:', error);\n    throw error;\n  } finally {\n    client.release();\n  }\n}\n\n/**\n * Executes a single database query.\n * @param query The SQL query string.\n * @param values Optional array of query parameters.\n * @returns The result of the query.\n */\nexport async function query<T>(query: string, values?: any[]): Promise<T[]> {\n  const { rows } = await pool.query(query, values);\n  return rows;\n}\n\n// Optional: Add a graceful shutdown for the pool\nprocess.on('SIGINT', async () => {\n  console.log('Shutting down database pool...');\n  await pool.end();\n  console.log('Database pool shut down.');\n  process.exit(0);\n});\n```\n\n```aether:src/routes/archive.ts\nimport { Hono } from 'hono';\nimport { transaction } from '../db';\nimport { Task } from '../types';\n\nconst archive = new Hono();\n\n/**\n * POST /archive\n * Archives finished tasks older than 30 days.\n * Moves them from the 'tasks' table to the 'archived_tasks' table within a single transaction.\n */\narchive.post('/', async (c) => {\n  try {\n    const archivedCount = await transaction(async (client) => {\n      // 1. Select tasks that are finished and older than 30 days\n      // We use RETURNING * to get the full task data for insertion into archived_tasks\n      const selectAndInsertQuery = `\n        WITH tasks_to_archive AS (\n          SELECT id, title, description, status, created_at, updated_at, finished_at\n          FROM tasks\n          WHERE status = 'finished' AND finished_at < NOW() - INTERVAL '30 days'\n          FOR UPDATE SKIP LOCKED -- Prevents deadlocks if other transactions are also trying to modify these rows\n        )\n        INSERT INTO archived_tasks (id, title, description, status, created_at, updated_at, finished_at, archived_at)\n        SELECT id, title, description, status, created_at, updated_at, finished_at, NOW()\n        FROM tasks_to_archive\n        RETURNING id;\n      `;\n\n      const insertedTasksResult = await client.query<{ id: string }>(selectAndInsertQuery);\n      const archivedTaskIds = insertedTasksResult.rows.map(row => row.id);\n\n      if (archivedTaskIds.length === 0) {\n        return 0; // No tasks to archive\n      }\n\n      // 2. Delete the archived tasks from the 'tasks' table\n      const deleteQuery = `\n        DELETE FROM tasks\n        WHERE id = ANY($1::uuid[]);\n      `;\n\n      const deletedTasksResult = await client.query(deleteQuery, [archivedTaskIds]);\n\n      // Ensure the number of deleted tasks matches the number of inserted tasks\n      if (deletedTasksResult.rowCount !== archivedTaskIds.length) {\n        throw new Error('Mismatch between inserted and deleted task counts during archive operation.');\n      }\n\n      return deletedTasksResult.rowCount;\n    });\n\n    return c.json({\n      message: `Successfully archived ${archivedCount} tasks.`,\n      archivedCount,\n    }, 200);\n\n  } catch (error) {\n    console.error('Failed to archive tasks:', error);\n    return c.json({\n      message: 'Failed to archive tasks.',\n      error: (error as Error).message,\n    }, 500);\n  }\n});\n\nexport default archive;\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { logger } from 'hono/logger';\nimport { prettyJSON } from 'hono/pretty-json';\nimport archiveRoute from './routes/archive';\n\nconst app = new Hono();\n\n// Middleware\napp.use(logger()); // Logs requests to the console\napp.use(prettyJSON()); // Formats JSON responses nicely\n\n// Routes\napp.get('/', (c) => {\n  return c.json({ message: 'Welcome to the Task Archiver API!' });\n});\n\napp.route('/archive', archiveRoute);\n\n// Error handling for unmatched routes\napp.notFound((c) => {\n  return c.json({ message: 'Not Found', ok: false }, 404);\n});\n\n// Global error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ message: 'Internal Server Error', error: err.message }, 500);\n});\n\nconst port = parseInt(process.env.PORT || '3000', 10);\nconsole.log(`Server is running on http://localhost:${port}`);\n\nexport default {\n  port,\n  fetch: app.fetch,\n};\n\n/*\nTo run this application:\n\n1.  **Install dependencies:**\n    ```bash\n    npm init -y\n    npm install hono pg @types/pg\n    npm install -D typescript ts-node @types/node\n    ```\n\n2.  **Create `tsconfig.json`:**\n    ```json\n    {\n      \"compilerOptions\": {\n        \"target\": \"ES2022\",\n        \"module\": \"ESNext\",\n        \"moduleResolution\": \"Node\",\n        \"strict\": true,\n        \"esModuleInterop\": true,\n        \"skipLibCheck\": true,\n        \"forceConsistentCasingInFileNames\": true,\n        \"outDir\": \"./dist\",\n        \"rootDir\": \"./src\"\n      },\n      \"include\": [\"src/**/*.ts\"],\n      \"exclude\": [\"node_modules\"]\n    }\n    ```\n\n3.  **Set up PostgreSQL database:**\n    You'll need a PostgreSQL database running.\n    Create a database named `task_manager` (or whatever you set `DB_NAME` to).\n\n    **Example SQL schema:**\n    ```sql\n    CREATE TABLE tasks (\n        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n        title VARCHAR(255) NOT NULL,\n        description TEXT,\n        status VARCHAR(50) NOT NULL DEFAULT 'pending',\n        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),\n        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),\n        finished_at TIMESTAMP WITH TIME ZONE\n    );\n\n    CREATE TABLE archived_tasks (\n        id UUID PRIMARY KEY,\n        title VARCHAR(255) NOT NULL,\n        description TEXT,\n        status VARCHAR(50) NOT NULL,\n        created_at TIMESTAMP WITH TIME ZONE NOT NULL,\n        updated_at TIMESTAMP WITH TIME ZONE NOT NULL,\n        finished_at TIMESTAMP WITH TIME ZONE,\n        archived_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n    );\n\n    -- Optional: Add some dummy data for testing\n    INSERT INTO tasks (title, status, finished_at) VALUES\n    ('Buy groceries', 'pending', NULL),\n    ('Finish report', 'finished', NOW() - INTERVAL '40 days'), -- Will be archived\n    ('Clean house', 'finished', NOW() - INTERVAL '10 days'),  -- Will NOT be archived\n    ('Pay bills', 'finished', NOW() - INTERVAL '35 days'),   -- Will be archived\n    ('Walk dog', 'in_progress', NULL);\n    ```\n\n4.  **Run the application:**\n    ```bash\n    npx ts-node src/index.ts\n    ```\n\n5.  **Test the archive route:**\n    Send a POST request to `http://localhost:3000/archive`.\n    You can use `curl`:\n    ```bash\n    curl -X POST http://localhost:3000/archive\n    ```\n    Or a tool like Postman/Insomnia.\n\n    Check your database tables (`tasks` and `archived_tasks`) to see the changes.\n*/\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 17709,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types.ts\nexport type TaskStatus = 'pending' | 'in_progress' | 'finished';\n\nexport interface Task {\n  id: string;\n  title: string;\n  description?: string;\n  status: TaskStatus;\n  created_at: Date;\n  updated_at: Date;\n  finished_at?: Date;\n}\n\nexport interface ArchivedTask extends Task {\n  archived_at: Date; // Add an archived_at timestamp for archived tasks\n}\n```\n\n```aether:src/db.ts\nimport { Pool, PoolClient } from 'pg';\n\n// Basic database configuration. In a real app, this would come from environment variables.\nconst pool = new Pool({\n  user: process.env.DB_USER || 'postgres',\n  host: process.env.DB_HOST || 'localhost',\n  database: process.env.DB_NAME || 'task_manager',\n  password: process.env.DB_PASSWORD || 'password',\n  port: parseInt(process.env.DB_PORT || '5432', 10),\n});\n\n/**\n * Executes a callback within a database transaction.\n * Automatically handles transaction start, commit, and rollback on error.\n *\n * @param callback The function to execute within the transaction. It receives a PoolClient.\n * @returns The result of the callback function.\n * @throws Any error thrown by the callback or during transaction management.\n */\nexport async function transaction<T>(callback: (client: PoolClient) => Promise<T>): Promise<T> {\n  const client = await pool.connect();\n  try {\n    await client.query('BEGIN');\n    const result = await callback(client);\n    await client.query('COMMIT');\n    return result;\n  } catch (error) {\n    await client.query('ROLLBACK');\n    console.error('Transaction rolled back due to error:', error);\n    throw error;\n  } finally {\n    client.release();\n  }\n}\n\n/**\n * Executes a single database query.\n * @param query The SQL query string.\n * @param values Optional array of query parameters.\n * @returns The result of the query.\n */\nexport async function query<T>(query: string, values?: any[]): Promise<T[]> {\n  const { rows } = await pool.query(query, values);\n  return rows;\n}\n\n// Optional: Add a graceful shutdown for the pool\nprocess.on('SIGINT', async () => {\n  console.log('Shutting down database pool...');\n  await pool.end();\n  console.log('Database pool shut down.');\n  process.exit(0);\n});\n```\n\n```aether:src/routes/archive.ts\nimport { Hono } from 'hono';\nimport { transaction } from '../db';\nimport { Task } from '../types';\n\nconst archive = new Hono();\n\n/**\n * POST /archive\n * Archives finished tasks older than 30 days.\n * Moves them from the 'tasks' table to the 'archived_tasks' table within a single transaction.\n */\narchive.post('/', async (c) => {\n  try {\n    const archivedCount = await transaction(async (client) => {\n      // 1. Select tasks that are finished and older than 30 days\n      // We use RETURNING * to get the full task data for insertion into archived_tasks\n      const selectAndInsertQuery = `\n        WITH tasks_to_archive AS (\n          SELECT id, title, description, status, created_at, updated_at, finished_at\n          FROM tasks\n          WHERE status = 'finished' AND finished_at < NOW() - INTERVAL '30 days'\n          FOR UPDATE SKIP LOCKED -- Prevents deadlocks if other transactions are also trying to modify these rows\n        )\n        INSERT INTO archived_tasks (id, title, description, status, created_at, updated_at, finished_at, archived_at)\n        SELECT id, title, description, status, created_at, updated_at, finished_at, NOW()\n        FROM tasks_to_archive\n        RETURNING id;\n      `;\n\n      const insertedTasksResult = await client.query<{ id: string }>(selectAndInsertQuery);\n      const archivedTaskIds = insertedTasksResult.rows.map(row => row.id);\n\n      if (archivedTaskIds.length === 0) {\n        return 0; // No tasks to archive\n      }\n\n      // 2. Delete the archived tasks from the 'tasks' table\n      const deleteQuery = `\n        DELETE FROM tasks\n        WHERE id = ANY($1::uuid[]);\n      `;\n\n      const deletedTasksResult = await client.query(deleteQuery, [archivedTaskIds]);\n\n      // Ensure the number of deleted tasks matches the number of inserted tasks\n      if (deletedTasksResult.rowCount !== archivedTaskIds.length) {\n        throw new Error('Mismatch between inserted and deleted task counts during archive operation.');\n      }\n\n      return deletedTasksResult.rowCount;\n    });\n\n    return c.json({\n      message: `Successfully archived ${archivedCount} tasks.`,\n      archivedCount,\n    }, 200);\n\n  } catch (error) {\n    console.error('Failed to archive tasks:', error);\n    return c.json({\n      message: 'Failed to archive tasks.',\n      error: (error as Error).message,\n    }, 500);\n  }\n});\n\nexport default archive;\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { logger } from 'hono/logger';\nimport { prettyJSON } from 'hono/pretty-json';\nimport archiveRoute from './routes/archive';\n\nconst app = new Hono();\n\n// Middleware\napp.use(logger()); // Logs requests to the console\napp.use(prettyJSON()); // Formats JSON responses nicely\n\n// Routes\napp.get('/', (c) => {\n  return c.json({ message: 'Welcome to the Task Archiver API!' });\n});\n\napp.route('/archive', archiveRoute);\n\n// Error handling for unmatched routes\napp.notFound((c) => {\n  return c.json({ message: 'Not Found', ok: false }, 404);\n});\n\n// Global error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ message: 'Internal Server Error', error: err.message }, 500);\n});\n\nconst port = parseInt(process.env.PORT || '3000', 10);\nconsole.log(`Server is running on http://localhost:${port}`);\n\nexport default {\n  port,\n  fetch: app.fetch,\n};\n\n/*\nTo run this application:\n\n1.  **Install dependencies:**\n    ```bash\n    npm init -y\n    npm install hono pg @types/pg\n    npm install -D typescript ts-node @types/node\n    ```\n\n2.  **Create `tsconfig.json`:**\n    ```json\n    {\n      \"compilerOptions\": {\n        \"target\": \"ES2022\",\n        \"module\": \"ESNext\",\n        \"moduleResolution\": \"Node\",\n        \"strict\": true,\n        \"esModuleInterop\": true,\n        \"skipLibCheck\": true,\n        \"forceConsistentCasingInFileNames\": true,\n        \"outDir\": \"./dist\",\n        \"rootDir\": \"./src\"\n      },\n      \"include\": [\"src/**/*.ts\"],\n      \"exclude\": [\"node_modules\"]\n    }\n    ```\n\n3.  **Set up PostgreSQL database:**\n    You'll need a PostgreSQL database running.\n    Create a database named `task_manager` (or whatever you set `DB_NAME` to).\n\n    **Example SQL schema:**\n    ```sql\n    CREATE TABLE tasks (\n        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n        title VARCHAR(255) NOT NULL,\n        description TEXT,\n        status VARCHAR(50) NOT NULL DEFAULT 'pending',\n        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),\n        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),\n        finished_at TIMESTAMP WITH TIME ZONE\n    );\n\n    CREATE TABLE archived_tasks (\n        id UUID PRIMARY KEY,\n        title VARCHAR(255) NOT NULL,\n        description TEXT,\n        status VARCHAR(50) NOT NULL,\n        created_at TIMESTAMP WITH TIME ZONE NOT NULL,\n        updated_at TIMESTAMP WITH TIME ZONE NOT NULL,\n        finished_at TIMESTAMP WITH TIME ZONE,\n        archived_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()\n    );\n\n    -- Optional: Add some dummy data for testing\n    INSERT INTO tasks (title, status, finished_at) VALUES\n    ('Buy groceries', 'pending', NULL),\n    ('Finish report', 'finished', NOW() - INTERVAL '40 days'), -- Will be archived\n    ('Clean house', 'finished', NOW() - INTERVAL '10 days'),  -- Will NOT be archived\n    ('Pay bills', 'finished', NOW() - INTERVAL '35 days'),   -- Will be archived\n    ('Walk dog', 'in_progress', NULL);\n    ```\n\n4.  **Run the application:**\n    ```bash\n    npx ts-node src/index.ts\n    ```\n\n5.  **Test the archive route:**\n    Send a POST request to `http://localhost:3000/archive`.\n    You can use `curl`:\n    ```bash\n    curl -X POST http://localhost:3000/archive\n    ```\n    Or a tool like Postman/Insomnia.\n\n    Check your database tables (`tasks` and `archived_tasks`) to see the changes.\n*/\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 989
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 521
+      }
+    ],
+    "durationMs": 1514
+  }
+}

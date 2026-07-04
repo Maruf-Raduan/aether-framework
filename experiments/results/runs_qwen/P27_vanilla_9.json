@@ -1,0 +1,129 @@
+{
+  "promptId": "P27",
+  "targetDesc": "Create a route that returns a 3-month billing forecast based on current subscriptions and historical growth rate. Calls into billing and analytics modules.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 27394,
+      "tokensIn": 136,
+      "tokensOut": 598,
+      "wallMs": 28729,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/billingForecast.ts",
+          "content": "import { Hono } from 'hono';\nimport { getSubscriptions, calculateGrowthRate, generateForecast } from '../services/billing';\n\nconst app = new Hono();\n\napp.get('/billing-forecast', async (c) => {\n  try {\n    // Fetch current subscriptions\n    const subscriptions = await getSubscriptions();\n    \n    // Calculate historical growth rate\n    const growthRate = calculateGrowthRate(subscriptions);\n    \n    // Generate 3-month billing forecast\n    const forecast = generateForecast(subscriptions, growthRate, 3);\n    \n    return c.json(forecast);\n  } catch (error) {\n    console.error('Error generating billing forecast:', error);\n    return c.status(500).json({ error: 'Internal Server Error' });\n  }\n});\n\nexport default app;"
+        },
+        {
+          "path": "/src/services/billing.ts",
+          "content": "import { Subscription } from '../models/subscription';\n\n// Mock data for demonstration purposes\nconst subscriptionsData: Subscription[] = [\n  { id: 1, amount: 50, startDate: new Date('2023-01-01') },\n  { id: 2, amount: 75, startDate: new Date('2023-04-01') },\n];\n\nexport async function getSubscriptions(): Promise<Subscription[]> {\n  // Simulate fetching subscriptions from a database\n  return new Promise((resolve) => {\n    setTimeout(() => resolve(subscriptionsData), 100);\n  });\n}\n\nexport function calculateGrowthRate(subscriptions: Subscription[]): number {\n  const totalAmount = subscriptions.reduce((acc, sub) => acc + sub.amount, 0);\n  const startDate = Math.min(...subscriptions.map(sub => sub.startDate.getTime()));\n  const endDate = new Date().getTime();\n  \n  return ((totalAmount / (endDate - startDate)) * 12 * 3) / 100; // Annual growth rate\n}\n\nexport function generateForecast(subscriptions: Subscription[], growthRate: number, months: number): { month: string, forecastedAmount: number }[] {\n  const forecast = [];\n  const currentDate = new Date();\n  \n  for (let i = 1; i <= months; i++) {\n    const nextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1);\n    const forecastedAmount = subscriptions.reduce((acc, sub) => acc + sub.amount * (1 + growthRate / 100), 0);\n    forecast.push({ month: nextMonth.toISOString().split('T')[0], forecastedAmount });\n  }\n  \n  return forecast;\n}"
+        },
+        {
+          "path": "/src/models/subscription.ts",
+          "content": "export interface Subscription {\n  id: number;\n  amount: number;\n  startDate: Date;\n}"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 28729,
+  "finalFiles": [
+    {
+      "path": "/src/routes/billingForecast.ts",
+      "content": "import { Hono } from 'hono';\nimport { getSubscriptions, calculateGrowthRate, generateForecast } from '../services/billing';\n\nconst app = new Hono();\n\napp.get('/billing-forecast', async (c) => {\n  try {\n    // Fetch current subscriptions\n    const subscriptions = await getSubscriptions();\n    \n    // Calculate historical growth rate\n    const growthRate = calculateGrowthRate(subscriptions);\n    \n    // Generate 3-month billing forecast\n    const forecast = generateForecast(subscriptions, growthRate, 3);\n    \n    return c.json(forecast);\n  } catch (error) {\n    console.error('Error generating billing forecast:', error);\n    return c.status(500).json({ error: 'Internal Server Error' });\n  }\n});\n\nexport default app;"
+    },
+    {
+      "path": "/src/services/billing.ts",
+      "content": "import { Subscription } from '../models/subscription';\n\n// Mock data for demonstration purposes\nconst subscriptionsData: Subscription[] = [\n  { id: 1, amount: 50, startDate: new Date('2023-01-01') },\n  { id: 2, amount: 75, startDate: new Date('2023-04-01') },\n];\n\nexport async function getSubscriptions(): Promise<Subscription[]> {\n  // Simulate fetching subscriptions from a database\n  return new Promise((resolve) => {\n    setTimeout(() => resolve(subscriptionsData), 100);\n  });\n}\n\nexport function calculateGrowthRate(subscriptions: Subscription[]): number {\n  const totalAmount = subscriptions.reduce((acc, sub) => acc + sub.amount, 0);\n  const startDate = Math.min(...subscriptions.map(sub => sub.startDate.getTime()));\n  const endDate = new Date().getTime();\n  \n  return ((totalAmount / (endDate - startDate)) * 12 * 3) / 100; // Annual growth rate\n}\n\nexport function generateForecast(subscriptions: Subscription[], growthRate: number, months: number): { month: string, forecastedAmount: number }[] {\n  const forecast = [];\n  const currentDate = new Date();\n  \n  for (let i = 1; i <= months; i++) {\n    const nextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1);\n    const forecastedAmount = subscriptions.reduce((acc, sub) => acc + sub.amount * (1 + growthRate / 100), 0);\n    forecast.push({ month: nextMonth.toISOString().split('T')[0], forecastedAmount });\n  }\n  \n  return forecast;\n}"
+    },
+    {
+      "path": "/src/models/subscription.ts",
+      "content": "export interface Subscription {\n  id: number;\n  amount: number;\n  startDate: Date;\n}"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 877
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 455
+      }
+    ],
+    "durationMs": 1335
+  }
+}

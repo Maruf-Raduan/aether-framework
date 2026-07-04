@@ -1,0 +1,113 @@
+{
+  "promptId": "P18",
+  "targetDesc": "Create a password-reset-confirm route that consumes a one-time token, sets the new password (bcrypt), and invalidates all existing sessions.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 14614,
+      "tokensIn": 136,
+      "tokensOut": 333,
+      "wallMs": 15936,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/password-reset-confirm.ts",
+          "content": "import { Request, Response } from 'hono';\nimport bcrypt from 'bcryptjs';\n\nexport default function passwordResetConfirm() {\n  return async (c: Context) => {\n    const token = c.req.query('token');\n    const newPassword = c.req.body('newPassword');\n\n    if (!token || !newPassword) {\n      return new Response('Missing token or new password', { status: 400 });\n    }\n\n    // Validate the token and get user ID\n    const userId = await validateToken(token);\n    if (!userId) {\n      return new Response('Invalid token', { status: 401 });\n    }\n\n    // Hash the new password\n    const hashedPassword = await bcrypt.hash(newPassword, 10);\n\n    // Update the user's password in the database\n    await updateUserPassword(userId, hashedPassword);\n\n    // Invalidate all existing sessions for the user\n    await invalidateUserSessions(userId);\n\n    return new Response('Password reset successful', { status: 200 });\n  };\n}\n\nasync function validateToken(token: string): Promise<string | null> {\n  // Implement token validation logic here\n  // Return the user ID if the token is valid, otherwise return null\n  return 'user-id-123'; // Example user ID\n}\n\nasync function updateUserPassword(userId: string, hashedPassword: string) {\n  // Implement logic to update the user's password in the database\n}\n\nasync function invalidateUserSessions(userId: string) {\n  // Implement logic to invalidate all existing sessions for the user\n}"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 15936,
+  "finalFiles": [
+    {
+      "path": "/src/routes/password-reset-confirm.ts",
+      "content": "import { Request, Response } from 'hono';\nimport bcrypt from 'bcryptjs';\n\nexport default function passwordResetConfirm() {\n  return async (c: Context) => {\n    const token = c.req.query('token');\n    const newPassword = c.req.body('newPassword');\n\n    if (!token || !newPassword) {\n      return new Response('Missing token or new password', { status: 400 });\n    }\n\n    // Validate the token and get user ID\n    const userId = await validateToken(token);\n    if (!userId) {\n      return new Response('Invalid token', { status: 401 });\n    }\n\n    // Hash the new password\n    const hashedPassword = await bcrypt.hash(newPassword, 10);\n\n    // Update the user's password in the database\n    await updateUserPassword(userId, hashedPassword);\n\n    // Invalidate all existing sessions for the user\n    await invalidateUserSessions(userId);\n\n    return new Response('Password reset successful', { status: 200 });\n  };\n}\n\nasync function validateToken(token: string): Promise<string | null> {\n  // Implement token validation logic here\n  // Return the user ID if the token is valid, otherwise return null\n  return 'user-id-123'; // Example user ID\n}\n\nasync function updateUserPassword(userId: string, hashedPassword: string) {\n  // Implement logic to update the user's password in the database\n}\n\nasync function invalidateUserSessions(userId: string) {\n  // Implement logic to invalidate all existing sessions for the user\n}"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 852
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 466
+      }
+    ],
+    "durationMs": 1322
+  }
+}

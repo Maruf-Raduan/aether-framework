@@ -1,0 +1,113 @@
+{
+  "promptId": "P29",
+  "targetDesc": "Create a download route that streams a file from object storage. Caller must be a member of the file's owning team. Returns 404 (not 403) on access denied to avoid existence leak.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 15264,
+      "tokensIn": 196,
+      "tokensOut": 2331,
+      "wallMs": 16749,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types.ts\nexport type UserId = string;\nexport type TeamId = string;\nexport type FileId = string;\n\nexport interface FileMetadata {\n  id: FileId;\n  fileName: string;\n  contentType: string;\n  size: number; // in bytes\n  ownerTeamId: TeamId;\n  storagePath: string; // Internal path in object storage\n}\n\nexport interface UserContext {\n  userId: UserId;\n  teamIds: TeamId[];\n}\n```\n\n```aether:src/services/objectStorage.ts\nimport { FileId, FileMetadata } from '../types';\nimport { Readable } from 'stream';\n\n/**\n * Represents an object storage service capable of retrieving file metadata and streaming file content.\n */\nexport interface ObjectStorageService {\n  /**\n   * Retrieves metadata for a given file ID.\n   * @param fileId The ID of the file.\n   * @returns A Promise resolving to the file's metadata, or null if not found.\n   */\n  getFileMetadata(fileId: FileId): Promise<FileMetadata | null>;\n\n  /**\n   * Streams the content of a file from storage.\n   * @param storagePath The internal storage path of the file.\n   * @returns A Promise resolving to a Readable stream of the file content, or null if the file cannot be streamed.\n   */\n  streamFileContent(storagePath: string): Promise<Readable | null>;\n}\n\n/**\n * A mock implementation of ObjectStorageService for demonstration purposes.\n * Stores files in memory and simulates streaming.\n */\nexport class MockObjectStorageService implements ObjectStorageService {\n  private files: Map<FileId, FileMetadata & { content: Buffer }> = new Map();\n\n  constructor() {\n    // Seed with some mock data\n    this.addFile({\n      id: 'file-123',\n      fileName: 'document.pdf',\n      contentType: 'application/pdf',\n      ownerTeamId: 'team-alpha',\n      storagePath: 'path/to/document.pdf',\n    }, Buffer.from('This is a mock PDF content for file-123.'));\n\n    this.addFile({\n      id: 'file-456',\n      fileName: 'image.png',\n      contentType: 'image/png',\n      ownerTeamId: 'team-beta',\n      storagePath: 'path/to/image.png',\n    }, Buffer.from('This is a mock PNG content for file-456.'));\n\n    this.addFile({\n      id: 'file-789',\n      fileName: 'report.xlsx',\n      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',\n      ownerTeamId: 'team-alpha',\n      storagePath: 'path/to/report.xlsx',\n    }, Buffer.from('This is a mock XLSX content for file-789.'));\n  }\n\n  private addFile(metadata: Omit<FileMetadata, 'size'>, content: Buffer) {\n    const fullMetadata: FileMetadata & { content: Buffer } = {\n      ...metadata,\n      size: content.length,\n      content: content,\n    };\n    this.files.set(metadata.id, fullMetadata);\n  }\n\n  async getFileMetadata(fileId: FileId): Promise<FileMetadata | null> {\n    const file = this.files.get(fileId);\n    if (!file) {\n      return null;\n    }\n    // Return a copy without the content buffer\n    const { content, ...metadata } = file;\n    return metadata;\n  }\n\n  async streamFileContent(storagePath: string): Promise<Readable | null> {\n    const file = Array.from(this.files.values()).find(f => f.storagePath === storagePath);\n    if (!file) {\n      return null;\n    }\n    // Simulate a stream from the buffer\n    return Readable.from(file.content);\n  }\n}\n```\n\n```aether:src/services/auth.ts\nimport { FileMetadata, UserContext } from '../types';\n\n/**\n * Service for handling authorization checks.\n */\nexport class AuthService {\n  /**\n   * Checks if a user has access to a specific file.\n   * Access is granted if the user is a member of the file's owning team.\n   * @param userContext The context of the authenticated user.\n   * @param fileMetadata The metadata of the file being accessed.\n   * @returns True if the user has access, false otherwise.\n   */\n  hasAccessToFile(userContext: UserContext, fileMetadata: FileMetadata): boolean {\n    return userContext.teamIds.includes(fileMetadata.ownerTeamId);\n  }\n}\n```\n\n```aether:src/routes/download.ts\nimport { Hono } from 'hono';\nimport { ObjectStorageService } from '../services/objectStorage';\nimport { AuthService } from '../services/auth';\nimport { UserContext } from '../types';\nimport { Readable } from 'stream';\n\n// Define a type for the Hono context variables that might be injected\n// In a real app, this would come from middleware (e.g., authentication middleware)\ninterface Variables {\n  userContext: UserContext;\n}\n\n/**\n * Creates a Hono application for file download routes.\n * @param objectStorageService The service for interacting with object storage.\n * @param authService The service for authorization checks.\n * @returns A Hono app instance with the download route.\n */\nexport function createDownloadApp(\n  objectStorageService: ObjectStorageService,\n  authService: AuthService\n) {\n  const app = new Hono<{ Variables: Variables }>();\n\n  app.get('/:fileId', async (c) => {\n    const fileId = c.req.param('fileId');\n    const userContext = c.get('userContext'); // Assumed to be set by an auth middleware\n\n    if (!userContext) {\n      // This should ideally be caught by an earlier auth middleware returning 401/403\n      // But as a fallback, if userContext is missing, we deny access.\n      return c.text('Unauthorized', 401);\n    }\n\n    // 1. Retrieve file metadata\n    const fileMetadata = await objectStorageService.getFileMetadata(fileId);\n\n    if (!fileMetadata) {\n      // File not found, return 404\n      return c.text('File not found', 404);\n    }\n\n    // 2. Authorize access\n    const hasAccess = authService.hasAccessToFile(userContext, fileMetadata);\n\n    if (!hasAccess) {\n      // Access denied, return 404 to avoid existence leak\n      return c.text('File not found', 404);\n    }\n\n    // 3. Stream file content\n    const fileStream = await objectStorageService.streamFileContent(fileMetadata.storagePath);\n\n    if (!fileStream) {\n      // Could not stream the file (e.g., internal storage error)\n      console.error(`Failed to stream file content for storage path: ${fileMetadata.storagePath}`);\n      return c.text('Internal Server Error', 500);\n    }\n\n    // Hono can directly handle Node.js Readable streams\n    // Set appropriate headers for file download\n    c.header('Content-Type', fileMetadata.contentType);\n    c.header('Content-Disposition', `attachment; filename=\"${fileMetadata.fileName}\"`);\n    c.header('Content-Length', fileMetadata.size.toString());\n\n    return c.body(fileStream as unknown as ReadableStream); // Cast for Hono's ResponseBody type\n  });\n\n  return app;\n}\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { createDownloadApp } from './routes/download';\nimport { MockObjectStorageService } from './services/objectStorage';\nimport { AuthService } from './services/auth';\nimport { UserContext } from './types';\n\nconst app = new Hono();\n\n// Initialize services\nconst objectStorageService = new MockObjectStorageService();\nconst authService = new AuthService();\n\n// --- Mock Authentication Middleware ---\n// In a real application, this middleware would extract user information\n// from JWTs, session tokens, etc., and populate `c.set('userContext', ...)`.\napp.use('*', async (c, next) => {\n  // For demonstration, we'll use a query parameter or a hardcoded user.\n  // Example: /download/file-123?user=user-1&teams=team-alpha,team-beta\n  const userId = c.req.query('user') || 'mock-user-1';\n  const teamIdsParam = c.req.query('teams') || 'team-alpha'; // Default to team-alpha\n  const teamIds = teamIdsParam.split(',');\n\n  const userContext: UserContext = {\n    userId: userId,\n    teamIds: teamIds,\n  };\n\n  c.set('userContext', userContext);\n  await next();\n});\n// --- End Mock Authentication Middleware ---\n\n// Mount the download application under /download\napp.route('/download', createDownloadApp(objectStorageService, authService));\n\n// Basic root route\napp.get('/', (c) => {\n  return c.text('Welcome to the file download service!');\n});\n\n// Start the server\nconst port = 3000;\nconsole.log(`Server is running on http://localhost:${port}`);\nconsole.log(`Try:\n  - http://localhost:${port}/download/file-123?user=user-1&teams=team-alpha (Access granted)\n  - http://localhost:${port}/download/file-456?user=user-1&teams=team-alpha (Access denied, returns 404)\n  - http://localhost:${port}/download/file-456?user=user-2&teams=team-beta (Access granted)\n  - http://localhost:${port}/download/non-existent-file?user=user-1&teams=team-alpha (File not found, returns 404)\n`);\n\nexport default {\n  port,\n  fetch: app.fetch,\n};\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 16749,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types.ts\nexport type UserId = string;\nexport type TeamId = string;\nexport type FileId = string;\n\nexport interface FileMetadata {\n  id: FileId;\n  fileName: string;\n  contentType: string;\n  size: number; // in bytes\n  ownerTeamId: TeamId;\n  storagePath: string; // Internal path in object storage\n}\n\nexport interface UserContext {\n  userId: UserId;\n  teamIds: TeamId[];\n}\n```\n\n```aether:src/services/objectStorage.ts\nimport { FileId, FileMetadata } from '../types';\nimport { Readable } from 'stream';\n\n/**\n * Represents an object storage service capable of retrieving file metadata and streaming file content.\n */\nexport interface ObjectStorageService {\n  /**\n   * Retrieves metadata for a given file ID.\n   * @param fileId The ID of the file.\n   * @returns A Promise resolving to the file's metadata, or null if not found.\n   */\n  getFileMetadata(fileId: FileId): Promise<FileMetadata | null>;\n\n  /**\n   * Streams the content of a file from storage.\n   * @param storagePath The internal storage path of the file.\n   * @returns A Promise resolving to a Readable stream of the file content, or null if the file cannot be streamed.\n   */\n  streamFileContent(storagePath: string): Promise<Readable | null>;\n}\n\n/**\n * A mock implementation of ObjectStorageService for demonstration purposes.\n * Stores files in memory and simulates streaming.\n */\nexport class MockObjectStorageService implements ObjectStorageService {\n  private files: Map<FileId, FileMetadata & { content: Buffer }> = new Map();\n\n  constructor() {\n    // Seed with some mock data\n    this.addFile({\n      id: 'file-123',\n      fileName: 'document.pdf',\n      contentType: 'application/pdf',\n      ownerTeamId: 'team-alpha',\n      storagePath: 'path/to/document.pdf',\n    }, Buffer.from('This is a mock PDF content for file-123.'));\n\n    this.addFile({\n      id: 'file-456',\n      fileName: 'image.png',\n      contentType: 'image/png',\n      ownerTeamId: 'team-beta',\n      storagePath: 'path/to/image.png',\n    }, Buffer.from('This is a mock PNG content for file-456.'));\n\n    this.addFile({\n      id: 'file-789',\n      fileName: 'report.xlsx',\n      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',\n      ownerTeamId: 'team-alpha',\n      storagePath: 'path/to/report.xlsx',\n    }, Buffer.from('This is a mock XLSX content for file-789.'));\n  }\n\n  private addFile(metadata: Omit<FileMetadata, 'size'>, content: Buffer) {\n    const fullMetadata: FileMetadata & { content: Buffer } = {\n      ...metadata,\n      size: content.length,\n      content: content,\n    };\n    this.files.set(metadata.id, fullMetadata);\n  }\n\n  async getFileMetadata(fileId: FileId): Promise<FileMetadata | null> {\n    const file = this.files.get(fileId);\n    if (!file) {\n      return null;\n    }\n    // Return a copy without the content buffer\n    const { content, ...metadata } = file;\n    return metadata;\n  }\n\n  async streamFileContent(storagePath: string): Promise<Readable | null> {\n    const file = Array.from(this.files.values()).find(f => f.storagePath === storagePath);\n    if (!file) {\n      return null;\n    }\n    // Simulate a stream from the buffer\n    return Readable.from(file.content);\n  }\n}\n```\n\n```aether:src/services/auth.ts\nimport { FileMetadata, UserContext } from '../types';\n\n/**\n * Service for handling authorization checks.\n */\nexport class AuthService {\n  /**\n   * Checks if a user has access to a specific file.\n   * Access is granted if the user is a member of the file's owning team.\n   * @param userContext The context of the authenticated user.\n   * @param fileMetadata The metadata of the file being accessed.\n   * @returns True if the user has access, false otherwise.\n   */\n  hasAccessToFile(userContext: UserContext, fileMetadata: FileMetadata): boolean {\n    return userContext.teamIds.includes(fileMetadata.ownerTeamId);\n  }\n}\n```\n\n```aether:src/routes/download.ts\nimport { Hono } from 'hono';\nimport { ObjectStorageService } from '../services/objectStorage';\nimport { AuthService } from '../services/auth';\nimport { UserContext } from '../types';\nimport { Readable } from 'stream';\n\n// Define a type for the Hono context variables that might be injected\n// In a real app, this would come from middleware (e.g., authentication middleware)\ninterface Variables {\n  userContext: UserContext;\n}\n\n/**\n * Creates a Hono application for file download routes.\n * @param objectStorageService The service for interacting with object storage.\n * @param authService The service for authorization checks.\n * @returns A Hono app instance with the download route.\n */\nexport function createDownloadApp(\n  objectStorageService: ObjectStorageService,\n  authService: AuthService\n) {\n  const app = new Hono<{ Variables: Variables }>();\n\n  app.get('/:fileId', async (c) => {\n    const fileId = c.req.param('fileId');\n    const userContext = c.get('userContext'); // Assumed to be set by an auth middleware\n\n    if (!userContext) {\n      // This should ideally be caught by an earlier auth middleware returning 401/403\n      // But as a fallback, if userContext is missing, we deny access.\n      return c.text('Unauthorized', 401);\n    }\n\n    // 1. Retrieve file metadata\n    const fileMetadata = await objectStorageService.getFileMetadata(fileId);\n\n    if (!fileMetadata) {\n      // File not found, return 404\n      return c.text('File not found', 404);\n    }\n\n    // 2. Authorize access\n    const hasAccess = authService.hasAccessToFile(userContext, fileMetadata);\n\n    if (!hasAccess) {\n      // Access denied, return 404 to avoid existence leak\n      return c.text('File not found', 404);\n    }\n\n    // 3. Stream file content\n    const fileStream = await objectStorageService.streamFileContent(fileMetadata.storagePath);\n\n    if (!fileStream) {\n      // Could not stream the file (e.g., internal storage error)\n      console.error(`Failed to stream file content for storage path: ${fileMetadata.storagePath}`);\n      return c.text('Internal Server Error', 500);\n    }\n\n    // Hono can directly handle Node.js Readable streams\n    // Set appropriate headers for file download\n    c.header('Content-Type', fileMetadata.contentType);\n    c.header('Content-Disposition', `attachment; filename=\"${fileMetadata.fileName}\"`);\n    c.header('Content-Length', fileMetadata.size.toString());\n\n    return c.body(fileStream as unknown as ReadableStream); // Cast for Hono's ResponseBody type\n  });\n\n  return app;\n}\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { createDownloadApp } from './routes/download';\nimport { MockObjectStorageService } from './services/objectStorage';\nimport { AuthService } from './services/auth';\nimport { UserContext } from './types';\n\nconst app = new Hono();\n\n// Initialize services\nconst objectStorageService = new MockObjectStorageService();\nconst authService = new AuthService();\n\n// --- Mock Authentication Middleware ---\n// In a real application, this middleware would extract user information\n// from JWTs, session tokens, etc., and populate `c.set('userContext', ...)`.\napp.use('*', async (c, next) => {\n  // For demonstration, we'll use a query parameter or a hardcoded user.\n  // Example: /download/file-123?user=user-1&teams=team-alpha,team-beta\n  const userId = c.req.query('user') || 'mock-user-1';\n  const teamIdsParam = c.req.query('teams') || 'team-alpha'; // Default to team-alpha\n  const teamIds = teamIdsParam.split(',');\n\n  const userContext: UserContext = {\n    userId: userId,\n    teamIds: teamIds,\n  };\n\n  c.set('userContext', userContext);\n  await next();\n});\n// --- End Mock Authentication Middleware ---\n\n// Mount the download application under /download\napp.route('/download', createDownloadApp(objectStorageService, authService));\n\n// Basic root route\napp.get('/', (c) => {\n  return c.text('Welcome to the file download service!');\n});\n\n// Start the server\nconst port = 3000;\nconsole.log(`Server is running on http://localhost:${port}`);\nconsole.log(`Try:\n  - http://localhost:${port}/download/file-123?user=user-1&teams=team-alpha (Access granted)\n  - http://localhost:${port}/download/file-456?user=user-1&teams=team-alpha (Access denied, returns 404)\n  - http://localhost:${port}/download/file-456?user=user-2&teams=team-beta (Access granted)\n  - http://localhost:${port}/download/non-existent-file?user=user-1&teams=team-alpha (File not found, returns 404)\n`);\n\nexport default {\n  port,\n  fetch: app.fetch,\n};\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 976
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 498
+      }
+    ],
+    "durationMs": 1484
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "promptId": "P16",
+  "condition": "aether",
+  "iteration": 10,
+  "passed": false,
+  "tokensIn": 1133,
+  "tokensOut": 1601,
+  "tokensTotal": 2734,
+  "latencyMs": 120634,
+  "wallMs": 120634,
+  "files": [
+    {
+      "path": "modules/auth/routes/token_refresh.ts",
+      "length": 1733
+    },
+    {
+      "path": "modules/auth/lib/tokens.ts",
+      "length": 1106
+    },
+    {
+      "path": "modules/auth/module.contract.ts",
+      "length": 1058
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": false,
+      "skipped": false,
+      "message": "33 TypeScript error(s). First: Cannot find module 'h3' or its corresponding type declarations."
+    }
+  ]
+}

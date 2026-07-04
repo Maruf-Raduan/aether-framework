@@ -1,0 +1,65 @@
+{
+  "promptId": "P18",
+  "condition": "vanilla",
+  "iteration": 2,
+  "passed": true,
+  "tokensIn": 136,
+  "tokensOut": 967,
+  "tokensTotal": 1103,
+  "latencyMs": 76352,
+  "wallMs": 76352,
+  "files": [
+    {
+      "path": "src/routes/passwordResetConfirm.ts",
+      "length": 1033
+    },
+    {
+      "path": "src/server.ts",
+      "length": 204
+    },
+    {
+      "path": "src/models/user.ts",
+      "length": 309
+    },
+    {
+      "path": "src/models/session.ts",
+      "length": 259
+    },
+    {
+      "path": "src/db.ts",
+      "length": 337
+    },
+    {
+      "path": "src/index.ts",
+      "length": 283
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

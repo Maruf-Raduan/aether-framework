@@ -1,0 +1,113 @@
+{
+  "promptId": "P06",
+  "targetDesc": "Create a status-update route that transitions a task between 'todo', 'in_progress', and 'done'. Reject illegal transitions (e.g. done → todo).",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 22207,
+      "tokensIn": 141,
+      "tokensOut": 491,
+      "wallMs": 23531,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/status.ts",
+          "content": "import { Hono } from 'hono';\nimport { z, ZodError } from 'zod';\n\nconst app = new Hono();\n\nconst TaskStatusSchema = z.enum(['todo', 'in_progress', 'done']);\n\napp.put('/task/:id/status', async (c) => {\n  const taskId = c.req.param('id');\n  const status = c.req.query('status');\n\n  try {\n    // Validate the task ID and new status\n    const parsedStatus = TaskStatusSchema.parse(status);\n\n    // Simulate fetching the current status of the task from a database\n    const currentStatus = await fetchTaskStatus(taskId);\n    if (!currentStatus) {\n      return c.json({ error: 'Task not found' }, 404);\n    }\n\n    // Validate the transition\n    if (parsedStatus === 'todo' && currentStatus !== 'done') {\n      return c.json({ error: 'Illegal transition from in_progress to todo' }, 422);\n    } else if (parsedStatus === 'in_progress' && currentStatus !== 'todo') {\n      return c.json({ error: 'Illegal transition from done to in_progress' }, 422);\n    }\n\n    // Update the task status\n    await updateTaskStatus(taskId, parsedStatus);\n\n    return c.json({ message: `Task ${taskId} status updated to ${parsedStatus}` });\n  } catch (error) {\n    if (error instanceof ZodError) {\n      return c.json({ error: 'Invalid status' }, 400);\n    }\n    return c.json({ error: 'Internal server error' }, 500);\n  }\n});\n\nasync function fetchTaskStatus(taskId: string): Promise<string | null> {\n  // Simulate fetching the task status from a database\n  // Replace this with actual database logic\n  const tasks = {\n    '1': 'todo',\n    '2': 'in_progress',\n    '3': 'done'\n  };\n  return tasks[taskId] || null;\n}\n\nasync function updateTaskStatus(taskId: string, status: string): Promise<void> {\n  // Simulate updating the task status in a database\n  // Replace this with actual database logic\n  console.log(`Updating task ${taskId} status to ${status}`);\n}\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 23531,
+  "finalFiles": [
+    {
+      "path": "/src/routes/status.ts",
+      "content": "import { Hono } from 'hono';\nimport { z, ZodError } from 'zod';\n\nconst app = new Hono();\n\nconst TaskStatusSchema = z.enum(['todo', 'in_progress', 'done']);\n\napp.put('/task/:id/status', async (c) => {\n  const taskId = c.req.param('id');\n  const status = c.req.query('status');\n\n  try {\n    // Validate the task ID and new status\n    const parsedStatus = TaskStatusSchema.parse(status);\n\n    // Simulate fetching the current status of the task from a database\n    const currentStatus = await fetchTaskStatus(taskId);\n    if (!currentStatus) {\n      return c.json({ error: 'Task not found' }, 404);\n    }\n\n    // Validate the transition\n    if (parsedStatus === 'todo' && currentStatus !== 'done') {\n      return c.json({ error: 'Illegal transition from in_progress to todo' }, 422);\n    } else if (parsedStatus === 'in_progress' && currentStatus !== 'todo') {\n      return c.json({ error: 'Illegal transition from done to in_progress' }, 422);\n    }\n\n    // Update the task status\n    await updateTaskStatus(taskId, parsedStatus);\n\n    return c.json({ message: `Task ${taskId} status updated to ${parsedStatus}` });\n  } catch (error) {\n    if (error instanceof ZodError) {\n      return c.json({ error: 'Invalid status' }, 400);\n    }\n    return c.json({ error: 'Internal server error' }, 500);\n  }\n});\n\nasync function fetchTaskStatus(taskId: string): Promise<string | null> {\n  // Simulate fetching the task status from a database\n  // Replace this with actual database logic\n  const tasks = {\n    '1': 'todo',\n    '2': 'in_progress',\n    '3': 'done'\n  };\n  return tasks[taskId] || null;\n}\n\nasync function updateTaskStatus(taskId: string, status: string): Promise<void> {\n  // Simulate updating the task status in a database\n  // Replace this with actual database logic\n  console.log(`Updating task ${taskId} status to ${status}`);\n}\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 847
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 473
+      }
+    ],
+    "durationMs": 1324
+  }
+}

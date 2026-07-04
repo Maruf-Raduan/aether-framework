@@ -1,0 +1,113 @@
+{
+  "promptId": "P25",
+  "targetDesc": "Create a mark-as-read route. Idempotent — calling twice must not error.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 18335,
+      "tokensIn": 170,
+      "tokensOut": 1253,
+      "wallMs": 19721,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/services/notification.ts\ninterface Notification {\n  id: string;\n  message: string;\n  read: boolean;\n  createdAt: Date;\n}\n\n// In a real application, this would interact with a database.\n// For this exercise, we'll use a simple in-memory store to simulate data.\nconst notifications: Map<string, Notification> = new Map();\n\n// Seed some initial data for demonstration purposes\nnotifications.set('notif-1', { id: 'notif-1', message: 'Welcome to our service!', read: false, createdAt: new Date() });\nnotifications.set('notif-2', { id: 'notif-2', message: 'New feature available!', read: false, createdAt: new Date() });\nnotifications.set('notif-3', { id: 'notif-3', message: 'Your order has shipped.', read: true, createdAt: new Date() }); // Already read\n\nexport class NotificationService {\n  /**\n   * Marks a notification as read.\n   * This operation is idempotent: calling it multiple times with the same ID\n   * will not cause an error and will result in the same state (the notification being read).\n   *\n   * @param notificationId The ID of the notification to mark as read.\n   * @returns The updated notification object, or `null` if the notification was not found.\n   */\n  async markAsRead(notificationId: string): Promise<Notification | null> {\n    const notification = notifications.get(notificationId);\n\n    if (!notification) {\n      // Notification not found, return null.\n      return null;\n    }\n\n    if (notification.read) {\n      // The notification is already marked as read.\n      // This ensures idempotency: calling the operation again has no further effect\n      // and does not result in an error.\n      console.log(`Notification ${notificationId} was already read. No change needed.`);\n      return { ...notification }; // Return a copy to prevent external modification\n    }\n\n    // Simulate an asynchronous database update\n    await new Promise(resolve => setTimeout(resolve, 50)); // Simulate network/DB latency\n\n    notification.read = true;\n    notifications.set(notificationId, notification); // Update the in-memory store\n\n    console.log(`Notification ${notificationId} successfully marked as read.`);\n    return { ...notification }; // Return a copy of the updated notification\n  }\n\n  /**\n   * Retrieves a notification by its ID.\n   * @param notificationId The ID of the notification to retrieve.\n   * @returns The notification object, or `null` if not found.\n   */\n  async getNotification(notificationId: string): Promise<Notification | null> {\n    return notifications.get(notificationId) || null;\n  }\n}\n\nexport const notificationService = new NotificationService();\n```\n```aether:src/routes/mark-as-read.ts\nimport { notificationService } from '../services/notification';\n\n// Define a generic Context type for demonstration.\n// This interface assumes a minimal context object that provides access to request parameters.\n// In a Hono application, this would typically be `Context`.\ninterface RouteContext {\n  req: {\n    param: (key: string) => string | undefined;\n  };\n}\n\n/**\n * Helper function to create a standard JSON `Response` object.\n * This adheres to the constraint of not importing framework-specific response helpers.\n *\n * @param data The JavaScript object to be serialized as JSON.\n * @param status The HTTP status code for the response. Defaults to 200.\n * @returns A standard `Response` object.\n */\nfunction jsonResponse(data: any, status: number = 200): Response {\n  return new Response(JSON.stringify(data), {\n    status: status,\n    headers: {\n      'Content-Type': 'application/json',\n    },\n  });\n}\n\n/**\n * Route handler for marking a specific notification as read.\n * This route expects the notification ID to be provided as a URL parameter (e.g., `/notifications/:id/read`).\n *\n * The operation is designed to be idempotent:\n * - If the notification is found and successfully marked as read, it returns a 200 OK.\n * - If the notification is already read, it still returns a 200 OK, indicating the desired state is achieved.\n * - If the notification ID is missing or the notification is not found, it returns appropriate error responses.\n *\n * @param c The route context, providing access to request parameters.\n * @returns A `Promise` that resolves to a standard `Response` object.\n */\nexport async function markNotificationAsRead(c: RouteContext): Promise<Response> {\n  const notificationId = c.req.param('id');\n\n  if (!notificationId) {\n    return jsonResponse({ success: false, message: 'Notification ID is required.' }, 400);\n  }\n\n  try {\n    const updatedNotification = await notificationService.markAsRead(notificationId);\n\n    if (!updatedNotification) {\n      return jsonResponse({ success: false, message: `Notification with ID '${notificationId}' not found.` }, 404);\n    }\n\n    // If the notification was found (and potentially updated or already read),\n    // return a success response. The `read` status in the response confirms the state.\n    return jsonResponse({\n      success: true,\n      message: `Notification '${notificationId}' is now marked as read.`,\n      notification: {\n        id: updatedNotification.id,\n        read:"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 19721,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/services/notification.ts\ninterface Notification {\n  id: string;\n  message: string;\n  read: boolean;\n  createdAt: Date;\n}\n\n// In a real application, this would interact with a database.\n// For this exercise, we'll use a simple in-memory store to simulate data.\nconst notifications: Map<string, Notification> = new Map();\n\n// Seed some initial data for demonstration purposes\nnotifications.set('notif-1', { id: 'notif-1', message: 'Welcome to our service!', read: false, createdAt: new Date() });\nnotifications.set('notif-2', { id: 'notif-2', message: 'New feature available!', read: false, createdAt: new Date() });\nnotifications.set('notif-3', { id: 'notif-3', message: 'Your order has shipped.', read: true, createdAt: new Date() }); // Already read\n\nexport class NotificationService {\n  /**\n   * Marks a notification as read.\n   * This operation is idempotent: calling it multiple times with the same ID\n   * will not cause an error and will result in the same state (the notification being read).\n   *\n   * @param notificationId The ID of the notification to mark as read.\n   * @returns The updated notification object, or `null` if the notification was not found.\n   */\n  async markAsRead(notificationId: string): Promise<Notification | null> {\n    const notification = notifications.get(notificationId);\n\n    if (!notification) {\n      // Notification not found, return null.\n      return null;\n    }\n\n    if (notification.read) {\n      // The notification is already marked as read.\n      // This ensures idempotency: calling the operation again has no further effect\n      // and does not result in an error.\n      console.log(`Notification ${notificationId} was already read. No change needed.`);\n      return { ...notification }; // Return a copy to prevent external modification\n    }\n\n    // Simulate an asynchronous database update\n    await new Promise(resolve => setTimeout(resolve, 50)); // Simulate network/DB latency\n\n    notification.read = true;\n    notifications.set(notificationId, notification); // Update the in-memory store\n\n    console.log(`Notification ${notificationId} successfully marked as read.`);\n    return { ...notification }; // Return a copy of the updated notification\n  }\n\n  /**\n   * Retrieves a notification by its ID.\n   * @param notificationId The ID of the notification to retrieve.\n   * @returns The notification object, or `null` if not found.\n   */\n  async getNotification(notificationId: string): Promise<Notification | null> {\n    return notifications.get(notificationId) || null;\n  }\n}\n\nexport const notificationService = new NotificationService();\n```\n```aether:src/routes/mark-as-read.ts\nimport { notificationService } from '../services/notification';\n\n// Define a generic Context type for demonstration.\n// This interface assumes a minimal context object that provides access to request parameters.\n// In a Hono application, this would typically be `Context`.\ninterface RouteContext {\n  req: {\n    param: (key: string) => string | undefined;\n  };\n}\n\n/**\n * Helper function to create a standard JSON `Response` object.\n * This adheres to the constraint of not importing framework-specific response helpers.\n *\n * @param data The JavaScript object to be serialized as JSON.\n * @param status The HTTP status code for the response. Defaults to 200.\n * @returns A standard `Response` object.\n */\nfunction jsonResponse(data: any, status: number = 200): Response {\n  return new Response(JSON.stringify(data), {\n    status: status,\n    headers: {\n      'Content-Type': 'application/json',\n    },\n  });\n}\n\n/**\n * Route handler for marking a specific notification as read.\n * This route expects the notification ID to be provided as a URL parameter (e.g., `/notifications/:id/read`).\n *\n * The operation is designed to be idempotent:\n * - If the notification is found and successfully marked as read, it returns a 200 OK.\n * - If the notification is already read, it still returns a 200 OK, indicating the desired state is achieved.\n * - If the notification ID is missing or the notification is not found, it returns appropriate error responses.\n *\n * @param c The route context, providing access to request parameters.\n * @returns A `Promise` that resolves to a standard `Response` object.\n */\nexport async function markNotificationAsRead(c: RouteContext): Promise<Response> {\n  const notificationId = c.req.param('id');\n\n  if (!notificationId) {\n    return jsonResponse({ success: false, message: 'Notification ID is required.' }, 400);\n  }\n\n  try {\n    const updatedNotification = await notificationService.markAsRead(notificationId);\n\n    if (!updatedNotification) {\n      return jsonResponse({ success: false, message: `Notification with ID '${notificationId}' not found.` }, 404);\n    }\n\n    // If the notification was found (and potentially updated or already read),\n    // return a success response. The `read` status in the response confirms the state.\n    return jsonResponse({\n      success: true,\n      message: `Notification '${notificationId}' is now marked as read.`,\n      notification: {\n        id: updatedNotification.id,\n        read:"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 922
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 458
+      }
+    ],
+    "durationMs": 1385
+  }
+}

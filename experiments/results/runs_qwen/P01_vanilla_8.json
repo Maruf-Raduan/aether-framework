@@ -1,0 +1,137 @@
+{
+  "promptId": "P01",
+  "targetDesc": "Create a user registration route that validates email, hashes the password, and inserts into the users table. Return a 201 with the new user id.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 23440,
+      "tokensIn": 141,
+      "tokensOut": 525,
+      "wallMs": 24979,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/register.ts",
+          "content": "import { Hono } from 'hono';\nimport bcrypt from 'bcrypt';\n\nconst app = new Hono();\n\napp.post('/register', async (c) => {\n  const { email, password } = c.req.valid('json');\n\n  // Validate email format\n  if (!email.includes('@')) {\n    return c.json({ error: 'Invalid email format' }, 400);\n  }\n\n  // Hash the password\n  const hashedPassword = await bcrypt.hash(password, 10);\n\n  // Insert into users table (assuming a function `insertUser` exists)\n  try {\n    const userId = await insertUser(email, hashedPassword);\n    return c.json({ userId }, 201);\n  } catch (error) {\n    return c.json({ error: 'Failed to register user' }, 500);\n  }\n});\n\nexport default app;"
+        },
+        {
+          "path": "/src/utils/validators.ts",
+          "content": "import { z } from 'zod';\n\nconst emailSchema = z.string().email();\nconst passwordSchema = z.string().min(8);\n\nexport const registerSchema = z.object({\n  email: emailSchema,\n  password: passwordSchema,\n});\n\nexport type RegisterInput = z.infer<typeof registerSchema>;"
+        },
+        {
+          "path": "/src/db/users.ts",
+          "content": "import { sql } from 'slonik';\n\nexport async function insertUser(email: string, hashedPassword: string) {\n  const pool = await getPool(); // Assume this function exists and returns a Slonik pool\n  const result = await pool.query(sql`\n    INSERT INTO users (email, password)\n    VALUES (${email}, ${hashedPassword})\n    RETURNING id;\n  `);\n  return result.rows[0].id;\n}"
+        },
+        {
+          "path": "/src/db/pool.ts",
+          "content": "import { Pool } from 'slonik';\n\nexport async function getPool() {\n  // Assume this function exists and returns a Slonik pool\n  const connection = await new Pool('your_database_connection_string');\n  return connection;\n}"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 24979,
+  "finalFiles": [
+    {
+      "path": "/src/routes/register.ts",
+      "content": "import { Hono } from 'hono';\nimport bcrypt from 'bcrypt';\n\nconst app = new Hono();\n\napp.post('/register', async (c) => {\n  const { email, password } = c.req.valid('json');\n\n  // Validate email format\n  if (!email.includes('@')) {\n    return c.json({ error: 'Invalid email format' }, 400);\n  }\n\n  // Hash the password\n  const hashedPassword = await bcrypt.hash(password, 10);\n\n  // Insert into users table (assuming a function `insertUser` exists)\n  try {\n    const userId = await insertUser(email, hashedPassword);\n    return c.json({ userId }, 201);\n  } catch (error) {\n    return c.json({ error: 'Failed to register user' }, 500);\n  }\n});\n\nexport default app;"
+    },
+    {
+      "path": "/src/utils/validators.ts",
+      "content": "import { z } from 'zod';\n\nconst emailSchema = z.string().email();\nconst passwordSchema = z.string().min(8);\n\nexport const registerSchema = z.object({\n  email: emailSchema,\n  password: passwordSchema,\n});\n\nexport type RegisterInput = z.infer<typeof registerSchema>;"
+    },
+    {
+      "path": "/src/db/users.ts",
+      "content": "import { sql } from 'slonik';\n\nexport async function insertUser(email: string, hashedPassword: string) {\n  const pool = await getPool(); // Assume this function exists and returns a Slonik pool\n  const result = await pool.query(sql`\n    INSERT INTO users (email, password)\n    VALUES (${email}, ${hashedPassword})\n    RETURNING id;\n  `);\n  return result.rows[0].id;\n}"
+    },
+    {
+      "path": "/src/db/pool.ts",
+      "content": "import { Pool } from 'slonik';\n\nexport async function getPool() {\n  // Assume this function exists and returns a Slonik pool\n  const connection = await new Pool('your_database_connection_string');\n  return connection;\n}"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1001
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 528
+      }
+    ],
+    "durationMs": 1538
+  }
+}

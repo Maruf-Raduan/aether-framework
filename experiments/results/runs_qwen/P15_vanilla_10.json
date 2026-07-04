@@ -1,0 +1,113 @@
+{
+  "promptId": "P15",
+  "targetDesc": "Create a Stripe webhook handler that verifies the signature, parses the event, and updates the matching subscription. Idempotent on event id.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 23708,
+      "tokensIn": 136,
+      "tokensOut": 525,
+      "wallMs": 25071,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/stripe-webhook.ts",
+          "content": "import { Request, Response } from 'hono';\nimport Stripe from 'stripe';\n\nconst stripe = new Stripe('your_stripe_secret_key', {\n  apiVersion: '2023-08-16',\n});\n\nexport const handler = async (req: Request) => {\n  const sigHeader = req.headers.get('Stripe-Signature');\n  if (!sigHeader) {\n    return new Response('Missing Stripe-Signature header', { status: 400 });\n  }\n\n  const payload = await req.text();\n  let event;\n\n  try {\n    event = stripe.webhooks.constructEvent(\n      payload,\n      sigHeader,\n      'your_webhook_secret'\n    );\n  } catch (err) {\n    return new Response('Invalid signature', { status: 400 });\n  }\n\n  if (event.id && isIdempotent(event.id)) {\n    return new Response('Duplicate event', { status: 200 });\n  }\n\n  switch (event.type) {\n    case 'invoice.payment_succeeded':\n      const invoice = event.data.object as Stripe.Invoice;\n      await handleInvoicePaymentSucceeded(invoice);\n      break;\n    // Add more cases for other events you want to handle\n    default:\n      return new Response('Unhandled event type', { status: 200 });\n  }\n\n  return new Response('Event processed successfully', { status: 200 });\n};\n\nconst isIdempotent = (eventId: string): boolean => {\n  // Implement your idempotency logic here\n  // For example, you can store the event ID in a database and check if it exists before processing\n  return false;\n};\n\nconst handleInvoicePaymentSucceeded = async (invoice: Stripe.Invoice) => {\n  const subscriptionId = invoice.subscription as string;\n  try {\n    await stripe.subscriptions.update(subscriptionId, { proration_behavior: 'create_prorations' });\n  } catch (err) {\n    console.error('Error updating subscription:', err);\n  }\n};"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 25071,
+  "finalFiles": [
+    {
+      "path": "/src/stripe-webhook.ts",
+      "content": "import { Request, Response } from 'hono';\nimport Stripe from 'stripe';\n\nconst stripe = new Stripe('your_stripe_secret_key', {\n  apiVersion: '2023-08-16',\n});\n\nexport const handler = async (req: Request) => {\n  const sigHeader = req.headers.get('Stripe-Signature');\n  if (!sigHeader) {\n    return new Response('Missing Stripe-Signature header', { status: 400 });\n  }\n\n  const payload = await req.text();\n  let event;\n\n  try {\n    event = stripe.webhooks.constructEvent(\n      payload,\n      sigHeader,\n      'your_webhook_secret'\n    );\n  } catch (err) {\n    return new Response('Invalid signature', { status: 400 });\n  }\n\n  if (event.id && isIdempotent(event.id)) {\n    return new Response('Duplicate event', { status: 200 });\n  }\n\n  switch (event.type) {\n    case 'invoice.payment_succeeded':\n      const invoice = event.data.object as Stripe.Invoice;\n      await handleInvoicePaymentSucceeded(invoice);\n      break;\n    // Add more cases for other events you want to handle\n    default:\n      return new Response('Unhandled event type', { status: 200 });\n  }\n\n  return new Response('Event processed successfully', { status: 200 });\n};\n\nconst isIdempotent = (eventId: string): boolean => {\n  // Implement your idempotency logic here\n  // For example, you can store the event ID in a database and check if it exists before processing\n  return false;\n};\n\nconst handleInvoicePaymentSucceeded = async (invoice: Stripe.Invoice) => {\n  const subscriptionId = invoice.subscription as string;\n  try {\n    await stripe.subscriptions.update(subscriptionId, { proration_behavior: 'create_prorations' });\n  } catch (err) {\n    console.error('Error updating subscription:', err);\n  }\n};"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 863
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 495
+      }
+    ],
+    "durationMs": 1363
+  }
+}

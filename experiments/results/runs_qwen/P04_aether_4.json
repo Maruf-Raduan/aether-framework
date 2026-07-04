@@ -1,0 +1,346 @@
+{
+  "promptId": "P04",
+  "targetDesc": "Create a list-tasks route that returns all tasks for the current user's team, paginated by limit/offset query params.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 52390,
+      "tokensIn": 1062,
+      "tokensOut": 1135,
+      "wallMs": 59492,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Handles task creation, retrieval, and management utilities.',\n\n  dependencies: { modules: ['auth'] },\n\n  exposes: {\n    routes: [\n      { method: 'GET', path: '/tasks', auth: true },\n    ],\n    functions: ['getTasksForTeam'],\n    types: ['Task', 'PaginationParams'],\n  },\n\n  sideEffects: [\n    'reads from: tasks table',\n    'reads from: teams table',\n  ],\n\n  invariants: [\n    'Each task must belong to exactly one team',\n    'A user can only see tasks for their assigned team',\n  ],\n});"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/lib/types.ts\nimport { User, Session } from '../auth/module.contract';\n\nexport interface Task {\n  id: number;\n  title: string;\n  description: string;\n  dueDate: Date;\n  completed: boolean;\n  teamId: number;\n}\n\nexport interface PaginationParams {\n  limit: number;\n  offset: number;\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/lib/db.ts\nimport { query } from '../db';\n\nexport async function getTasksForTeam(teamId: number, paginationParams: PaginationParams): Promise<Task[]> {\n  const { limit, offset } = paginationParams;\n  const result = await query(`\n    SELECT * FROM tasks WHERE team_id = $1 LIMIT $2 OFFSET $3\n  `, [teamId, limit, offset]);\n  return result.rows as Task[];\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/routes.ts\nimport { Router } from 'bun';\nimport { requireUser, getSession } from '../auth/lib/auth';\nimport { getTasksForTeam } from './lib/db';\n\nconst router = new Router();\n\nrouter.get('/tasks', async (req) => {\n  const user = await requireUser(req);\n  const session = await getSession(req);\n\n  if (!session) {\n    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });\n  }\n\n  const paginationParams = {\n    limit: parseInt(req.query.get('limit') || '10', 10),\n    offset: parseInt(req.query.get('offset') || '0', 10),\n  };\n\n  try {\n    const tasks = await getTasksForTeam(session.teamId, paginationParams);\n    return new Response(JSON.stringify(tasks), { status: 200 });\n  } catch (error) {\n    return new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });\n  }\n});\n\nexport default router;"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/module.ts\nimport contract from './module.contract';\nimport routes from './routes';\n\nconst module = {\n  contract,\n  routes,\n};\n\nexport default module;"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/lib/queries.ts\n// This file should not be used directly. Use the functions in lib/db.ts instead."
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/lib/auth.ts\n// This file should not be used directly. Use the functions in lib/auth.ts instead."
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/lib/result.ts\n// This file should not be used directly. Use the functions in lib/result.ts instead."
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/lib/validate.ts\n// This file should not be used directly. Use the functions in lib/validate.ts instead."
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/lib/db.ts\nimport { query } from '../db';\n\nexport async function getTasksForTeam(teamId: number, paginationParams: PaginationParams): Promise<Task[]> {\n  const { limit, offset } = paginationParams;\n  const result = await query(`\n    SELECT * FROM tasks WHERE team_id = $1 LIMIT $2 OFFSET $3\n  `, [teamId, limit, offset]);\n  return result.rows as Task[];\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/lib/auth.ts\nimport { requireUser, getSession } from '../auth/lib/auth';\n\nexport async function getTasksForTeam(teamId: number, paginationParams: PaginationParams): Promise<Task[]> {\n  const { limit, offset } = paginationParams;\n  const result = await query(`\n    SELECT * FROM tasks WHERE team_id = $1 LIMIT $2 OFFSET $3\n  `, [teamId, limit, offset]);\n  return result.rows as Task[];\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/lib/result.ts\nimport { Result, ok, err } from '../result';\n\nexport async function getTasksForTeam(teamId: number, paginationParams: PaginationParams): Promise<Result<Task[], Error>> {\n  try {\n    const tasks = await query(`\n      SELECT * FROM tasks WHERE team_id = $1 LIMIT $2 OFFSET $3\n    `, [teamId, limit, offset]);\n    return ok(tasks.rows as Task[]);\n  } catch (error) {\n    return err(error);\n  }\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/lib/validate.ts\nimport { parseQuery } from '../validate';\n\nexport async function getTasksForTeam(teamId: number, paginationParams: PaginationParams): Promise<Result<Task[], Error>> {\n  try {\n    const tasks = await query(`\n      SELECT * FROM tasks WHERE team_id = $1 LIMIT $2 OFFSET $3\n    `, [teamId, limit, offset]);\n    return ok(tasks.rows as Task[]);\n  } catch (error) {\n    return err(error);\n  }\n}"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 59492,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Handles task creation, retrieval, and management utilities.',\n\n  dependencies: { modules: ['auth'] },\n\n  exposes: {\n    routes: [\n      { method: 'GET', path: '/tasks', auth: true },\n    ],\n    functions: ['getTasksForTeam'],\n    types: ['Task', 'PaginationParams'],\n  },\n\n  sideEffects: [\n    'reads from: tasks table',\n    'reads from: teams table',\n  ],\n\n  invariants: [\n    'Each task must belong to exactly one team',\n    'A user can only see tasks for their assigned team',\n  ],\n});"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/lib/types.ts\nimport { User, Session } from '../auth/module.contract';\n\nexport interface Task {\n  id: number;\n  title: string;\n  description: string;\n  dueDate: Date;\n  completed: boolean;\n  teamId: number;\n}\n\nexport interface PaginationParams {\n  limit: number;\n  offset: number;\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/lib/db.ts\nimport { query } from '../db';\n\nexport async function getTasksForTeam(teamId: number, paginationParams: PaginationParams): Promise<Task[]> {\n  const { limit, offset } = paginationParams;\n  const result = await query(`\n    SELECT * FROM tasks WHERE team_id = $1 LIMIT $2 OFFSET $3\n  `, [teamId, limit, offset]);\n  return result.rows as Task[];\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/routes.ts\nimport { Router } from 'bun';\nimport { requireUser, getSession } from '../auth/lib/auth';\nimport { getTasksForTeam } from './lib/db';\n\nconst router = new Router();\n\nrouter.get('/tasks', async (req) => {\n  const user = await requireUser(req);\n  const session = await getSession(req);\n\n  if (!session) {\n    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });\n  }\n\n  const paginationParams = {\n    limit: parseInt(req.query.get('limit') || '10', 10),\n    offset: parseInt(req.query.get('offset') || '0', 10),\n  };\n\n  try {\n    const tasks = await getTasksForTeam(session.teamId, paginationParams);\n    return new Response(JSON.stringify(tasks), { status: 200 });\n  } catch (error) {\n    return new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });\n  }\n});\n\nexport default router;"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/module.ts\nimport contract from './module.contract';\nimport routes from './routes';\n\nconst module = {\n  contract,\n  routes,\n};\n\nexport default module;"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/lib/queries.ts\n// This file should not be used directly. Use the functions in lib/db.ts instead."
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/lib/auth.ts\n// This file should not be used directly. Use the functions in lib/auth.ts instead."
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/lib/result.ts\n// This file should not be used directly. Use the functions in lib/result.ts instead."
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/lib/validate.ts\n// This file should not be used directly. Use the functions in lib/validate.ts instead."
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/lib/db.ts\nimport { query } from '../db';\n\nexport async function getTasksForTeam(teamId: number, paginationParams: PaginationParams): Promise<Task[]> {\n  const { limit, offset } = paginationParams;\n  const result = await query(`\n    SELECT * FROM tasks WHERE team_id = $1 LIMIT $2 OFFSET $3\n  `, [teamId, limit, offset]);\n  return result.rows as Task[];\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/lib/auth.ts\nimport { requireUser, getSession } from '../auth/lib/auth';\n\nexport async function getTasksForTeam(teamId: number, paginationParams: PaginationParams): Promise<Task[]> {\n  const { limit, offset } = paginationParams;\n  const result = await query(`\n    SELECT * FROM tasks WHERE team_id = $1 LIMIT $2 OFFSET $3\n  `, [teamId, limit, offset]);\n  return result.rows as Task[];\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/lib/result.ts\nimport { Result, ok, err } from '../result';\n\nexport async function getTasksForTeam(teamId: number, paginationParams: PaginationParams): Promise<Result<Task[], Error>> {\n  try {\n    const tasks = await query(`\n      SELECT * FROM tasks WHERE team_id = $1 LIMIT $2 OFFSET $3\n    `, [teamId, limit, offset]);\n    return ok(tasks.rows as Task[]);\n  } catch (error) {\n    return err(error);\n  }\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/lib/validate.ts\nimport { parseQuery } from '../validate';\n\nexport async function getTasksForTeam(teamId: number, paginationParams: PaginationParams): Promise<Result<Task[], Error>> {\n  try {\n    const tasks = await query(`\n      SELECT * FROM tasks WHERE team_id = $1 LIMIT $2 OFFSET $3\n    `, [teamId, limit, offset]);\n    return ok(tasks.rows as Task[]);\n  } catch (error) {\n    return err(error);\n  }\n}"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 2
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1862
+      }
+    ],
+    "durationMs": 4272
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1784
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1042
+      }
+    ],
+    "durationMs": 2830
+  }
+}

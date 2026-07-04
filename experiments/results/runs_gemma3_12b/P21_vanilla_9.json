@@ -1,0 +1,57 @@
+{
+  "promptId": "P21",
+  "condition": "vanilla",
+  "iteration": 9,
+  "passed": true,
+  "tokensIn": 125,
+  "tokensOut": 1828,
+  "tokensTotal": 1953,
+  "latencyMs": 133728,
+  "wallMs": 133728,
+  "files": [
+    {
+      "path": "src/teamMemberRemove.ts",
+      "length": 2025
+    },
+    {
+      "path": "src/dataModel.ts",
+      "length": 523
+    },
+    {
+      "path": "src/dataAccess.ts",
+      "length": 1617
+    },
+    {
+      "path": "src/index.ts",
+      "length": 215
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

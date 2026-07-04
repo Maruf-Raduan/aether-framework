@@ -1,0 +1,250 @@
+{
+  "promptId": "P24",
+  "targetDesc": "Create a route that lists the current user's notifications, paginated, with unread-first ordering.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 19935,
+      "tokensIn": 1185,
+      "tokensOut": 758,
+      "wallMs": 22909,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:modules/notifications/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'notifications',\n  description: 'Manages user notifications, including listing and marking as read.',\n\n  dependencies: {\n    modules: ['auth'], // Depends on auth for user context\n  },\n\n  exposes: {\n    routes: [\n      { method: 'GET', path: '/notifications', auth: true },\n    ],\n    functions: ['listNotifications'],\n    types: ['Notification', 'PaginatedNotifications'],\n  },\n\n  sideEffects: [\n    'reads from: notifications table',\n  ],\n\n  invariants: [\n    'Notifications are always associated with a user',\n    'Unread notifications are prioritized in listings',\n    'Pagination parameters must be positive integers',\n  ],\n});\n```\n```aether:modules/notifications/types.ts\nimport { User } from '@auth/types'; // Assuming User type is exposed by auth module\n\n/**\n * Represents a single user notification.\n */\nexport interface Notification {\n  id: string;\n  user_id: User['id']; // Link to the User type from auth module\n  title: string;\n  body: string;\n  is_read: boolean;\n  created_at: Date;\n  updated_at: Date;\n  link?: string; // Optional link for the notification, e.g., to the related task\n}\n\n/**\n * Represents a paginated list of notifications.\n */\nexport interface PaginatedNotifications {\n  data: Notification[];\n  total: number;\n  page: number;\n  limit: number;\n}\n```\n```aether:modules/notifications/lib/queries.ts\nimport { query } from 'lib/db';\nimport { Notification } from '../types';\n\n/**\n * Fetches a paginated list of notifications for a given user,\n * ordered by unread status first, then by creation date descending.\n * Also returns the total count of notifications for the user.\n *\n * @param userId The ID of the user.\n * @param page The current page number (1-indexed).\n * @param limit The maximum number of notifications per page.\n * @returns An object containing the list of notifications and the total count.\n */\nexport async function getNotificationsByUserId(\n  userId: string,\n  page: number,\n  limit: number\n): Promise<{ notifications: Notification[]; total: number }> {\n  const offset = (page - 1) * limit;\n\n  // Query for notifications\n  const notificationsResult = await query<Notification>(\n    `\n    SELECT\n      id,\n      user_id,\n      title,\n      body,\n      is_read,\n      created_at,\n      updated_at,\n      link\n    FROM notifications\n    WHERE user_id = $1\n    ORDER BY is_read ASC, created_at DESC\n    LIMIT $2 OFFSET $3;\n    `,\n    [userId, limit, offset]\n  );\n\n  // Query for total count\n  const totalResult = await query<{ count: string }>(\n    `\n    SELECT COUNT(*) FROM notifications WHERE user_id = $1;\n    `,\n    [userId]\n  );\n\n  const total = parseInt(totalResult.rows[0]?.count || '0', 10);\n\n  return {\n    notifications:"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 22909,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:modules/notifications/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'notifications',\n  description: 'Manages user notifications, including listing and marking as read.',\n\n  dependencies: {\n    modules: ['auth'], // Depends on auth for user context\n  },\n\n  exposes: {\n    routes: [\n      { method: 'GET', path: '/notifications', auth: true },\n    ],\n    functions: ['listNotifications'],\n    types: ['Notification', 'PaginatedNotifications'],\n  },\n\n  sideEffects: [\n    'reads from: notifications table',\n  ],\n\n  invariants: [\n    'Notifications are always associated with a user',\n    'Unread notifications are prioritized in listings',\n    'Pagination parameters must be positive integers',\n  ],\n});\n```\n```aether:modules/notifications/types.ts\nimport { User } from '@auth/types'; // Assuming User type is exposed by auth module\n\n/**\n * Represents a single user notification.\n */\nexport interface Notification {\n  id: string;\n  user_id: User['id']; // Link to the User type from auth module\n  title: string;\n  body: string;\n  is_read: boolean;\n  created_at: Date;\n  updated_at: Date;\n  link?: string; // Optional link for the notification, e.g., to the related task\n}\n\n/**\n * Represents a paginated list of notifications.\n */\nexport interface PaginatedNotifications {\n  data: Notification[];\n  total: number;\n  page: number;\n  limit: number;\n}\n```\n```aether:modules/notifications/lib/queries.ts\nimport { query } from 'lib/db';\nimport { Notification } from '../types';\n\n/**\n * Fetches a paginated list of notifications for a given user,\n * ordered by unread status first, then by creation date descending.\n * Also returns the total count of notifications for the user.\n *\n * @param userId The ID of the user.\n * @param page The current page number (1-indexed).\n * @param limit The maximum number of notifications per page.\n * @returns An object containing the list of notifications and the total count.\n */\nexport async function getNotificationsByUserId(\n  userId: string,\n  page: number,\n  limit: number\n): Promise<{ notifications: Notification[]; total: number }> {\n  const offset = (page - 1) * limit;\n\n  // Query for notifications\n  const notificationsResult = await query<Notification>(\n    `\n    SELECT\n      id,\n      user_id,\n      title,\n      body,\n      is_read,\n      created_at,\n      updated_at,\n      link\n    FROM notifications\n    WHERE user_id = $1\n    ORDER BY is_read ASC, created_at DESC\n    LIMIT $2 OFFSET $3;\n    `,\n    [userId, limit, offset]\n  );\n\n  // Query for total count\n  const totalResult = await query<{ count: string }>(\n    `\n    SELECT COUNT(*) FROM notifications WHERE user_id = $1;\n    `,\n    [userId]\n  );\n\n  const total = parseInt(totalResult.rows[0]?.count || '0', 10);\n\n  return {\n    notifications:"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 806
+      }
+    ],
+    "durationMs": 1674
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 844
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 453
+      }
+    ],
+    "durationMs": 1299
+  }
+}

@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.env
+.env.*
+.DS_Store
+.aether/
+archive/
+.venv/
+
+# Runtime logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+bun.lockb

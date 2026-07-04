@@ -1,0 +1,250 @@
+{
+  "promptId": "P07",
+  "targetDesc": "Create an assign-task route that takes assigneeId, verifies the assignee is a member of the task's team, and updates the assignment.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 19315,
+      "tokensIn": 1193,
+      "tokensOut": 918,
+      "wallMs": 22649,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Manages tasks, assignments, and task-related operations within projects.',\n\n  dependencies: {\n    modules: ['auth'], // Depends on auth for user/session types and functions\n  },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/tasks/:taskId/assign', auth: true },\n      // Other task routes would go here\n    ],\n    functions: ['assignTask'], // A service function that the route handler might use\n    types: ['Task', 'TaskAssignmentError'],\n  },\n\n  sideEffects: [\n    'writes to: tasks table',\n    'reads from: tasks table',\n    'reads from: team_members table',\n  ],\n\n  invariants: [\n    'A task must always belong to exactly one team',\n    'Only team members can be assigned to a task',\n    'A task can only have one assignee at a time',\n  ],\n});\n\n// Placeholder types for the contract\nexport type Task = {\n  id: string;\n  title: string;\n  description?: string;\n  teamId: string;\n  assigneeId?: string;\n  status: 'todo' | 'in-progress' | 'done';\n  createdAt: Date;\n  updatedAt: Date;\n};\n\nexport type TaskAssignmentError =\n  | 'TASK_NOT_FOUND'\n  | 'ASSIGNEE_NOT_TEAM_MEMBER'\n  | 'INVALID_INPUT'\n  | 'DATABASE_ERROR'\n  | 'UNAUTHORIZED';\n```\n```aether:modules/tasks/routes/assign.ts\nimport { Request, Response } from 'aether'; // Assuming 'aether' provides these types\nimport { requireUser } from 'auth/lib/auth'; // Path alias for auth module's exposed functions\nimport { parseBody } from 'lib/validate';\nimport { ok, err, Result } from 'lib/result';\nimport { query } from 'lib/db';\nimport { z } from 'zod';\n\n// Import types from auth module contract\nimport type { User } from 'auth/module.contract';\n// Import types from tasks module contract\nimport type { TaskAssignmentError } from 'tasks/module.contract';\n\n// Define the request body schema for assigning a task\nconst AssignTaskBodySchema = z.object({\n  assigneeId: z.string().uuid('Assignee ID must be a valid UUID.'),\n});\n\n/**\n * Service function to handle the business logic of assigning a task.\n * This function encapsulates database interactions and business rules.\n *\n * @param taskId The ID of the task to assign.\n * @param assigneeId The ID of the user to assign the task to.\n * @param currentUser The user performing the assignment (for potential future authorization checks).\n * @returns A Result indicating success (true) or a specific TaskAssignmentError.\n */\nasync function assignTaskService(\n  taskId: string,\n  assigneeId: string,\n  currentUser: User // currentUser is passed for potential future authorization checks (e.g., only team leads can assign)\n): Promise<Result<true, TaskAssignmentError>> {\n  // 1. Verify task exists and get its team_id\n  const taskResult = await query<{ team_id: string }>({\n    text: 'SELECT team_id FROM tasks WHERE id = $1',\n    values: [taskId],\n  });\n\n  if (taskResult.isErr()) {\n    console.error('Database error fetching task:', taskResult.error);\n    return err('DATABASE_ERROR');\n  }\n  if (taskResult.value.length === 0) {\n    return err('TASK_NOT_FOUND');\n  }\n  const teamId = taskResult.value[0].team_id;\n\n  // 2. Verify assignee is a member of the task's team (enforcing the invariant)\n  const memberResult = await query<{ user_id: string }>({"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 22649,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Manages tasks, assignments, and task-related operations within projects.',\n\n  dependencies: {\n    modules: ['auth'], // Depends on auth for user/session types and functions\n  },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/tasks/:taskId/assign', auth: true },\n      // Other task routes would go here\n    ],\n    functions: ['assignTask'], // A service function that the route handler might use\n    types: ['Task', 'TaskAssignmentError'],\n  },\n\n  sideEffects: [\n    'writes to: tasks table',\n    'reads from: tasks table',\n    'reads from: team_members table',\n  ],\n\n  invariants: [\n    'A task must always belong to exactly one team',\n    'Only team members can be assigned to a task',\n    'A task can only have one assignee at a time',\n  ],\n});\n\n// Placeholder types for the contract\nexport type Task = {\n  id: string;\n  title: string;\n  description?: string;\n  teamId: string;\n  assigneeId?: string;\n  status: 'todo' | 'in-progress' | 'done';\n  createdAt: Date;\n  updatedAt: Date;\n};\n\nexport type TaskAssignmentError =\n  | 'TASK_NOT_FOUND'\n  | 'ASSIGNEE_NOT_TEAM_MEMBER'\n  | 'INVALID_INPUT'\n  | 'DATABASE_ERROR'\n  | 'UNAUTHORIZED';\n```\n```aether:modules/tasks/routes/assign.ts\nimport { Request, Response } from 'aether'; // Assuming 'aether' provides these types\nimport { requireUser } from 'auth/lib/auth'; // Path alias for auth module's exposed functions\nimport { parseBody } from 'lib/validate';\nimport { ok, err, Result } from 'lib/result';\nimport { query } from 'lib/db';\nimport { z } from 'zod';\n\n// Import types from auth module contract\nimport type { User } from 'auth/module.contract';\n// Import types from tasks module contract\nimport type { TaskAssignmentError } from 'tasks/module.contract';\n\n// Define the request body schema for assigning a task\nconst AssignTaskBodySchema = z.object({\n  assigneeId: z.string().uuid('Assignee ID must be a valid UUID.'),\n});\n\n/**\n * Service function to handle the business logic of assigning a task.\n * This function encapsulates database interactions and business rules.\n *\n * @param taskId The ID of the task to assign.\n * @param assigneeId The ID of the user to assign the task to.\n * @param currentUser The user performing the assignment (for potential future authorization checks).\n * @returns A Result indicating success (true) or a specific TaskAssignmentError.\n */\nasync function assignTaskService(\n  taskId: string,\n  assigneeId: string,\n  currentUser: User // currentUser is passed for potential future authorization checks (e.g., only team leads can assign)\n): Promise<Result<true, TaskAssignmentError>> {\n  // 1. Verify task exists and get its team_id\n  const taskResult = await query<{ team_id: string }>({\n    text: 'SELECT team_id FROM tasks WHERE id = $1',\n    values: [taskId],\n  });\n\n  if (taskResult.isErr()) {\n    console.error('Database error fetching task:', taskResult.error);\n    return err('DATABASE_ERROR');\n  }\n  if (taskResult.value.length === 0) {\n    return err('TASK_NOT_FOUND');\n  }\n  const teamId = taskResult.value[0].team_id;\n\n  // 2. Verify assignee is a member of the task's team (enforcing the invariant)\n  const memberResult = await query<{ user_id: string }>({"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 847
+      }
+    ],
+    "durationMs": 1950
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 865
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 514
+      }
+    ],
+    "durationMs": 1382
+  }
+}

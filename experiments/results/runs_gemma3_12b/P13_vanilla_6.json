@@ -1,0 +1,53 @@
+{
+  "promptId": "P13",
+  "condition": "vanilla",
+  "iteration": 6,
+  "passed": true,
+  "tokensIn": 119,
+  "tokensOut": 1636,
+  "tokensTotal": 1755,
+  "latencyMs": 118814,
+  "wallMs": 118814,
+  "files": [
+    {
+      "path": "src/utils/stripe.ts",
+      "length": 1592
+    },
+    {
+      "path": "src/routes/subscription.ts",
+      "length": 1889
+    },
+    {
+      "path": "src/index.ts",
+      "length": 269
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

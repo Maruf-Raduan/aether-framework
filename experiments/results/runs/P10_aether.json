@@ -1,0 +1,250 @@
+{
+  "promptId": "P10",
+  "targetDesc": "Create a route that returns the audit-log history of a single task (status changes, reassignments).",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 12896,
+      "tokensIn": 1192,
+      "tokensOut": 1043,
+      "wallMs": 15979,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\n// Assuming existing types like Task, Project, etc.\n// Adding new types for audit log\nexport type TaskHistoryEntry = {\n  id: string;\n  task_id: string;\n  event_type: 'status_change' | 'reassignment' | 'creation' | 'deletion' | 'update';\n  old_value: string | null;\n  new_value: string | null;\n  user_id: string;\n  created_at: string; // ISO string\n};\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Manages tasks, projects, and assignments.',\n\n  dependencies: {\n    modules: ['auth'],\n  },\n\n  exposes: {\n    routes: [\n      // ... existing routes would be here ...\n      { method: 'GET', path: '/tasks/:taskId/history', auth: true },\n    ],\n    functions: [\n      // ... existing functions would be here ...\n    ],\n    types: [\n      // ... existing types would be here ...\n      'TaskHistoryEntry',\n    ],\n  },\n\n  sideEffects: [\n    // ... existing side effects would be here ...\n    'reads from: audit_logs table',\n  ],\n\n  invariants: [\n    // ... existing invariants would be here ...\n    'Task history entries must be immutable after creation.',\n  ],\n});\n```\n```aether:modules/tasks/routes/get-task-history.ts\nimport { Request } from 'aether'; // Assuming 'aether' provides a generic Request type\nimport { requireUser } from 'auth/module'; // Using path alias for cross-module import\nimport { parseParams } from 'lib/validate';\nimport { query } from 'lib/db';\nimport { ok, err } from 'lib/result';\nimport { TaskHistoryEntry } from 'modules/tasks/module.contract'; // Import the type from its own module contract\n\ninterface GetTaskHistoryParams {\n  taskId: string;\n}\n\nexport default async function getTaskHistory(req: Request): Promise<Response> {\n  // Auth is always explicit: Every authenticated route must call requireUser(req) as its first statement.\n  const authResult = await requireUser(req);\n  if (authResult.isErr()) {\n    return new Response(JSON.stringify({ error: authResult.error.message }), { status: authResult.error.status });\n  }\n  const user = authResult.value; // User is available if auth is successful\n\n  // Validate request parameters\n  const paramsResult = parseParams<GetTaskHistoryParams>(req, {\n    taskId: 'string',\n  });\n\n  if (paramsResult.isErr()) {\n    return new Response(JSON.stringify({ error: paramsResult.error.message }), { status: 400 });\n  }\n  const { taskId } = paramsResult.value;\n\n  // Fetch task history from the database\n  // No ORM: Raw SQL via /lib/db.ts\n  const dbResult = await query<TaskHistoryEntry>(\n    `SELECT\n       id,\n       task_id,\n       event_type,\n       old_value,\n       new_value,\n       user_id,\n       created_at\n     FROM audit_logs\n     WHERE task_id = $1\n     ORDER BY created_at DESC;`,\n    [taskId]\n  );\n\n  if (dbResult.isErr()) {\n    // Result type for errors: Do NOT throw exceptions for business logic errors.\n    // Exceptions are only for unrecoverable system errors (e.g. DB connection failure).\n    console.error('Database error fetching task history:', dbResult.error);\n    return new Response(JSON.stringify({ error: 'Failed to retrieve task history.' }), { status: 500 });\n  }\n\n  const history = dbResult.value;\n\n  if (history.length === 0) {\n    // Optionally, return 404 if the task itself doesn't exist or has no history\n    // For now, an empty array is a valid response if no history is found.\n    // If we wanted to check if the task exists first, we'd need another query.\n    // Assuming an empty array is acceptable for \"no history found\".\n  }\n\n  // Route handlers must return a typed Response\n  return new Response(JSON.stringify(ok(history).value), {\n    status: 200,\n    headers: { 'Content-Type': 'application/json' },\n  });\n}\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 15979,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\n// Assuming existing types like Task, Project, etc.\n// Adding new types for audit log\nexport type TaskHistoryEntry = {\n  id: string;\n  task_id: string;\n  event_type: 'status_change' | 'reassignment' | 'creation' | 'deletion' | 'update';\n  old_value: string | null;\n  new_value: string | null;\n  user_id: string;\n  created_at: string; // ISO string\n};\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Manages tasks, projects, and assignments.',\n\n  dependencies: {\n    modules: ['auth'],\n  },\n\n  exposes: {\n    routes: [\n      // ... existing routes would be here ...\n      { method: 'GET', path: '/tasks/:taskId/history', auth: true },\n    ],\n    functions: [\n      // ... existing functions would be here ...\n    ],\n    types: [\n      // ... existing types would be here ...\n      'TaskHistoryEntry',\n    ],\n  },\n\n  sideEffects: [\n    // ... existing side effects would be here ...\n    'reads from: audit_logs table',\n  ],\n\n  invariants: [\n    // ... existing invariants would be here ...\n    'Task history entries must be immutable after creation.',\n  ],\n});\n```\n```aether:modules/tasks/routes/get-task-history.ts\nimport { Request } from 'aether'; // Assuming 'aether' provides a generic Request type\nimport { requireUser } from 'auth/module'; // Using path alias for cross-module import\nimport { parseParams } from 'lib/validate';\nimport { query } from 'lib/db';\nimport { ok, err } from 'lib/result';\nimport { TaskHistoryEntry } from 'modules/tasks/module.contract'; // Import the type from its own module contract\n\ninterface GetTaskHistoryParams {\n  taskId: string;\n}\n\nexport default async function getTaskHistory(req: Request): Promise<Response> {\n  // Auth is always explicit: Every authenticated route must call requireUser(req) as its first statement.\n  const authResult = await requireUser(req);\n  if (authResult.isErr()) {\n    return new Response(JSON.stringify({ error: authResult.error.message }), { status: authResult.error.status });\n  }\n  const user = authResult.value; // User is available if auth is successful\n\n  // Validate request parameters\n  const paramsResult = parseParams<GetTaskHistoryParams>(req, {\n    taskId: 'string',\n  });\n\n  if (paramsResult.isErr()) {\n    return new Response(JSON.stringify({ error: paramsResult.error.message }), { status: 400 });\n  }\n  const { taskId } = paramsResult.value;\n\n  // Fetch task history from the database\n  // No ORM: Raw SQL via /lib/db.ts\n  const dbResult = await query<TaskHistoryEntry>(\n    `SELECT\n       id,\n       task_id,\n       event_type,\n       old_value,\n       new_value,\n       user_id,\n       created_at\n     FROM audit_logs\n     WHERE task_id = $1\n     ORDER BY created_at DESC;`,\n    [taskId]\n  );\n\n  if (dbResult.isErr()) {\n    // Result type for errors: Do NOT throw exceptions for business logic errors.\n    // Exceptions are only for unrecoverable system errors (e.g. DB connection failure).\n    console.error('Database error fetching task history:', dbResult.error);\n    return new Response(JSON.stringify({ error: 'Failed to retrieve task history.' }), { status: 500 });\n  }\n\n  const history = dbResult.value;\n\n  if (history.length === 0) {\n    // Optionally, return 404 if the task itself doesn't exist or has no history\n    // For now, an empty array is a valid response if no history is found.\n    // If we wanted to check if the task exists first, we'd need another query.\n    // Assuming an empty array is acceptable for \"no history found\".\n  }\n\n  // Route handlers must return a typed Response\n  return new Response(JSON.stringify(ok(history).value), {\n    status: 200,\n    headers: { 'Content-Type': 'application/json' },\n  });\n}\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 828
+      }
+    ],
+    "durationMs": 1720
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 823
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 537
+      }
+    ],
+    "durationMs": 1363
+  }
+}

@@ -1,0 +1,250 @@
+{
+  "promptId": "P04",
+  "targetDesc": "Create a list-tasks route that returns all tasks for the current user's team, paginated by limit/offset query params.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 21108,
+      "tokensIn": 1194,
+      "tokensOut": 527,
+      "wallMs": 24128,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Manages tasks, projects, and assignments within teams.',\n\n  dependencies: {\n    modules: ['auth'], // Depends on auth for user session and user context\n  },\n\n  exposes: {\n    routes: [\n      { method: 'GET', path: '/tasks', auth: true }, // List tasks for current user's team\n    ],\n    functions: [], // No functions exposed for other modules at this time\n    types: ['Task'], // Expose the Task type for other modules to use\n  },\n\n  sideEffects: [\n    'reads from: tasks table',\n    'reads from: users table (indirectly via auth module for team context)',\n  ],\n\n  invariants: [\n    'All tasks must belong to exactly one team.',\n    'Users can only view tasks within their own team.',\n    'Pagination parameters (limit, offset) must be non-negative.',\n  ],\n});\n```\n```aether:modules/tasks/types.ts\n/**\n * Represents a single task within the system.\n */\nexport type Task = {\n  id: string;\n  title: string;\n  description: string | null;\n  status: 'todo' | 'in-progress' | 'done';\n  priority: 'low' | 'medium' | 'high';\n  dueDate: Date | null;\n  createdAt: Date;\n  updatedAt: Date;\n  assignedToUserId: string | null;\n  teamId: string;\n};\n\n/**\n * Represents the User type as exposed by the auth module.\n * Assuming it includes `id` and `teamId` based on project context.\n */\nexport type User = {\n  id: string;\n  teamId: string;\n  // ... other user properties from auth module\n};\n```\n```aether:modules/tasks/services/listTasks.ts\nimport { query } from '@lib/db';\nimport { ok, err, Result } from '@lib/result';\nimport { Task } from '../types';\n\n/**\n * Options for listing tasks.\n */\ntype ListTasksOptions = {\n  teamId: string;\n  limit: number;\n  offset: number;\n};\n\n/**"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 24128,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Manages tasks, projects, and assignments within teams.',\n\n  dependencies: {\n    modules: ['auth'], // Depends on auth for user session and user context\n  },\n\n  exposes: {\n    routes: [\n      { method: 'GET', path: '/tasks', auth: true }, // List tasks for current user's team\n    ],\n    functions: [], // No functions exposed for other modules at this time\n    types: ['Task'], // Expose the Task type for other modules to use\n  },\n\n  sideEffects: [\n    'reads from: tasks table',\n    'reads from: users table (indirectly via auth module for team context)',\n  ],\n\n  invariants: [\n    'All tasks must belong to exactly one team.',\n    'Users can only view tasks within their own team.',\n    'Pagination parameters (limit, offset) must be non-negative.',\n  ],\n});\n```\n```aether:modules/tasks/types.ts\n/**\n * Represents a single task within the system.\n */\nexport type Task = {\n  id: string;\n  title: string;\n  description: string | null;\n  status: 'todo' | 'in-progress' | 'done';\n  priority: 'low' | 'medium' | 'high';\n  dueDate: Date | null;\n  createdAt: Date;\n  updatedAt: Date;\n  assignedToUserId: string | null;\n  teamId: string;\n};\n\n/**\n * Represents the User type as exposed by the auth module.\n * Assuming it includes `id` and `teamId` based on project context.\n */\nexport type User = {\n  id: string;\n  teamId: string;\n  // ... other user properties from auth module\n};\n```\n```aether:modules/tasks/services/listTasks.ts\nimport { query } from '@lib/db';\nimport { ok, err, Result } from '@lib/result';\nimport { Task } from '../types';\n\n/**\n * Options for listing tasks.\n */\ntype ListTasksOptions = {\n  teamId: string;\n  limit: number;\n  offset: number;\n};\n\n/**"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 789
+      }
+    ],
+    "durationMs": 1711
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 788
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 518
+      }
+    ],
+    "durationMs": 1309
+  }
+}

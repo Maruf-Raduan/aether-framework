@@ -1,0 +1,250 @@
+{
+  "promptId": "P05",
+  "targetDesc": "Create a create-task route that accepts { title, description, assigneeId }, validates with Zod, and inserts a new task belonging to the caller's team. Enforce the invariant that a task must belong to exactly one team.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 17355,
+      "tokensIn": 1214,
+      "tokensOut": 2108,
+      "wallMs": 20423,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Manages tasks within projects, including creation, assignment, and status updates.',\n\n  dependencies: {\n    modules: ['auth'], // Depends on auth for user and session information\n  },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/tasks', auth: true }, // Create a new task\n    ],\n    functions: ['createTask'],\n    types: ['Task', 'CreateTaskPayload', 'TaskError'],\n  },\n\n  sideEffects: [\n    'writes to: tasks table',\n  ],\n\n  invariants: [\n    'A task must always belong to exactly one team.',\n    'A task must always be assigned to a user within the same team.',\n    'Task titles cannot be empty.',\n  ],\n});\n```\n\n```aether:modules/tasks/lib/types.ts\nimport { z } from 'zod';\n\n/**\n * Represents a task in the system.\n */\nexport interface Task {\n  id: string;\n  teamId: string;\n  title: string;\n  description: string | null;\n  assigneeId: string | null;\n  status: 'todo' | 'in-progress' | 'done';\n  createdAt: Date;\n  updatedAt: Date;\n}\n\n/**\n * Payload for creating a new task.\n */\nexport interface CreateTaskPayload {\n  title: string;\n  description?: string | null;\n  assigneeId?: string | null;\n}\n\nexport const CreateTaskPayloadSchema = z.object({\n  title: z.string().min(1, 'Task title cannot be empty.'),\n  description: z.string().nullable().optional(),\n  assigneeId: z.string().uuid('Assignee ID must be a valid UUID.').nullable().optional(),\n});\n\n/**\n * Specific error types for task operations.\n */\nexport type TaskError =\n  | { type: 'ValidationError'; message: string; details?: Record<string, string[]> }\n  | { type: 'AssigneeNotFound'; message: string }\n  | { type: 'AssigneeNotInTeam'; message: string }\n  | { type: 'DatabaseError'; message: string };\n```\n\n```aether:modules/tasks/lib/queries.ts\nimport { Database } from 'aether/lib/db';\nimport { Task } from './types';\n\n/**\n * Inserts a new task into the database.\n *\n * @param db The database client instance.\n * @param taskData The data for the new task.\n * @returns The newly created task object.\n */\nexport async function insertTask(\n  db: Database,\n  taskData: {\n    teamId: string;\n    title: string;\n    description: string | null;\n    assigneeId: string | null;\n    status: 'todo'; // New tasks always start as 'todo'\n  }\n): Promise<Task> {\n  const result = await db.query<Task>(\n    `\n    INSERT INTO tasks (team_id, title, description, assignee_id, status)\n    VALUES ($1, $2, $3, $4, $5)\n    RETURNING id, team_id AS \"teamId\", title, description, assignee_id AS \"assigneeId\", status, created_at AS \"createdAt\", updated_at AS \"updatedAt\";\n    `,\n    [taskData.teamId, taskData.title, taskData.description, taskData.assigneeId, taskData.status]\n  );\n\n  // Assuming the query returns exactly one row for an insert with RETURNING\n  return result[0];\n}\n\n/**\n * Checks if a user exists and belongs to a specific team.\n *\n * @param db The database client instance.\n * @param userId The ID of the user to check.\n * @param teamId The ID of the team the user should belong to.\n * @returns True if the user exists and belongs to the team, false otherwise.\n */\nexport async function checkUserInTeam(db: Database, userId: string, teamId: string): Promise<boolean> {\n  const result = await db.query<{ exists: boolean }>(\n    `\n    SELECT EXISTS (\n      SELECT 1\n      FROM users\n      WHERE id = $1 AND team_id = $2\n    ) AS exists;\n    `,\n    [userId, teamId]\n  );\n  return result[0]?.exists || false;\n}\n```\n\n```aether:modules/tasks/lib/services.ts\nimport { Database } from 'aether/lib/db';\nimport { ok, err, Result } from 'aether/lib/result';\nimport { Task, CreateTaskPayload, TaskError } from './types';\nimport { insertTask, checkUserInTeam } from './queries';\n\n/**\n * Creates a new task for a given team and user.\n *\n * @param db The database client instance.\n * @param payload The data for the new task.\n * @param teamId The ID of the team the task belongs to.\n * @param userId The ID of the user creating the task.\n * @returns A Result containing the new Task on success, or a TaskError on failure.\n */\nexport async function createTask(\n  db: Database,\n  payload: CreateTaskPayload,\n  teamId: string,\n  userId: string // The user creating the task\n): Promise<Result<Task, TaskError>> {\n  // If an assignee is provided, validate that they exist and belong to the same team\n  if (payload.assigneeId) {\n    const assigneeInTeam = await checkUserInTeam(db, payload.assigneeId, teamId);\n    if (!assigneeInTeam) {\n      return err({\n        type: 'AssigneeNotInTeam',\n        message: `Assignee with ID ${payload.assigneeId} not found or does not belong to team ${teamId}.`,\n      });\n    }\n  }\n\n  try {\n    const newTask = await insertTask(db, {\n      teamId,\n      title: payload.title,\n      description: payload.description ?? null,\n      assigneeId: payload.assigneeId ?? null,\n      status: 'todo',\n    });\n    return ok(newTask);\n  } catch (error) {\n    console.error('Database error creating task:', error);\n    return err({ type: 'DatabaseError', message: 'Failed to create task due to a database error.' });\n  }\n}\n```\n\n```aether:modules/tasks/routes/create.ts\nimport { Request, Response } from 'aether/lib/types';\nimport { requireUser } from 'aether/modules/auth/module.contract';\nimport { parseBody } from 'aether/lib/validate';\nimport { db } from 'aether/lib/db';\nimport { createTask } from '../lib/services';\nimport { CreateTaskPayloadSchema, TaskError } from '../lib/types';\n\n/**\n * Handles the creation of a new task.\n * POST /tasks\n *\n * @param req The incoming request object.\n * @returns A Response object with the created task or an error.\n */\nexport async function handleCreateTask(req: Request): Promise<Response> {\n  // 1. Authenticate the user\n  const userResult = await requireUser(req);\n  if (userResult.isErr()) {\n    return { status: 401, body: { message: userResult.error.message } };\n  }\n  const user = userResult.value;\n\n  // 2. Validate the request body\n  const bodyResult = parseBody(req, CreateTaskPayloadSchema);\n  if (bodyResult.isErr()) {\n    return { status: 400, body: { message: bodyResult.error.message, details: bodyResult.error.details } };\n  }\n  const payload = bodyResult.value;\n\n  // 3. Call the service to create the task\n  const taskResult = await createTask(db, payload, user.teamId, user.id);\n\n  // 4. Handle the service result\n  if (taskResult.isOk()) {\n    return { status: 201, body: taskResult.value };\n  } else {\n    const error: TaskError = taskResult.error;\n    switch (error.type) {\n      case 'ValidationError':\n        return { status: 400, body: { message: error.message, details: error.details } };\n      case 'AssigneeNotFound': // This case is handled by AssigneeNotInTeam now\n      case 'AssigneeNotInTeam':\n        return { status: 400, body: { message: error.message } };\n      case 'DatabaseError':\n        // Log the error for internal debugging, but return a generic message to the client\n        console.error('Error creating task:', error.message);\n        return { status: 500, body: { message: 'Failed to create task due to an internal server error.' } };\n      default:\n        return { status: 500, body: { message: 'An unexpected error occurred.' } };\n    }\n  }\n}\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 20423,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Manages tasks within projects, including creation, assignment, and status updates.',\n\n  dependencies: {\n    modules: ['auth'], // Depends on auth for user and session information\n  },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/tasks', auth: true }, // Create a new task\n    ],\n    functions: ['createTask'],\n    types: ['Task', 'CreateTaskPayload', 'TaskError'],\n  },\n\n  sideEffects: [\n    'writes to: tasks table',\n  ],\n\n  invariants: [\n    'A task must always belong to exactly one team.',\n    'A task must always be assigned to a user within the same team.',\n    'Task titles cannot be empty.',\n  ],\n});\n```\n\n```aether:modules/tasks/lib/types.ts\nimport { z } from 'zod';\n\n/**\n * Represents a task in the system.\n */\nexport interface Task {\n  id: string;\n  teamId: string;\n  title: string;\n  description: string | null;\n  assigneeId: string | null;\n  status: 'todo' | 'in-progress' | 'done';\n  createdAt: Date;\n  updatedAt: Date;\n}\n\n/**\n * Payload for creating a new task.\n */\nexport interface CreateTaskPayload {\n  title: string;\n  description?: string | null;\n  assigneeId?: string | null;\n}\n\nexport const CreateTaskPayloadSchema = z.object({\n  title: z.string().min(1, 'Task title cannot be empty.'),\n  description: z.string().nullable().optional(),\n  assigneeId: z.string().uuid('Assignee ID must be a valid UUID.').nullable().optional(),\n});\n\n/**\n * Specific error types for task operations.\n */\nexport type TaskError =\n  | { type: 'ValidationError'; message: string; details?: Record<string, string[]> }\n  | { type: 'AssigneeNotFound'; message: string }\n  | { type: 'AssigneeNotInTeam'; message: string }\n  | { type: 'DatabaseError'; message: string };\n```\n\n```aether:modules/tasks/lib/queries.ts\nimport { Database } from 'aether/lib/db';\nimport { Task } from './types';\n\n/**\n * Inserts a new task into the database.\n *\n * @param db The database client instance.\n * @param taskData The data for the new task.\n * @returns The newly created task object.\n */\nexport async function insertTask(\n  db: Database,\n  taskData: {\n    teamId: string;\n    title: string;\n    description: string | null;\n    assigneeId: string | null;\n    status: 'todo'; // New tasks always start as 'todo'\n  }\n): Promise<Task> {\n  const result = await db.query<Task>(\n    `\n    INSERT INTO tasks (team_id, title, description, assignee_id, status)\n    VALUES ($1, $2, $3, $4, $5)\n    RETURNING id, team_id AS \"teamId\", title, description, assignee_id AS \"assigneeId\", status, created_at AS \"createdAt\", updated_at AS \"updatedAt\";\n    `,\n    [taskData.teamId, taskData.title, taskData.description, taskData.assigneeId, taskData.status]\n  );\n\n  // Assuming the query returns exactly one row for an insert with RETURNING\n  return result[0];\n}\n\n/**\n * Checks if a user exists and belongs to a specific team.\n *\n * @param db The database client instance.\n * @param userId The ID of the user to check.\n * @param teamId The ID of the team the user should belong to.\n * @returns True if the user exists and belongs to the team, false otherwise.\n */\nexport async function checkUserInTeam(db: Database, userId: string, teamId: string): Promise<boolean> {\n  const result = await db.query<{ exists: boolean }>(\n    `\n    SELECT EXISTS (\n      SELECT 1\n      FROM users\n      WHERE id = $1 AND team_id = $2\n    ) AS exists;\n    `,\n    [userId, teamId]\n  );\n  return result[0]?.exists || false;\n}\n```\n\n```aether:modules/tasks/lib/services.ts\nimport { Database } from 'aether/lib/db';\nimport { ok, err, Result } from 'aether/lib/result';\nimport { Task, CreateTaskPayload, TaskError } from './types';\nimport { insertTask, checkUserInTeam } from './queries';\n\n/**\n * Creates a new task for a given team and user.\n *\n * @param db The database client instance.\n * @param payload The data for the new task.\n * @param teamId The ID of the team the task belongs to.\n * @param userId The ID of the user creating the task.\n * @returns A Result containing the new Task on success, or a TaskError on failure.\n */\nexport async function createTask(\n  db: Database,\n  payload: CreateTaskPayload,\n  teamId: string,\n  userId: string // The user creating the task\n): Promise<Result<Task, TaskError>> {\n  // If an assignee is provided, validate that they exist and belong to the same team\n  if (payload.assigneeId) {\n    const assigneeInTeam = await checkUserInTeam(db, payload.assigneeId, teamId);\n    if (!assigneeInTeam) {\n      return err({\n        type: 'AssigneeNotInTeam',\n        message: `Assignee with ID ${payload.assigneeId} not found or does not belong to team ${teamId}.`,\n      });\n    }\n  }\n\n  try {\n    const newTask = await insertTask(db, {\n      teamId,\n      title: payload.title,\n      description: payload.description ?? null,\n      assigneeId: payload.assigneeId ?? null,\n      status: 'todo',\n    });\n    return ok(newTask);\n  } catch (error) {\n    console.error('Database error creating task:', error);\n    return err({ type: 'DatabaseError', message: 'Failed to create task due to a database error.' });\n  }\n}\n```\n\n```aether:modules/tasks/routes/create.ts\nimport { Request, Response } from 'aether/lib/types';\nimport { requireUser } from 'aether/modules/auth/module.contract';\nimport { parseBody } from 'aether/lib/validate';\nimport { db } from 'aether/lib/db';\nimport { createTask } from '../lib/services';\nimport { CreateTaskPayloadSchema, TaskError } from '../lib/types';\n\n/**\n * Handles the creation of a new task.\n * POST /tasks\n *\n * @param req The incoming request object.\n * @returns A Response object with the created task or an error.\n */\nexport async function handleCreateTask(req: Request): Promise<Response> {\n  // 1. Authenticate the user\n  const userResult = await requireUser(req);\n  if (userResult.isErr()) {\n    return { status: 401, body: { message: userResult.error.message } };\n  }\n  const user = userResult.value;\n\n  // 2. Validate the request body\n  const bodyResult = parseBody(req, CreateTaskPayloadSchema);\n  if (bodyResult.isErr()) {\n    return { status: 400, body: { message: bodyResult.error.message, details: bodyResult.error.details } };\n  }\n  const payload = bodyResult.value;\n\n  // 3. Call the service to create the task\n  const taskResult = await createTask(db, payload, user.teamId, user.id);\n\n  // 4. Handle the service result\n  if (taskResult.isOk()) {\n    return { status: 201, body: taskResult.value };\n  } else {\n    const error: TaskError = taskResult.error;\n    switch (error.type) {\n      case 'ValidationError':\n        return { status: 400, body: { message: error.message, details: error.details } };\n      case 'AssigneeNotFound': // This case is handled by AssigneeNotInTeam now\n      case 'AssigneeNotInTeam':\n        return { status: 400, body: { message: error.message } };\n      case 'DatabaseError':\n        // Log the error for internal debugging, but return a generic message to the client\n        console.error('Error creating task:', error.message);\n        return { status: 500, body: { message: 'Failed to create task due to an internal server error.' } };\n      default:\n        return { status: 500, body: { message: 'An unexpected error occurred.' } };\n    }\n  }\n}\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 800
+      }
+    ],
+    "durationMs": 1722
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 846
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 496
+      }
+    ],
+    "durationMs": 1345
+  }
+}

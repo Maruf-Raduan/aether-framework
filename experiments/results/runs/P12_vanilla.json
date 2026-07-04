@@ -1,0 +1,113 @@
+{
+  "promptId": "P12",
+  "targetDesc": "Create a bulk-update route that accepts an array of {id, patch} objects, validates each, applies inside a transaction, and returns per-item success/failure.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 21738,
+      "tokensIn": 186,
+      "tokensOut": 1788,
+      "wallMs": 23076,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types/index.ts\nimport { z } from 'zod';\n\n// --- Core Entity Type ---\nexport interface Item {\n  id: string;\n  name: string;\n  description?: string;\n  status: 'active' | 'inactive' | 'pending';\n  createdAt: string;\n  updatedAt: string;\n}\n\n// --- Zod Schemas for Validation ---\n\n// Base schema for an Item (used for creating/full validation)\nexport const ItemSchema = z.object({\n  id: z.string().uuid(\"ID must be a valid UUID.\"),\n  name: z.string().min(3, \"Name must be at least 3 characters long.\"),\n  description: z.string().optional(),\n  status: z.enum(['active', 'inactive', 'pending'], {\n    errorMap: () => ({ message: \"Status must be 'active', 'inactive', or 'pending'.\" })\n  }),\n  createdAt: z.string().datetime(\"createdAt must be a valid ISO datetime string.\"),\n  updatedAt: z.string().datetime(\"updatedAt must be a valid ISO datetime string.\"),\n});\n\n// Schema for a partial Item update (patch)\nexport const ItemPatchSchema = ItemSchema.partial();\n\n// Schema for a single item in the bulk update request body\nexport const BulkUpdateItemRequestSchema = z.object({\n  id: z.string().uuid(\"ID must be a valid UUID.\"),\n  patch: ItemPatchSchema,\n});\n\n// Schema for the entire bulk update request body\nexport const BulkUpdateRequestSchema = z.array(BulkUpdateItemRequestSchema)\n  .min(1, \"Bulk update request must contain at least one item.\")\n  .max(100, \"Bulk update request cannot contain more than 100 items.\"); // Sensible default limit\n\n// --- Response Types ---\n\n// Type for a single item's result in the bulk update response\nexport interface BulkUpdateResponseItem {\n  id: string;\n  status: 'success' | 'failure';\n  message?: string; // Error message if status is 'failure'\n  data?: Item;      // Updated item data if status is 'success'\n}\n```\n```aether:src/db/index.ts\nimport { Item } from '../types';\nimport { v4 as uuid } from 'uuid';\n\n// In-memory database simulation\nconst items: Item[] = [\n  {\n    id: uuid(),\n    name: 'Task A',\n    description: 'Description for Task A',\n    status: 'active',\n    createdAt: new Date().toISOString(),\n    updatedAt: new Date().toISOString(),\n  },\n  {\n    id: uuid(),\n    name: 'Task B',\n    description: 'Description for Task B',\n    status: 'pending',\n    createdAt: new Date().toISOString(),\n    updatedAt: new Date().toISOString(),\n  },\n  {\n    id: uuid(),\n    name: 'Task C',\n    description: 'Description for Task C',\n    status: 'inactive',\n    createdAt: new Date().toISOString(),\n    updatedAt: new Date().toISOString(),\n  },\n];\n\n// Simulate a database connection error for demonstration\nlet simulateDbError = false;\n\nexport const setSimulateDbError = (value: boolean) => {\n  simulateDbError = value;\n};\n\n/**\n * Simulates a bulk update operation within a transaction.\n * It attempts to apply each patch. If an item is not found or a specific\n * update fails, it's reported as a failure for that item.\n * If a critical database error is simulated, the entire transaction fails.\n *\n * @param updates An array of objects containing id and patch for each item.\n * @returns A promise resolving to an array of results for each item.\n */\nexport const bulkUpdateItems = async (\n  updates: Array<{ id: string; patch: Partial<Item> }>\n): Promise<Array<{ id: string; status: 'success' | 'failure'; message?: string; data?: Item }>> => {\n  if (simulateDbError) {\n    console.error('Simulating a critical database error.');\n    throw new Error('Database connection lost during transaction.');\n  }\n\n  const results: Array<{ id: string; status: 'success' | 'failure'; message?: string; data?: Item }> = [];\n  const changesToApply: { index: number; updatedItem: Item }[] = [];\n\n  // Phase 1: Validate and prepare updates\n  for (let i = 0; i < updates.length; i++) {\n    const { id, patch } = updates[i];\n    const itemIndex = items.findIndex(item => item.id === id);\n\n    if (itemIndex === -1) {\n      results.push({ id, status: 'failure', message: `Item with ID '${id}' not found.` });\n      continue;\n    }\n\n    const existingItem = items[itemIndex];\n    const updatedItem: Item = {\n      ...existingItem,\n      ...patch,\n      updatedAt: new Date().toISOString(), // Always update timestamp on patch\n    };\n\n    // Simulate a specific business logic failure (e.g., cannot change status to 'pending' if already 'active')\n    if (existingItem.status === 'active' && patch.status === 'pending') {\n      results.push({ id, status: 'failure', message: `Cannot change status from 'active' to 'pending'.` });\n      continue;\n    }\n\n    // If all checks pass, stage the change\n    changesToApply.push({ index: itemIndex, updatedItem });\n    results.push({ id, status: 'success', data: updatedItem }); // Tentatively mark as success\n  }\n\n  // Phase 2: Apply changes (simulated transaction commit)\n  // This ensures that if any critical error happened during preparation,\n  // or if we wanted a full rollback on *any* item failure, we could do it here.\n  // For \"per-item success/failure\", we apply only the successful ones.\n  for (const change of changesToApply) {\n    // Find the corresponding result entry to update its data\n    const resultEntry = results.find(r => r.id === change.updatedItem.id);\n    if (resultEntry && resultEntry.status === 'success') {\n      items[change.index] = change.updatedItem;\n      resultEntry.data = items[change.index]; // Ensure the returned data is the committed data\n    }\n  }\n\n  // For items that were marked as failure during preparation, ensure their status is 'failure'\n  // and data is not present. This is already handled by how `results` is built.\n\n  return results;\n};\n\n/**\n * Retrieves all items.\n */\nexport const getAllItems = async (): Promise<Item[]> => {\n  if (simulateDbError) {\n    console.error('Simulating a critical database error during fetch.');\n    throw new Error('Database connection lost during fetch.');\n  }\n  return [...items]; // Return a copy to prevent external modification\n};\n```\n```aether:src/routes/items.ts\nimport { Hono } from 'hono';\nimport { zValidator } from '@hono/zod-validator';\nimport { BulkUpdateRequestSchema, BulkUpdateResponseItem } from '../types';\nimport { bulkUpdateItems } from '../db';\n\nconst items = new Hono();\n\n// POST /items/bulk-update\n// Accepts an array of {id, patch} objects, validates, applies, and returns per-item results.\nitems.post(\n  '/bulk-update',\n  zValidator('json', BulkUpdateRequestSchema), // Validate the request body using Zod\n  async (c) => {\n    const bulkUpdateRequests = c.req.valid('json');\n    const responseItems: BulkUpdateResponseItem[] = [];\n\n    try {\n      // Pass the validated requests to the database layer for processing\n      const dbResults = await bulkUpdateItems(bulk"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 23076,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types/index.ts\nimport { z } from 'zod';\n\n// --- Core Entity Type ---\nexport interface Item {\n  id: string;\n  name: string;\n  description?: string;\n  status: 'active' | 'inactive' | 'pending';\n  createdAt: string;\n  updatedAt: string;\n}\n\n// --- Zod Schemas for Validation ---\n\n// Base schema for an Item (used for creating/full validation)\nexport const ItemSchema = z.object({\n  id: z.string().uuid(\"ID must be a valid UUID.\"),\n  name: z.string().min(3, \"Name must be at least 3 characters long.\"),\n  description: z.string().optional(),\n  status: z.enum(['active', 'inactive', 'pending'], {\n    errorMap: () => ({ message: \"Status must be 'active', 'inactive', or 'pending'.\" })\n  }),\n  createdAt: z.string().datetime(\"createdAt must be a valid ISO datetime string.\"),\n  updatedAt: z.string().datetime(\"updatedAt must be a valid ISO datetime string.\"),\n});\n\n// Schema for a partial Item update (patch)\nexport const ItemPatchSchema = ItemSchema.partial();\n\n// Schema for a single item in the bulk update request body\nexport const BulkUpdateItemRequestSchema = z.object({\n  id: z.string().uuid(\"ID must be a valid UUID.\"),\n  patch: ItemPatchSchema,\n});\n\n// Schema for the entire bulk update request body\nexport const BulkUpdateRequestSchema = z.array(BulkUpdateItemRequestSchema)\n  .min(1, \"Bulk update request must contain at least one item.\")\n  .max(100, \"Bulk update request cannot contain more than 100 items.\"); // Sensible default limit\n\n// --- Response Types ---\n\n// Type for a single item's result in the bulk update response\nexport interface BulkUpdateResponseItem {\n  id: string;\n  status: 'success' | 'failure';\n  message?: string; // Error message if status is 'failure'\n  data?: Item;      // Updated item data if status is 'success'\n}\n```\n```aether:src/db/index.ts\nimport { Item } from '../types';\nimport { v4 as uuid } from 'uuid';\n\n// In-memory database simulation\nconst items: Item[] = [\n  {\n    id: uuid(),\n    name: 'Task A',\n    description: 'Description for Task A',\n    status: 'active',\n    createdAt: new Date().toISOString(),\n    updatedAt: new Date().toISOString(),\n  },\n  {\n    id: uuid(),\n    name: 'Task B',\n    description: 'Description for Task B',\n    status: 'pending',\n    createdAt: new Date().toISOString(),\n    updatedAt: new Date().toISOString(),\n  },\n  {\n    id: uuid(),\n    name: 'Task C',\n    description: 'Description for Task C',\n    status: 'inactive',\n    createdAt: new Date().toISOString(),\n    updatedAt: new Date().toISOString(),\n  },\n];\n\n// Simulate a database connection error for demonstration\nlet simulateDbError = false;\n\nexport const setSimulateDbError = (value: boolean) => {\n  simulateDbError = value;\n};\n\n/**\n * Simulates a bulk update operation within a transaction.\n * It attempts to apply each patch. If an item is not found or a specific\n * update fails, it's reported as a failure for that item.\n * If a critical database error is simulated, the entire transaction fails.\n *\n * @param updates An array of objects containing id and patch for each item.\n * @returns A promise resolving to an array of results for each item.\n */\nexport const bulkUpdateItems = async (\n  updates: Array<{ id: string; patch: Partial<Item> }>\n): Promise<Array<{ id: string; status: 'success' | 'failure'; message?: string; data?: Item }>> => {\n  if (simulateDbError) {\n    console.error('Simulating a critical database error.');\n    throw new Error('Database connection lost during transaction.');\n  }\n\n  const results: Array<{ id: string; status: 'success' | 'failure'; message?: string; data?: Item }> = [];\n  const changesToApply: { index: number; updatedItem: Item }[] = [];\n\n  // Phase 1: Validate and prepare updates\n  for (let i = 0; i < updates.length; i++) {\n    const { id, patch } = updates[i];\n    const itemIndex = items.findIndex(item => item.id === id);\n\n    if (itemIndex === -1) {\n      results.push({ id, status: 'failure', message: `Item with ID '${id}' not found.` });\n      continue;\n    }\n\n    const existingItem = items[itemIndex];\n    const updatedItem: Item = {\n      ...existingItem,\n      ...patch,\n      updatedAt: new Date().toISOString(), // Always update timestamp on patch\n    };\n\n    // Simulate a specific business logic failure (e.g., cannot change status to 'pending' if already 'active')\n    if (existingItem.status === 'active' && patch.status === 'pending') {\n      results.push({ id, status: 'failure', message: `Cannot change status from 'active' to 'pending'.` });\n      continue;\n    }\n\n    // If all checks pass, stage the change\n    changesToApply.push({ index: itemIndex, updatedItem });\n    results.push({ id, status: 'success', data: updatedItem }); // Tentatively mark as success\n  }\n\n  // Phase 2: Apply changes (simulated transaction commit)\n  // This ensures that if any critical error happened during preparation,\n  // or if we wanted a full rollback on *any* item failure, we could do it here.\n  // For \"per-item success/failure\", we apply only the successful ones.\n  for (const change of changesToApply) {\n    // Find the corresponding result entry to update its data\n    const resultEntry = results.find(r => r.id === change.updatedItem.id);\n    if (resultEntry && resultEntry.status === 'success') {\n      items[change.index] = change.updatedItem;\n      resultEntry.data = items[change.index]; // Ensure the returned data is the committed data\n    }\n  }\n\n  // For items that were marked as failure during preparation, ensure their status is 'failure'\n  // and data is not present. This is already handled by how `results` is built.\n\n  return results;\n};\n\n/**\n * Retrieves all items.\n */\nexport const getAllItems = async (): Promise<Item[]> => {\n  if (simulateDbError) {\n    console.error('Simulating a critical database error during fetch.');\n    throw new Error('Database connection lost during fetch.');\n  }\n  return [...items]; // Return a copy to prevent external modification\n};\n```\n```aether:src/routes/items.ts\nimport { Hono } from 'hono';\nimport { zValidator } from '@hono/zod-validator';\nimport { BulkUpdateRequestSchema, BulkUpdateResponseItem } from '../types';\nimport { bulkUpdateItems } from '../db';\n\nconst items = new Hono();\n\n// POST /items/bulk-update\n// Accepts an array of {id, patch} objects, validates, applies, and returns per-item results.\nitems.post(\n  '/bulk-update',\n  zValidator('json', BulkUpdateRequestSchema), // Validate the request body using Zod\n  async (c) => {\n    const bulkUpdateRequests = c.req.valid('json');\n    const responseItems: BulkUpdateResponseItem[] = [];\n\n    try {\n      // Pass the validated requests to the database layer for processing\n      const dbResults = await bulkUpdateItems(bulk"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 835
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 499
+      }
+    ],
+    "durationMs": 1337
+  }
+}

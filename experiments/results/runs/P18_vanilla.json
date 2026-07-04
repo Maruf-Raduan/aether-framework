@@ -1,0 +1,113 @@
+{
+  "promptId": "P18",
+  "targetDesc": "Create a password-reset-confirm route that consumes a one-time token, sets the new password (bcrypt), and invalidates all existing sessions.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 16593,
+      "tokensIn": 181,
+      "tokensOut": 1966,
+      "wallMs": 18086,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types.ts\nexport interface User {\n  id: string;\n  email: string;\n  passwordHash: string;\n  /**\n   * Timestamp of the last password change.\n   * Used to invalidate sessions created before this time.\n   */\n  lastPasswordChangeAt: Date;\n}\n\nexport interface PasswordResetToken {\n  token: string;\n  userId: string;\n  expiresAt: Date;\n  used: boolean;\n}\n\n// For this exercise, we'll use `lastPasswordChangeAt` on the User\n// to invalidate sessions, so a full Session object isn't strictly needed\n// for the *invalidation* part, but it's good to define for completeness.\nexport interface Session {\n  id: string;\n  userId: string;\n  createdAt: Date;\n  expiresAt: Date;\n}\n```\n\n```aether:src/db.ts\nimport { User, PasswordResetToken, Session } from './types';\n\n/**\n * In-memory \"database\" for demonstration purposes.\n * In a real application, these would be database models and queries.\n */\nexport const users = new Map<string, User>();\nexport const passwordResetTokens = new Map<string, PasswordResetToken>();\nexport const sessions = new Map<string, Session>(); // Not directly used for invalidation in this specific feature, but good to have.\n\n// Seed some initial data for testing\nconst testUserId = 'user-123';\nconst testUserEmail = 'test@example.com';\nconst initialPasswordHash = '$2b$10$e.g.a.hash.for.initial.password'; // Placeholder, will be updated\nconst initialLastPasswordChangeAt = new Date(Date.now() - 3600 * 1000); // 1 hour ago\n\nusers.set(testUserId, {\n  id: testUserId,\n  email: testUserEmail,\n  passwordHash: initialPasswordHash,\n  lastPasswordChangeAt: initialLastPasswordChangeAt,\n});\n\n// Example of a valid token for the test user\nconst validToken = 'valid-reset-token-123';\npasswordResetTokens.set(validToken, {\n  token: validToken,\n  userId: testUserId,\n  expiresAt: new Date(Date.now() + 3600 * 1000), // Expires in 1 hour\n  used: false,\n});\n\n// Example of an expired token\nconst expiredToken = 'expired-reset-token-456';\npasswordResetTokens.set(expiredToken, {\n  token: expiredToken,\n  userId: testUserId,\n  expiresAt: new Date(Date.now() - 3600 * 1000), // Expired 1 hour ago\n  used: false,\n});\n\n// Example of an already used token\nconst usedToken = 'used-reset-token-789';\npasswordResetTokens.set(usedToken, {\n  token: usedToken,\n  userId: testUserId,\n  expiresAt: new Date(Date.now() + 3600 * 1000), // Expires in 1 hour\n  used: true,\n});\n\nconsole.log('DB seeded with test user and tokens.');\n```\n\n```aether:src/utils/auth.ts\nimport bcrypt from 'bcrypt';\nimport crypto from 'crypto';\n\nconst SALT_ROUNDS = 10;\n\n/**\n * Hashes a plain-text password using bcrypt.\n * @param password The plain-text password.\n * @returns A promise that resolves to the hashed password.\n */\nexport async function hashPassword(password: string): Promise<string> {\n  return bcrypt.hash(password, SALT_ROUNDS);\n}\n\n/**\n * Verifies a plain-text password against a bcrypt hash.\n * @param password The plain-text password.\n * @param hash The bcrypt hash.\n * @returns A promise that resolves to true if the password matches the hash, false otherwise.\n */\nexport async function verifyPassword(password: string, hash: string): Promise<boolean> {\n  return bcrypt.compare(password, hash);\n}\n\n/**\n * Generates a cryptographically secure random token.\n * @param length The desired length of the token in bytes (default: 32).\n * @returns A URL-safe base64 encoded token string.\n */\nexport function generateToken(length: number = 32): string {\n  return crypto.randomBytes(length).toString('base64url');\n}\n```\n\n```aether:src/routes/passwordResetConfirm.ts\nimport { Hono } from 'hono';\nimport { z } from 'zod';\nimport { zValidator } from '@hono/zod-validator';\nimport { users, passwordResetTokens } from '../db';\nimport { hashPassword } from '../utils/auth';\n\nconst passwordResetConfirmSchema = z.object({\n  token: z.string().min(1, 'Token is required.'),\n  newPassword: z.string().min(8, 'New password must be at least 8 characters long.'),\n});\n\nexport const passwordResetConfirmRoute = new Hono();\n\npasswordResetConfirmRoute.post(\n  '/password-reset-confirm',\n  zValidator('json', passwordResetConfirmSchema, (result, c) => {\n    if (!result.success) {\n      return c.json({ error: 'Invalid request body.', details: result.error.errors }, 400);\n    }\n  }),\n  async (c) => {\n    const { token, newPassword } = c.req.valid('json');\n\n    // 1. Find the password reset token\n    const resetToken = passwordResetTokens.get(token);\n\n    if (!resetToken) {\n      return c.json({ error: 'Invalid or expired token.' }, 400);\n    }\n\n    // 2. Check if the token is expired or already used\n    if (resetToken.expiresAt < new Date() || resetToken.used) {\n      // For security, we might return the same generic error message\n      // as for an invalid token to prevent enumeration attacks.\n      return c.json({ error: 'Invalid or expired token.' }, 400);\n    }\n\n    // 3. Find the user associated with the token\n    const user = users.get(resetToken.userId);\n\n    if (!user) {\n      // This should ideally not happen if the token is valid and points to a real user.\n      // Mark token as used to prevent further attempts if user somehow disappeared.\n      resetToken.used = true;\n      return c.json({ error: 'User not found for this token.' }, 404);\n    }\n\n    try {\n      // 4. Hash the new password\n      const newPasswordHash = await hashPassword(newPassword);\n\n      // 5. Update the user's password\n      user.passwordHash = newPasswordHash;\n\n      // 6. Invalidate all existing sessions for the user\n      // This is done by updating `lastPasswordChangeAt`.\n      // Any session created before this timestamp is considered invalid.\n      user.lastPasswordChangeAt = new Date();\n\n      // 7. Mark the password reset token as used\n      resetToken.used = true;\n\n      // In a real application, you might also want to:\n      // - Send a \"password changed\" notification email to the user.\n      // - Log the event.\n\n      return c.json({ message: 'Password has been successfully reset.' }, 200);\n    } catch (error) {\n      console.error('Error during password reset confirmation:', error);\n      return c.json({ error: 'An internal server error occurred.' }, 500);\n    }\n  }\n);\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { passwordResetConfirmRoute } from './routes/passwordResetConfirm';\nimport './db'; // Initialize the in-memory database\n\nconst app = new Hono();\n\n// Register the password reset confirmation route\napp.route('/', passwordResetConfirmRoute);\n\n// Basic health check route\napp.get('/', (c) => {\n  return c.text('Aether Password Reset Service is running!');\n});\n\n// Error handling middleware (optional, but good practice)\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ error: 'An unexpected error occurred.' }, 500);\n});\n\nconst port = 3000;\nconsole.log(`Server is running on http://localhost:${port}`);\n\nexport default {\n  port,\n  fetch: app.fetch,\n};\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 18086,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types.ts\nexport interface User {\n  id: string;\n  email: string;\n  passwordHash: string;\n  /**\n   * Timestamp of the last password change.\n   * Used to invalidate sessions created before this time.\n   */\n  lastPasswordChangeAt: Date;\n}\n\nexport interface PasswordResetToken {\n  token: string;\n  userId: string;\n  expiresAt: Date;\n  used: boolean;\n}\n\n// For this exercise, we'll use `lastPasswordChangeAt` on the User\n// to invalidate sessions, so a full Session object isn't strictly needed\n// for the *invalidation* part, but it's good to define for completeness.\nexport interface Session {\n  id: string;\n  userId: string;\n  createdAt: Date;\n  expiresAt: Date;\n}\n```\n\n```aether:src/db.ts\nimport { User, PasswordResetToken, Session } from './types';\n\n/**\n * In-memory \"database\" for demonstration purposes.\n * In a real application, these would be database models and queries.\n */\nexport const users = new Map<string, User>();\nexport const passwordResetTokens = new Map<string, PasswordResetToken>();\nexport const sessions = new Map<string, Session>(); // Not directly used for invalidation in this specific feature, but good to have.\n\n// Seed some initial data for testing\nconst testUserId = 'user-123';\nconst testUserEmail = 'test@example.com';\nconst initialPasswordHash = '$2b$10$e.g.a.hash.for.initial.password'; // Placeholder, will be updated\nconst initialLastPasswordChangeAt = new Date(Date.now() - 3600 * 1000); // 1 hour ago\n\nusers.set(testUserId, {\n  id: testUserId,\n  email: testUserEmail,\n  passwordHash: initialPasswordHash,\n  lastPasswordChangeAt: initialLastPasswordChangeAt,\n});\n\n// Example of a valid token for the test user\nconst validToken = 'valid-reset-token-123';\npasswordResetTokens.set(validToken, {\n  token: validToken,\n  userId: testUserId,\n  expiresAt: new Date(Date.now() + 3600 * 1000), // Expires in 1 hour\n  used: false,\n});\n\n// Example of an expired token\nconst expiredToken = 'expired-reset-token-456';\npasswordResetTokens.set(expiredToken, {\n  token: expiredToken,\n  userId: testUserId,\n  expiresAt: new Date(Date.now() - 3600 * 1000), // Expired 1 hour ago\n  used: false,\n});\n\n// Example of an already used token\nconst usedToken = 'used-reset-token-789';\npasswordResetTokens.set(usedToken, {\n  token: usedToken,\n  userId: testUserId,\n  expiresAt: new Date(Date.now() + 3600 * 1000), // Expires in 1 hour\n  used: true,\n});\n\nconsole.log('DB seeded with test user and tokens.');\n```\n\n```aether:src/utils/auth.ts\nimport bcrypt from 'bcrypt';\nimport crypto from 'crypto';\n\nconst SALT_ROUNDS = 10;\n\n/**\n * Hashes a plain-text password using bcrypt.\n * @param password The plain-text password.\n * @returns A promise that resolves to the hashed password.\n */\nexport async function hashPassword(password: string): Promise<string> {\n  return bcrypt.hash(password, SALT_ROUNDS);\n}\n\n/**\n * Verifies a plain-text password against a bcrypt hash.\n * @param password The plain-text password.\n * @param hash The bcrypt hash.\n * @returns A promise that resolves to true if the password matches the hash, false otherwise.\n */\nexport async function verifyPassword(password: string, hash: string): Promise<boolean> {\n  return bcrypt.compare(password, hash);\n}\n\n/**\n * Generates a cryptographically secure random token.\n * @param length The desired length of the token in bytes (default: 32).\n * @returns A URL-safe base64 encoded token string.\n */\nexport function generateToken(length: number = 32): string {\n  return crypto.randomBytes(length).toString('base64url');\n}\n```\n\n```aether:src/routes/passwordResetConfirm.ts\nimport { Hono } from 'hono';\nimport { z } from 'zod';\nimport { zValidator } from '@hono/zod-validator';\nimport { users, passwordResetTokens } from '../db';\nimport { hashPassword } from '../utils/auth';\n\nconst passwordResetConfirmSchema = z.object({\n  token: z.string().min(1, 'Token is required.'),\n  newPassword: z.string().min(8, 'New password must be at least 8 characters long.'),\n});\n\nexport const passwordResetConfirmRoute = new Hono();\n\npasswordResetConfirmRoute.post(\n  '/password-reset-confirm',\n  zValidator('json', passwordResetConfirmSchema, (result, c) => {\n    if (!result.success) {\n      return c.json({ error: 'Invalid request body.', details: result.error.errors }, 400);\n    }\n  }),\n  async (c) => {\n    const { token, newPassword } = c.req.valid('json');\n\n    // 1. Find the password reset token\n    const resetToken = passwordResetTokens.get(token);\n\n    if (!resetToken) {\n      return c.json({ error: 'Invalid or expired token.' }, 400);\n    }\n\n    // 2. Check if the token is expired or already used\n    if (resetToken.expiresAt < new Date() || resetToken.used) {\n      // For security, we might return the same generic error message\n      // as for an invalid token to prevent enumeration attacks.\n      return c.json({ error: 'Invalid or expired token.' }, 400);\n    }\n\n    // 3. Find the user associated with the token\n    const user = users.get(resetToken.userId);\n\n    if (!user) {\n      // This should ideally not happen if the token is valid and points to a real user.\n      // Mark token as used to prevent further attempts if user somehow disappeared.\n      resetToken.used = true;\n      return c.json({ error: 'User not found for this token.' }, 404);\n    }\n\n    try {\n      // 4. Hash the new password\n      const newPasswordHash = await hashPassword(newPassword);\n\n      // 5. Update the user's password\n      user.passwordHash = newPasswordHash;\n\n      // 6. Invalidate all existing sessions for the user\n      // This is done by updating `lastPasswordChangeAt`.\n      // Any session created before this timestamp is considered invalid.\n      user.lastPasswordChangeAt = new Date();\n\n      // 7. Mark the password reset token as used\n      resetToken.used = true;\n\n      // In a real application, you might also want to:\n      // - Send a \"password changed\" notification email to the user.\n      // - Log the event.\n\n      return c.json({ message: 'Password has been successfully reset.' }, 200);\n    } catch (error) {\n      console.error('Error during password reset confirmation:', error);\n      return c.json({ error: 'An internal server error occurred.' }, 500);\n    }\n  }\n);\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { passwordResetConfirmRoute } from './routes/passwordResetConfirm';\nimport './db'; // Initialize the in-memory database\n\nconst app = new Hono();\n\n// Register the password reset confirmation route\napp.route('/', passwordResetConfirmRoute);\n\n// Basic health check route\napp.get('/', (c) => {\n  return c.text('Aether Password Reset Service is running!');\n});\n\n// Error handling middleware (optional, but good practice)\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ error: 'An unexpected error occurred.' }, 500);\n});\n\nconst port = 3000;\nconsole.log(`Server is running on http://localhost:${port}`);\n\nexport default {\n  port,\n  fetch: app.fetch,\n};\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 981
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 501
+      }
+    ],
+    "durationMs": 1492
+  }
+}

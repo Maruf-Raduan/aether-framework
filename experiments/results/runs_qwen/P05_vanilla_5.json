@@ -1,0 +1,113 @@
+{
+  "promptId": "P05",
+  "targetDesc": "Create a create-task route that accepts { title, description, assigneeId }, validates with Zod, and inserts a new task belonging to the caller's team. Enforce the invariant that a task must belong to exactly one team.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 16657,
+      "tokensIn": 156,
+      "tokensOut": 376,
+      "wallMs": 17934,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/create-task.ts",
+          "content": "import { c as createRouter } from 'hono';\nimport { z } from 'zod';\n\nconst router = createRouter();\n\nconst TaskSchema = z.object({\n  title: z.string().min(1),\n  description: z.string(),\n  assigneeId: z.string()\n});\n\nrouter.post('/create-task', async (c) => {\n  const body = await c.req.json();\n  const result = TaskSchema.safeParse(body);\n\n  if (!result.success) {\n    return c.status(400).json({ error: 'Invalid request payload' });\n  }\n\n  const { title, description, assigneeId } = result.data;\n\n  // Assuming you have a function to get the caller's team ID\n  const callerTeamId = await getCallerTeamId(c);\n\n  if (!callerTeamId) {\n    return c.status(403).json({ error: 'Unauthorized' });\n  }\n\n  // Insert the new task into the database\n  try {\n    const taskId = await insertTask({\n      title,\n      description,\n      assigneeId,\n      teamId: callerTeamId\n    });\n\n    return c.json({ taskId, message: 'Task created successfully' });\n  } catch (error) {\n    console.error('Error creating task:', error);\n    return c.status(500).json({ error: 'Internal server error' });\n  }\n});\n\nexport default router;\n\n// Dummy functions for demonstration purposes\nasync function getCallerTeamId(c) {\n  // Implement logic to retrieve the caller's team ID from the request context\n  return 'team123';\n}\n\nasync function insertTask(task) {\n  // Implement logic to insert the task into the database and return the task ID\n  return 'task456';\n}"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 17934,
+  "finalFiles": [
+    {
+      "path": "/src/routes/create-task.ts",
+      "content": "import { c as createRouter } from 'hono';\nimport { z } from 'zod';\n\nconst router = createRouter();\n\nconst TaskSchema = z.object({\n  title: z.string().min(1),\n  description: z.string(),\n  assigneeId: z.string()\n});\n\nrouter.post('/create-task', async (c) => {\n  const body = await c.req.json();\n  const result = TaskSchema.safeParse(body);\n\n  if (!result.success) {\n    return c.status(400).json({ error: 'Invalid request payload' });\n  }\n\n  const { title, description, assigneeId } = result.data;\n\n  // Assuming you have a function to get the caller's team ID\n  const callerTeamId = await getCallerTeamId(c);\n\n  if (!callerTeamId) {\n    return c.status(403).json({ error: 'Unauthorized' });\n  }\n\n  // Insert the new task into the database\n  try {\n    const taskId = await insertTask({\n      title,\n      description,\n      assigneeId,\n      teamId: callerTeamId\n    });\n\n    return c.json({ taskId, message: 'Task created successfully' });\n  } catch (error) {\n    console.error('Error creating task:', error);\n    return c.status(500).json({ error: 'Internal server error' });\n  }\n});\n\nexport default router;\n\n// Dummy functions for demonstration purposes\nasync function getCallerTeamId(c) {\n  // Implement logic to retrieve the caller's team ID from the request context\n  return 'team123';\n}\n\nasync function insertTask(task) {\n  // Implement logic to insert the task into the database and return the task ID\n  return 'task456';\n}"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 759
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 514
+      }
+    ],
+    "durationMs": 1277
+  }
+}

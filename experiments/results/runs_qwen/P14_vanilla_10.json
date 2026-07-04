@@ -1,0 +1,113 @@
+{
+  "promptId": "P14",
+  "targetDesc": "Create a loader route that returns a billing summary for the current user: current plan, next invoice date, lifetime spend, and any outstanding credit. Cache the response for 60 seconds.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 11316,
+      "tokensIn": 147,
+      "tokensOut": 267,
+      "wallMs": 12685,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/routes/billing.ts",
+          "content": "import { Hono } from 'hono';\nimport { cache } from 'hono/cache';\n\nconst app = new Hono();\n\napp.get('/billing', cache(60, async (c) => {\n  const userId = c.req.headers.get('X-User-ID');\n  if (!userId) {\n    return c.json({ error: 'User ID not provided' }, 401);\n  }\n\n  // Simulate fetching user billing data from a database\n  const billingData = await fetchBillingData(userId);\n\n  return c.json(billingData, 200);\n}));\n\nasync function fetchBillingData(userId: string): Promise<BillingSummary> {\n  // This is a placeholder for actual data fetching logic\n  // For demonstration purposes, we'll use hardcoded data\n  return {\n    currentPlan: 'Premium',\n    nextInvoiceDate: new Date('2023-10-01').toISOString(),\n    lifetimeSpend: 500.00,\n    outstandingCredit: 50.00\n  };\n}\n\ninterface BillingSummary {\n  currentPlan: string;\n  nextInvoiceDate: string;\n  lifetimeSpend: number;\n  outstandingCredit: number;\n}\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 12685,
+  "finalFiles": [
+    {
+      "path": "/routes/billing.ts",
+      "content": "import { Hono } from 'hono';\nimport { cache } from 'hono/cache';\n\nconst app = new Hono();\n\napp.get('/billing', cache(60, async (c) => {\n  const userId = c.req.headers.get('X-User-ID');\n  if (!userId) {\n    return c.json({ error: 'User ID not provided' }, 401);\n  }\n\n  // Simulate fetching user billing data from a database\n  const billingData = await fetchBillingData(userId);\n\n  return c.json(billingData, 200);\n}));\n\nasync function fetchBillingData(userId: string): Promise<BillingSummary> {\n  // This is a placeholder for actual data fetching logic\n  // For demonstration purposes, we'll use hardcoded data\n  return {\n    currentPlan: 'Premium',\n    nextInvoiceDate: new Date('2023-10-01').toISOString(),\n    lifetimeSpend: 500.00,\n    outstandingCredit: 50.00\n  };\n}\n\ninterface BillingSummary {\n  currentPlan: string;\n  nextInvoiceDate: string;\n  lifetimeSpend: number;\n  outstandingCredit: number;\n}\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 899
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 466
+      }
+    ],
+    "durationMs": 1369
+  }
+}

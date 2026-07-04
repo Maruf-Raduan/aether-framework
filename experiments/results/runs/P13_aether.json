@@ -1,0 +1,250 @@
+{
+  "promptId": "P13",
+  "targetDesc": "Create a route that creates a Stripe subscription for the current user, storing the subscription id locally. Never log the API key.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 21977,
+      "tokensIn": 1189,
+      "tokensOut": 2607,
+      "wallMs": 24907,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:modules/billing/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'billing',\n  description: 'Handles user subscriptions and payment processing via Stripe.',\n\n  dependencies: {\n    modules: ['auth'], // Depends on auth for user authentication and types\n  },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/billing/subscribe', auth: true },\n      // Add other billing routes here as needed (e.g., /billing/portal, /billing/cancel)\n    ],\n    functions: ['createSubscription'],\n    types: ['Subscription', 'BillingError', 'StripeCustomerInfo'],\n  },\n\n  sideEffects: [\n    'writes to: user_billing_info table',\n    'interacts with: Stripe API (creates customers, subscriptions)',\n  ],\n\n  invariants: [\n    'A user can only have one active subscription of a given type at a time.',\n    'Stripe customer IDs must be unique per user.',\n    'Subscription status in local DB must reflect Stripe status.',\n  ],\n});\n```\n\n```aether:modules/billing/types.ts\nimport { Result } from '~/lib/result';\nimport { User } from '~/modules/auth/module.contract'; // Assuming User type is exposed by auth\n\n// Represents the locally stored subscription information\nexport type Subscription = {\n  id: string;\n  userId: string;\n  stripeCustomerId: string;\n  stripeSubscriptionId: string;\n  status: 'active' | 'canceled' | 'past_due' | 'unpaid' | 'incomplete' | 'trialing';\n  currentPeriodEnd: Date;\n  createdAt: Date;\n  updatedAt: Date;\n};\n\n// Represents the locally stored Stripe customer information for a user\nexport type StripeCustomerInfo = {\n  userId: string;\n  stripeCustomerId: string;\n  createdAt: Date;\n  updatedAt: Date;\n};\n\nexport type BillingError =\n  | { type: 'ValidationError'; message: string }\n  | { type: 'StripeError'; message: string; code?: string }\n  | { type: 'DatabaseError'; message: string }\n  | { type: 'UserNotFound'; message: string }\n  | { type: 'AlreadySubscribed'; message: string }\n  | { type: 'UnknownError'; message: string };\n\nexport type CreateSubscriptionResult = Result<Subscription, BillingError>;\n```\n\n```aether:modules/billing/lib/queries.ts\nimport { query } from '~/lib/db';\nimport { StripeCustomerInfo, Subscription } from '~/modules/billing/types';\n\n/**\n * Retrieves a user's Stripe customer information from the database.\n * @param userId The ID of the user.\n * @returns The StripeCustomerInfo if found, otherwise null.\n */\nexport async function findUserStripeCustomerInfo(userId: string): Promise<StripeCustomerInfo | null> {\n  const result = await query<{ user_id: string; stripe_customer_id: string; created_at: Date; updated_at: Date }>(\n    `SELECT user_id, stripe_customer_id, created_at, updated_at\n     FROM user_billing_info\n     WHERE user_id = $1`,\n    [userId]\n  );\n\n  if (result.rows.length === 0) {\n    return null;\n  }\n\n  const row = result.rows[0];\n  return {\n    userId: row.user_id,\n    stripeCustomerId: row.stripe_customer_id,\n    createdAt: row.created_at,\n    updatedAt: row.updated_at,\n  };\n}\n\n/**\n * Upserts a user's Stripe customer ID into the database.\n * If a record exists for the user, it updates the stripe_customer_id.\n * Otherwise, it inserts a new record.\n * @param userId The ID of the user.\n * @param stripeCustomerId The Stripe customer ID.\n * @returns The upserted StripeCustomerInfo.\n */\nexport async function upsertUserStripeCustomerInfo(\n  userId: string,\n  stripeCustomerId: string\n): Promise<StripeCustomerInfo> {\n  const result = await query<{ user_id: string; stripe_customer_id: string; created_at: Date; updated_at: Date }>(\n    `INSERT INTO user_billing_info (user_id, stripe_customer_id)\n     VALUES ($1, $2)\n     ON CONFLICT (user_id) DO UPDATE SET\n       stripe_customer_id = EXCLUDED.stripe_customer_id,\n       updated_at = NOW()\n     RETURNING user_id, stripe_customer_id, created_at, updated_at`,\n    [userId, stripeCustomerId]\n  );\n\n  const row = result.rows[0];\n  return {\n    userId: row.user_id,\n    stripeCustomerId: row.stripe_customer_id,\n    createdAt: row.created_at,\n    updatedAt: row.updated_at,\n  };\n}\n\n/**\n * Saves a new subscription record to the database.\n * @param subscription The subscription object to save.\n * @returns The saved Subscription object.\n */\nexport async function saveSubscription(subscription: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt'>): Promise<Subscription> {\n  const result = await query<Subscription>(\n    `INSERT INTO subscriptions (user_id, stripe_customer_id, stripe_subscription_id, status, current_period_end)\n     VALUES ($1, $2, $3, $4, $5)\n     RETURNING id, user_id, stripe_customer_id, stripe_subscription_id, status, current_period_end, created_at, updated_at`,\n    [\n      subscription.userId,\n      subscription.stripeCustomerId,\n      subscription.stripeSubscriptionId,\n      subscription.status,\n      subscription.currentPeriodEnd,\n    ]\n  );\n  return result.rows[0];\n}\n\n/**\n * Finds an active subscription for a given user.\n * @param userId The ID of the user.\n * @returns The active Subscription if found, otherwise null.\n */\nexport async function findActiveSubscriptionByUserId(userId: string): Promise<Subscription | null> {\n  const result = await query<Subscription>(\n    `SELECT id, user_id, stripe_customer_id, stripe_subscription_id, status, current_period_end, created_at, updated_at\n     FROM subscriptions\n     WHERE user_id = $1 AND status IN ('active', 'trialing', 'past_due')\n     ORDER BY created_at DESC\n     LIMIT 1`,\n    [userId]\n  );\n  return result.rows.length > 0 ? result.rows[0] : null;\n}\n```\n\n```aether:modules/billing/services/createSubscription.ts\nimport Stripe from 'stripe';\nimport { ok, err } from '~/lib/result';\nimport { User } from '~/modules/auth/module.contract';\nimport {\n  BillingError,\n  CreateSubscriptionResult,\n  Subscription,\n} from '~/modules/billing/types';\nimport {\n  findUserStripeCustomerInfo,\n  upsertUserStripeCustomerInfo,\n  saveSubscription,\n  findActiveSubscriptionByUserId,\n} from '~/modules/billing/lib/queries';\n\n// Initialize Stripe with the secret key from environment variables\n// This ensures the key is not hardcoded and is loaded securely.\nconst stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {\n  apiVersion: '2023-10-16', // Use a specific API version\n});\n\n/**\n * Creates a Stripe subscription for a given user.\n * This function handles creating a Stripe customer if one doesn't exist,\n * creating the subscription, and storing the relevant IDs in the local database.\n * @param user The authenticated user object.\n * @param priceId The Stripe Price ID for the subscription.\n * @param paymentMethodId The Stripe Payment Method ID (e.g., from client-side setup).\n * @returns A Result containing the new Subscription or a BillingError.\n */\nexport async function createSubscription(\n  user: User,\n  priceId: string,\n  paymentMethodId: string\n): Promise<CreateSubscriptionResult> {\n  if (!user.id || !user.email) {\n    return err({ type: 'UserNotFound', message: 'User ID or email is missing.' });\n  }\n\n  try {\n    // 1. Check for existing active subscription\n    const existingSubscription = await findActiveSubscriptionByUserId(user.id);\n    if (existingSubscription) {\n      return err({ type: 'AlreadySubscribed', message: 'User already has an active subscription.' });\n    }\n\n    // 2. Find or create Stripe Customer\n    let customerInfo = await findUserStripeCustomerInfo(user.id);\n    let stripeCustomerId: string;\n\n    if (!customerInfo || !customerInfo.stripeCustomerId) {\n      // Create a new Stripe customer\n      const customer = await stripe.customers.create({\n        email: user.email,\n        name: user.name || user.email, // Use user's name if available, otherwise email\n        payment_method: paymentMethodId,\n        invoice_settings: { default_payment_method: paymentMethodId },\n      });\n      stripeCustomerId = customer.id;\n      await upsertUserStripeCustomerInfo(user.id, stripeCustomerId);\n    } else {\n      stripeCustomerId = customerInfo.stripeCustomerId;\n      // Update customer's default payment method if necessary\n      await stripe.customers.update(stripeCustomerId, {\n        invoice_settings: { default_payment_method: paymentMethodId },\n      });\n    }\n\n    // 3. Create Stripe Subscription\n    const stripeSubscription = await stripe.subscriptions.create({\n      customer: stripeCustomerId,\n      items: [{ price: priceId }],\n      expand: ['latest_invoice.payment_intent'],\n    });\n\n    // 4. Handle potential payment confirmation (if needed, e.g., 3D Secure)\n    const latestInvoice = stripeSubscription.latest_invoice as Stripe.Invoice;\n    const paymentIntent = latestInvoice?.payment_intent as Stripe.PaymentIntent;\n\n    if (paymentIntent && paymentIntent.status === 'requires_action') {\n      // This scenario typically requires client-side handling to confirm the payment.\n      // For this server-side function, we'll return an error indicating further action is needed.\n      // In a real app, you might return a specific status or client_secret to the frontend.\n      return err({\n        type: 'StripeError',\n        message: 'Payment requires additional action. Please complete payment on the client-side.',\n        code: 'requires_action',\n      });\n    }\n\n    // 5. Save subscription details to local database\n    const newSubscription: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt'> = {\n      userId: user.id,\n      stripeCustomerId: stripeCustomerId,\n      stripeSubscriptionId: stripeSubscription.id,\n      status: stripeSubscription.status as Subscription['status'],\n      currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000), // Convert Unix timestamp to Date\n    };\n\n    const savedSubscription = await saveSubscription(newSubscription);\n\n    return ok(savedSubscription);\n  } catch (error: any) {"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 24907,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:modules/billing/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'billing',\n  description: 'Handles user subscriptions and payment processing via Stripe.',\n\n  dependencies: {\n    modules: ['auth'], // Depends on auth for user authentication and types\n  },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/billing/subscribe', auth: true },\n      // Add other billing routes here as needed (e.g., /billing/portal, /billing/cancel)\n    ],\n    functions: ['createSubscription'],\n    types: ['Subscription', 'BillingError', 'StripeCustomerInfo'],\n  },\n\n  sideEffects: [\n    'writes to: user_billing_info table',\n    'interacts with: Stripe API (creates customers, subscriptions)',\n  ],\n\n  invariants: [\n    'A user can only have one active subscription of a given type at a time.',\n    'Stripe customer IDs must be unique per user.',\n    'Subscription status in local DB must reflect Stripe status.',\n  ],\n});\n```\n\n```aether:modules/billing/types.ts\nimport { Result } from '~/lib/result';\nimport { User } from '~/modules/auth/module.contract'; // Assuming User type is exposed by auth\n\n// Represents the locally stored subscription information\nexport type Subscription = {\n  id: string;\n  userId: string;\n  stripeCustomerId: string;\n  stripeSubscriptionId: string;\n  status: 'active' | 'canceled' | 'past_due' | 'unpaid' | 'incomplete' | 'trialing';\n  currentPeriodEnd: Date;\n  createdAt: Date;\n  updatedAt: Date;\n};\n\n// Represents the locally stored Stripe customer information for a user\nexport type StripeCustomerInfo = {\n  userId: string;\n  stripeCustomerId: string;\n  createdAt: Date;\n  updatedAt: Date;\n};\n\nexport type BillingError =\n  | { type: 'ValidationError'; message: string }\n  | { type: 'StripeError'; message: string; code?: string }\n  | { type: 'DatabaseError'; message: string }\n  | { type: 'UserNotFound'; message: string }\n  | { type: 'AlreadySubscribed'; message: string }\n  | { type: 'UnknownError'; message: string };\n\nexport type CreateSubscriptionResult = Result<Subscription, BillingError>;\n```\n\n```aether:modules/billing/lib/queries.ts\nimport { query } from '~/lib/db';\nimport { StripeCustomerInfo, Subscription } from '~/modules/billing/types';\n\n/**\n * Retrieves a user's Stripe customer information from the database.\n * @param userId The ID of the user.\n * @returns The StripeCustomerInfo if found, otherwise null.\n */\nexport async function findUserStripeCustomerInfo(userId: string): Promise<StripeCustomerInfo | null> {\n  const result = await query<{ user_id: string; stripe_customer_id: string; created_at: Date; updated_at: Date }>(\n    `SELECT user_id, stripe_customer_id, created_at, updated_at\n     FROM user_billing_info\n     WHERE user_id = $1`,\n    [userId]\n  );\n\n  if (result.rows.length === 0) {\n    return null;\n  }\n\n  const row = result.rows[0];\n  return {\n    userId: row.user_id,\n    stripeCustomerId: row.stripe_customer_id,\n    createdAt: row.created_at,\n    updatedAt: row.updated_at,\n  };\n}\n\n/**\n * Upserts a user's Stripe customer ID into the database.\n * If a record exists for the user, it updates the stripe_customer_id.\n * Otherwise, it inserts a new record.\n * @param userId The ID of the user.\n * @param stripeCustomerId The Stripe customer ID.\n * @returns The upserted StripeCustomerInfo.\n */\nexport async function upsertUserStripeCustomerInfo(\n  userId: string,\n  stripeCustomerId: string\n): Promise<StripeCustomerInfo> {\n  const result = await query<{ user_id: string; stripe_customer_id: string; created_at: Date; updated_at: Date }>(\n    `INSERT INTO user_billing_info (user_id, stripe_customer_id)\n     VALUES ($1, $2)\n     ON CONFLICT (user_id) DO UPDATE SET\n       stripe_customer_id = EXCLUDED.stripe_customer_id,\n       updated_at = NOW()\n     RETURNING user_id, stripe_customer_id, created_at, updated_at`,\n    [userId, stripeCustomerId]\n  );\n\n  const row = result.rows[0];\n  return {\n    userId: row.user_id,\n    stripeCustomerId: row.stripe_customer_id,\n    createdAt: row.created_at,\n    updatedAt: row.updated_at,\n  };\n}\n\n/**\n * Saves a new subscription record to the database.\n * @param subscription The subscription object to save.\n * @returns The saved Subscription object.\n */\nexport async function saveSubscription(subscription: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt'>): Promise<Subscription> {\n  const result = await query<Subscription>(\n    `INSERT INTO subscriptions (user_id, stripe_customer_id, stripe_subscription_id, status, current_period_end)\n     VALUES ($1, $2, $3, $4, $5)\n     RETURNING id, user_id, stripe_customer_id, stripe_subscription_id, status, current_period_end, created_at, updated_at`,\n    [\n      subscription.userId,\n      subscription.stripeCustomerId,\n      subscription.stripeSubscriptionId,\n      subscription.status,\n      subscription.currentPeriodEnd,\n    ]\n  );\n  return result.rows[0];\n}\n\n/**\n * Finds an active subscription for a given user.\n * @param userId The ID of the user.\n * @returns The active Subscription if found, otherwise null.\n */\nexport async function findActiveSubscriptionByUserId(userId: string): Promise<Subscription | null> {\n  const result = await query<Subscription>(\n    `SELECT id, user_id, stripe_customer_id, stripe_subscription_id, status, current_period_end, created_at, updated_at\n     FROM subscriptions\n     WHERE user_id = $1 AND status IN ('active', 'trialing', 'past_due')\n     ORDER BY created_at DESC\n     LIMIT 1`,\n    [userId]\n  );\n  return result.rows.length > 0 ? result.rows[0] : null;\n}\n```\n\n```aether:modules/billing/services/createSubscription.ts\nimport Stripe from 'stripe';\nimport { ok, err } from '~/lib/result';\nimport { User } from '~/modules/auth/module.contract';\nimport {\n  BillingError,\n  CreateSubscriptionResult,\n  Subscription,\n} from '~/modules/billing/types';\nimport {\n  findUserStripeCustomerInfo,\n  upsertUserStripeCustomerInfo,\n  saveSubscription,\n  findActiveSubscriptionByUserId,\n} from '~/modules/billing/lib/queries';\n\n// Initialize Stripe with the secret key from environment variables\n// This ensures the key is not hardcoded and is loaded securely.\nconst stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {\n  apiVersion: '2023-10-16', // Use a specific API version\n});\n\n/**\n * Creates a Stripe subscription for a given user.\n * This function handles creating a Stripe customer if one doesn't exist,\n * creating the subscription, and storing the relevant IDs in the local database.\n * @param user The authenticated user object.\n * @param priceId The Stripe Price ID for the subscription.\n * @param paymentMethodId The Stripe Payment Method ID (e.g., from client-side setup).\n * @returns A Result containing the new Subscription or a BillingError.\n */\nexport async function createSubscription(\n  user: User,\n  priceId: string,\n  paymentMethodId: string\n): Promise<CreateSubscriptionResult> {\n  if (!user.id || !user.email) {\n    return err({ type: 'UserNotFound', message: 'User ID or email is missing.' });\n  }\n\n  try {\n    // 1. Check for existing active subscription\n    const existingSubscription = await findActiveSubscriptionByUserId(user.id);\n    if (existingSubscription) {\n      return err({ type: 'AlreadySubscribed', message: 'User already has an active subscription.' });\n    }\n\n    // 2. Find or create Stripe Customer\n    let customerInfo = await findUserStripeCustomerInfo(user.id);\n    let stripeCustomerId: string;\n\n    if (!customerInfo || !customerInfo.stripeCustomerId) {\n      // Create a new Stripe customer\n      const customer = await stripe.customers.create({\n        email: user.email,\n        name: user.name || user.email, // Use user's name if available, otherwise email\n        payment_method: paymentMethodId,\n        invoice_settings: { default_payment_method: paymentMethodId },\n      });\n      stripeCustomerId = customer.id;\n      await upsertUserStripeCustomerInfo(user.id, stripeCustomerId);\n    } else {\n      stripeCustomerId = customerInfo.stripeCustomerId;\n      // Update customer's default payment method if necessary\n      await stripe.customers.update(stripeCustomerId, {\n        invoice_settings: { default_payment_method: paymentMethodId },\n      });\n    }\n\n    // 3. Create Stripe Subscription\n    const stripeSubscription = await stripe.subscriptions.create({\n      customer: stripeCustomerId,\n      items: [{ price: priceId }],\n      expand: ['latest_invoice.payment_intent'],\n    });\n\n    // 4. Handle potential payment confirmation (if needed, e.g., 3D Secure)\n    const latestInvoice = stripeSubscription.latest_invoice as Stripe.Invoice;\n    const paymentIntent = latestInvoice?.payment_intent as Stripe.PaymentIntent;\n\n    if (paymentIntent && paymentIntent.status === 'requires_action') {\n      // This scenario typically requires client-side handling to confirm the payment.\n      // For this server-side function, we'll return an error indicating further action is needed.\n      // In a real app, you might return a specific status or client_secret to the frontend.\n      return err({\n        type: 'StripeError',\n        message: 'Payment requires additional action. Please complete payment on the client-side.',\n        code: 'requires_action',\n      });\n    }\n\n    // 5. Save subscription details to local database\n    const newSubscription: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt'> = {\n      userId: user.id,\n      stripeCustomerId: stripeCustomerId,\n      stripeSubscriptionId: stripeSubscription.id,\n      status: stripeSubscription.status as Subscription['status'],\n      currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000), // Convert Unix timestamp to Date\n    };\n\n    const savedSubscription = await saveSubscription(newSubscription);\n\n    return ok(savedSubscription);\n  } catch (error: any) {"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 773
+      }
+    ],
+    "durationMs": 1603
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 843
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 482
+      }
+    ],
+    "durationMs": 1328
+  }
+}

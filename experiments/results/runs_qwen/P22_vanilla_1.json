@@ -1,0 +1,113 @@
+{
+  "promptId": "P22",
+  "targetDesc": "Create a route to rename a team. Only admins may call it.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 24955,
+      "tokensIn": 123,
+      "tokensOut": 400,
+      "wallMs": 26294,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/renameTeam.ts",
+          "content": "import { Hono } from 'hono';\nimport { z, ZodError } from 'zod';\n\nconst app = new Hono();\n\n// Define the schema for the request body\nconst renameTeamSchema = z.object({\n  oldName: z.string(),\n  newName: z.string()\n});\n\napp.put('/rename-team', async (c) => {\n  try {\n    // Parse the request body using the defined schema\n    const { oldName, newName } = await c.req.json(renameTeamSchema);\n\n    // Check if the user is an admin (this is a placeholder for actual authentication logic)\n    const isAdmin = c.env.ADMIN_USERS.includes(c.req.user.id); // Assuming `c.req.user` contains user information\n\n    if (!isAdmin) {\n      return c.json({ error: 'Unauthorized' }, 403);\n    }\n\n    // Logic to rename the team (this is a placeholder for actual database logic)\n    const success = await c.env.TEAMS.update(oldName, newName);\n\n    if (success) {\n      return c.json({ message: 'Team renamed successfully' });\n    } else {\n      return c.json({ error: 'Failed to rename team' }, 500);\n    }\n  } catch (error) {\n    if (error instanceof ZodError) {\n      return c.json({ error: 'Invalid request body', details: error.issues }, 400);\n    }\n    return c.json({ error: 'Internal server error' }, 500);\n  }\n});\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 26294,
+  "finalFiles": [
+    {
+      "path": "/src/routes/renameTeam.ts",
+      "content": "import { Hono } from 'hono';\nimport { z, ZodError } from 'zod';\n\nconst app = new Hono();\n\n// Define the schema for the request body\nconst renameTeamSchema = z.object({\n  oldName: z.string(),\n  newName: z.string()\n});\n\napp.put('/rename-team', async (c) => {\n  try {\n    // Parse the request body using the defined schema\n    const { oldName, newName } = await c.req.json(renameTeamSchema);\n\n    // Check if the user is an admin (this is a placeholder for actual authentication logic)\n    const isAdmin = c.env.ADMIN_USERS.includes(c.req.user.id); // Assuming `c.req.user` contains user information\n\n    if (!isAdmin) {\n      return c.json({ error: 'Unauthorized' }, 403);\n    }\n\n    // Logic to rename the team (this is a placeholder for actual database logic)\n    const success = await c.env.TEAMS.update(oldName, newName);\n\n    if (success) {\n      return c.json({ message: 'Team renamed successfully' });\n    } else {\n      return c.json({ error: 'Failed to rename team' }, 500);\n    }\n  } catch (error) {\n    if (error instanceof ZodError) {\n      return c.json({ error: 'Invalid request body', details: error.issues }, 400);\n    }\n    return c.json({ error: 'Internal server error' }, 500);\n  }\n});\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 866
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 469
+      }
+    ],
+    "durationMs": 1338
+  }
+}

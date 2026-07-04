@@ -1,0 +1,113 @@
+{
+  "promptId": "P07",
+  "targetDesc": "Create an assign-task route that takes assigneeId, verifies the assignee is a member of the task's team, and updates the assignment.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 12861,
+      "tokensIn": 180,
+      "tokensOut": 1834,
+      "wallMs": 14690,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types.ts\nexport type Task = {\n  id: string;\n  title: string;\n  description: string;\n  teamId: string;\n  assigneeId: string | null;\n  status: 'pending' | 'in-progress' | 'completed';\n};\n\nexport type User = {\n  id: string;\n  name: string;\n  email: string;\n};\n\nexport type Team = {\n  id: string;\n  name: string;\n  memberIds: string[];\n};\n\nexport type Assignment = {\n  taskId: string;\n  assigneeId: string;\n  assignedAt: Date;\n};\n```\n\n```aether:src/db.ts\nimport { Task, User, Team, Assignment } from './types';\n\n// --- In-memory \"Database\" ---\nconst tasks: Task[] = [\n  { id: 'task-1', title: 'Implement login', description: 'Develop user authentication module', teamId: 'team-a', assigneeId: null, status: 'pending' },\n  { id: 'task-2', title: 'Design database schema', description: 'Create ER diagrams for the project', teamId: 'team-a', assigneeId: 'user-1', status: 'in-progress' },\n  { id: 'task-3', title: 'Write API documentation', description: 'Document all REST endpoints', teamId: 'team-b', assigneeId: null, status: 'pending' },\n];\n\nconst users: User[] = [\n  { id: 'user-1', name: 'Alice', email: 'alice@example.com' },\n  { id: 'user-2', name: 'Bob', email: 'bob@example.com' },\n  { id: 'user-3', name: 'Charlie', email: 'charlie@example.com' },\n];\n\nconst teams: Team[] = [\n  { id: 'team-a', name: 'Frontend Team', memberIds: ['user-1', 'user-2'] },\n  { id: 'team-b', name: 'Backend Team', memberIds: ['user-3'] },\n];\n\nconst assignments: Assignment[] = [\n  { taskId: 'task-2', assigneeId: 'user-1', assignedAt: new Date() },\n];\n\n// --- DB Access Functions ---\n\nexport const getTaskById = (id: string): Task | undefined => {\n  return tasks.find(task => task.id === id);\n};\n\nexport const getUserById = (id: string): User | undefined => {\n  return users.find(user => user.id === id);\n};\n\nexport const getTeamById = (id: string): Team | undefined => {\n  return teams.find(team => team.id === id);\n};\n\nexport const updateTaskAssignee = (taskId: string, assigneeId: string | null): Task | undefined => {\n  const taskIndex = tasks.findIndex(task => task.id === taskId);\n  if (taskIndex === -1) {\n    return undefined;\n  }\n  tasks[taskIndex] = { ...tasks[taskIndex], assigneeId };\n\n  // Update assignments table (simplified: just add/update if assigneeId is not null)\n  if (assigneeId) {\n    const existingAssignmentIndex = assignments.findIndex(a => a.taskId === taskId);\n    if (existingAssignmentIndex !== -1) {\n      assignments[existingAssignmentIndex] = { taskId, assigneeId, assignedAt: new Date() };\n    } else {\n      assignments.push({ taskId, assigneeId, assignedAt: new Date() });\n    }\n  } else {\n    // If assignee is set to null, remove from assignments\n    const existingAssignmentIndex = assignments.findIndex(a => a.taskId === taskId);\n    if (existingAssignmentIndex !== -1) {\n      assignments.splice(existingAssignmentIndex, 1);\n    }\n  }\n\n  return tasks[taskIndex];\n};\n```\n\n```aether:src/routes/assignTask.ts\nimport { getTaskById, getUserById, getTeamById, updateTaskAssignee } from '../db';\n\ntype AssignTaskRequestBody = {\n  assigneeId: string;\n};\n\ntype AssignTaskParams = {\n  taskId: string;\n};\n\nexport const assignTask = async (\n  params: AssignTaskParams,\n  body: AssignTaskRequestBody\n) => {\n  const { taskId } = params;\n  const { assigneeId } = body;\n\n  // 1. Validate input\n  if (!assigneeId) {\n    return {\n      status: 400,\n      body: { success: false, message: 'Assignee ID is required.' }\n    };\n  }\n\n  // 2. Find the task\n  const task = getTaskById(taskId);\n  if (!task) {\n    return {\n      status: 404,\n      body: { success: false, message: `Task with ID '${taskId}' not found.` }\n    };\n  }\n\n  // 3. Find the assignee\n  const assignee = getUserById(assigneeId);\n  if (!assignee) {\n    return {\n      status: 404,\n      body: { success: false, message: `Assignee with ID '${assigneeId}' not found.` }\n    };\n  }\n\n  // 4. Find the task's team\n  const team = getTeamById(task.teamId);\n  if (!team) {\n    // This indicates a data inconsistency if a task exists but its team doesn't\n    return {\n      status: 500,\n      body: { success: false, message: `Team with ID '${task.teamId}' associated with task '${taskId}' not found.` }\n    };\n  }\n\n  // 5. Verify the assignee is a member of the task's team\n  if (!team.memberIds.includes(assigneeId)) {\n    return {\n      status: 403, // Forbidden, or 400 Bad Request depending on desired specificity\n      body: { success: false, message: `Assignee '${assigneeId}' is not a member of team '${team.name}' (ID: ${team.id}) for task '${taskId}'.` }\n    };\n  }\n\n  // 6. Update the task assignment\n  const updatedTask = updateTaskAssignee(taskId, assigneeId);\n\n  if (!updatedTask) {\n    // Should ideally not happen if getTaskById found it, but good for robustness\n    return {\n      status: 500,\n      body: { success: false, message: `Failed to update task '${taskId}'.` }\n    };\n  }\n\n  return {\n    status: 200,\n    body: { success: true, message: 'Task assigned successfully.', task: updatedTask }\n  };\n};\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { assignTask } from './routes/assignTask';\n\nconst app = new Hono();\n\n// Middleware to parse JSON body\napp.use('*', async (c, next) => {\n  if (c.req.method === 'POST' || c.req.method === 'PUT') {\n    try {\n      const body = await c.req.json();\n      c.set('parsedBody', body);\n    } catch (e) {\n      return c.json({ success: false, message: 'Invalid JSON body' }, 400);\n    }\n  }\n  await next();\n});\n\napp.post('/tasks/:taskId/assign', async (c) => {\n  const taskId = c.req.param('taskId');\n  const body = c.get('parsedBody'); // Get parsed body from middleware\n\n  const result = await assignTask({ taskId }, body);\n\n  return c.json(result.body, result.status);\n});\n\n// Basic health check route\napp.get('/', (c) => {\n  return c.json({ message: 'Task Assignment Service is running!' });\n});\n\nexport default app;\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 14690,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types.ts\nexport type Task = {\n  id: string;\n  title: string;\n  description: string;\n  teamId: string;\n  assigneeId: string | null;\n  status: 'pending' | 'in-progress' | 'completed';\n};\n\nexport type User = {\n  id: string;\n  name: string;\n  email: string;\n};\n\nexport type Team = {\n  id: string;\n  name: string;\n  memberIds: string[];\n};\n\nexport type Assignment = {\n  taskId: string;\n  assigneeId: string;\n  assignedAt: Date;\n};\n```\n\n```aether:src/db.ts\nimport { Task, User, Team, Assignment } from './types';\n\n// --- In-memory \"Database\" ---\nconst tasks: Task[] = [\n  { id: 'task-1', title: 'Implement login', description: 'Develop user authentication module', teamId: 'team-a', assigneeId: null, status: 'pending' },\n  { id: 'task-2', title: 'Design database schema', description: 'Create ER diagrams for the project', teamId: 'team-a', assigneeId: 'user-1', status: 'in-progress' },\n  { id: 'task-3', title: 'Write API documentation', description: 'Document all REST endpoints', teamId: 'team-b', assigneeId: null, status: 'pending' },\n];\n\nconst users: User[] = [\n  { id: 'user-1', name: 'Alice', email: 'alice@example.com' },\n  { id: 'user-2', name: 'Bob', email: 'bob@example.com' },\n  { id: 'user-3', name: 'Charlie', email: 'charlie@example.com' },\n];\n\nconst teams: Team[] = [\n  { id: 'team-a', name: 'Frontend Team', memberIds: ['user-1', 'user-2'] },\n  { id: 'team-b', name: 'Backend Team', memberIds: ['user-3'] },\n];\n\nconst assignments: Assignment[] = [\n  { taskId: 'task-2', assigneeId: 'user-1', assignedAt: new Date() },\n];\n\n// --- DB Access Functions ---\n\nexport const getTaskById = (id: string): Task | undefined => {\n  return tasks.find(task => task.id === id);\n};\n\nexport const getUserById = (id: string): User | undefined => {\n  return users.find(user => user.id === id);\n};\n\nexport const getTeamById = (id: string): Team | undefined => {\n  return teams.find(team => team.id === id);\n};\n\nexport const updateTaskAssignee = (taskId: string, assigneeId: string | null): Task | undefined => {\n  const taskIndex = tasks.findIndex(task => task.id === taskId);\n  if (taskIndex === -1) {\n    return undefined;\n  }\n  tasks[taskIndex] = { ...tasks[taskIndex], assigneeId };\n\n  // Update assignments table (simplified: just add/update if assigneeId is not null)\n  if (assigneeId) {\n    const existingAssignmentIndex = assignments.findIndex(a => a.taskId === taskId);\n    if (existingAssignmentIndex !== -1) {\n      assignments[existingAssignmentIndex] = { taskId, assigneeId, assignedAt: new Date() };\n    } else {\n      assignments.push({ taskId, assigneeId, assignedAt: new Date() });\n    }\n  } else {\n    // If assignee is set to null, remove from assignments\n    const existingAssignmentIndex = assignments.findIndex(a => a.taskId === taskId);\n    if (existingAssignmentIndex !== -1) {\n      assignments.splice(existingAssignmentIndex, 1);\n    }\n  }\n\n  return tasks[taskIndex];\n};\n```\n\n```aether:src/routes/assignTask.ts\nimport { getTaskById, getUserById, getTeamById, updateTaskAssignee } from '../db';\n\ntype AssignTaskRequestBody = {\n  assigneeId: string;\n};\n\ntype AssignTaskParams = {\n  taskId: string;\n};\n\nexport const assignTask = async (\n  params: AssignTaskParams,\n  body: AssignTaskRequestBody\n) => {\n  const { taskId } = params;\n  const { assigneeId } = body;\n\n  // 1. Validate input\n  if (!assigneeId) {\n    return {\n      status: 400,\n      body: { success: false, message: 'Assignee ID is required.' }\n    };\n  }\n\n  // 2. Find the task\n  const task = getTaskById(taskId);\n  if (!task) {\n    return {\n      status: 404,\n      body: { success: false, message: `Task with ID '${taskId}' not found.` }\n    };\n  }\n\n  // 3. Find the assignee\n  const assignee = getUserById(assigneeId);\n  if (!assignee) {\n    return {\n      status: 404,\n      body: { success: false, message: `Assignee with ID '${assigneeId}' not found.` }\n    };\n  }\n\n  // 4. Find the task's team\n  const team = getTeamById(task.teamId);\n  if (!team) {\n    // This indicates a data inconsistency if a task exists but its team doesn't\n    return {\n      status: 500,\n      body: { success: false, message: `Team with ID '${task.teamId}' associated with task '${taskId}' not found.` }\n    };\n  }\n\n  // 5. Verify the assignee is a member of the task's team\n  if (!team.memberIds.includes(assigneeId)) {\n    return {\n      status: 403, // Forbidden, or 400 Bad Request depending on desired specificity\n      body: { success: false, message: `Assignee '${assigneeId}' is not a member of team '${team.name}' (ID: ${team.id}) for task '${taskId}'.` }\n    };\n  }\n\n  // 6. Update the task assignment\n  const updatedTask = updateTaskAssignee(taskId, assigneeId);\n\n  if (!updatedTask) {\n    // Should ideally not happen if getTaskById found it, but good for robustness\n    return {\n      status: 500,\n      body: { success: false, message: `Failed to update task '${taskId}'.` }\n    };\n  }\n\n  return {\n    status: 200,\n    body: { success: true, message: 'Task assigned successfully.', task: updatedTask }\n  };\n};\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { assignTask } from './routes/assignTask';\n\nconst app = new Hono();\n\n// Middleware to parse JSON body\napp.use('*', async (c, next) => {\n  if (c.req.method === 'POST' || c.req.method === 'PUT') {\n    try {\n      const body = await c.req.json();\n      c.set('parsedBody', body);\n    } catch (e) {\n      return c.json({ success: false, message: 'Invalid JSON body' }, 400);\n    }\n  }\n  await next();\n});\n\napp.post('/tasks/:taskId/assign', async (c) => {\n  const taskId = c.req.param('taskId');\n  const body = c.get('parsedBody'); // Get parsed body from middleware\n\n  const result = await assignTask({ taskId }, body);\n\n  return c.json(result.body, result.status);\n});\n\n// Basic health check route\napp.get('/', (c) => {\n  return c.json({ message: 'Task Assignment Service is running!' });\n});\n\nexport default app;\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 3
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1218
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 561
+      }
+    ],
+    "durationMs": 1829
+  }
+}

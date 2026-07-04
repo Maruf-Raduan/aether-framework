@@ -1,0 +1,113 @@
+{
+  "promptId": "P10",
+  "targetDesc": "Create a route that returns the audit-log history of a single task (status changes, reassignments).",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 16317,
+      "tokensIn": 172,
+      "tokensOut": 2629,
+      "wallMs": 17668,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/models/task.ts\nexport enum TaskStatus {\n  Open = 'Open',\n  InProgress = 'In Progress',\n  Done = 'Done',\n  Blocked = 'Blocked',\n}\n\nexport interface Task {\n  id: string;\n  title: string;\n  description?: string;\n  status: TaskStatus;\n  assigneeId?: string;\n  createdAt: Date;\n  updatedAt: Date;\n}\n\nexport enum AuditLogEventType {\n  StatusChange = 'status_change',\n  Reassignment = 'reassignment',\n  Creation = 'creation',\n  Update = 'update',\n}\n\nexport interface AuditLogEntry {\n  id: string;\n  taskId: string;\n  timestamp: Date;\n  eventType: AuditLogEventType;\n  oldValue: string | null;\n  newValue: string | null;\n  userId: string; // ID of the user who performed the action\n  description?: string; // Optional human-readable description\n}\n```\n\n```aether:src/data/mockData.ts\nimport { Task, TaskStatus, AuditLogEntry, AuditLogEventType } from '../models/task';\n\n// Mock Users (for assigneeId and userId in audit logs)\nconst mockUsers = [\n  { id: 'user-1', name: 'Alice' },\n  { id: 'user-2', name: 'Bob' },\n  { id: 'user-3', name: 'Charlie' },\n];\n\n// Mock Tasks\nexport const mockTasks: Task[] = [\n  {\n    id: 'task-101',\n    title: 'Implement user authentication',\n    description: 'Develop and integrate user login, registration, and session management.',\n    status: TaskStatus.InProgress,\n    assigneeId: 'user-1',\n    createdAt: new Date('2023-01-01T10:00:00Z'),\n    updatedAt: new Date('2023-01-05T14:30:00Z'),\n  },\n  {\n    id: 'task-102',\n    title: 'Design database schema',\n    description: 'Create ER diagrams and define tables for the application.',\n    status: TaskStatus.Done,\n    assigneeId: 'user-2',\n    createdAt: new Date('2023-01-02T09:00:00Z'),\n    updatedAt: new Date('2023-01-04T11:00:00Z'),\n  },\n  {\n    id: 'task-103',\n    title: 'Develop API for task management',\n    description: 'Create REST endpoints for CRUD operations on tasks.',\n    status: TaskStatus.Open,\n    assigneeId: 'user-3',\n    createdAt: new Date('2023-01-03T11:00:00Z'),\n    updatedAt: new Date('2023-01-03T11:00:00Z'),\n  },\n  {\n    id: 'task-104',\n    title: 'Set up CI/CD pipeline',\n    description: 'Configure Jenkins/GitHub Actions for automated builds and deployments.',\n    status: TaskStatus.Blocked,\n    assigneeId: 'user-1',\n    createdAt: new Date('2023-01-06T13:00:00Z'),\n    updatedAt: new Date('2023-01-07T10:00:00Z'),\n  },\n];\n\n// Mock Audit Log Entries\nexport const mockAuditLogs: AuditLogEntry[] = [\n  // Audit logs for task-101\n  {\n    id: 'log-001',\n    taskId: 'task-101',\n    timestamp: new Date('2023-01-01T10:00:00Z'),\n    eventType: AuditLogEventType.Creation,\n    oldValue: null,\n    newValue: 'task-101',\n    userId: 'user-1',\n    description: 'Task created',\n  },\n  {\n    id: 'log-002',\n    taskId: 'task-101',\n    timestamp: new Date('2023-01-01T10:05:00Z'),\n    eventType: AuditLogEventType.Reassignment,\n    oldValue: null,\n    newValue: 'user-1',\n    userId: 'user-1',\n    description: 'Assigned to Alice',\n  },\n  {\n    id: 'log-003',\n    taskId: 'task-101',\n    timestamp: new Date('2023-01-02T09:30:00Z'),\n    eventType: AuditLogEventType.StatusChange,\n    oldValue: TaskStatus.Open,\n    newValue: TaskStatus.InProgress,\n    userId: 'user-1',\n    description: 'Status changed from Open to In Progress',\n  },\n  {\n    id: 'log-004',\n    taskId: 'task-101',\n    timestamp: new Date('2023-01-05T14:30:00Z'),\n    eventType: AuditLogEventType.Reassignment,\n    oldValue: 'user-1',\n    newValue: 'user-3',\n    userId: 'user-1',\n    description: 'Reassigned from Alice to Charlie',\n  },\n  {\n    id: 'log-005',\n    taskId: 'task-101',\n    timestamp: new Date('2023-01-06T10:00:00Z'),\n    eventType: AuditLogEventType.StatusChange,\n    oldValue: TaskStatus.InProgress,\n    newValue: TaskStatus.Blocked,\n    userId: 'user-3',\n    description: 'Status changed from In Progress to Blocked',\n  },\n\n  // Audit logs for task-102\n  {\n    id: 'log-006',\n    taskId: 'task-102',\n    timestamp: new Date('2023-01-02T09:00:00Z'),\n    eventType: AuditLogEventType.Creation,\n    oldValue: null,\n    newValue: 'task-102',\n    userId: 'user-2',\n    description: 'Task created',\n  },\n  {\n    id: 'log-007',\n    taskId: 'task-102',\n    timestamp: new Date('2023-01-02T09:05:00Z'),\n    eventType: AuditLogEventType.Reassignment,\n    oldValue: null,\n    newValue: 'user-2',\n    userId: 'user-2',\n    description: 'Assigned to Bob',\n  },\n  {\n    id: 'log-008',\n    taskId: 'task-102',\n    timestamp: new Date('2023-01-03T10:00:00Z'),\n    eventType: AuditLogEventType.StatusChange,\n    oldValue: TaskStatus.Open,\n    newValue: TaskStatus.InProgress,\n    userId: 'user-2',\n    description: 'Status changed from Open to In Progress',\n  },\n  {\n    id: 'log-009',\n    taskId: 'task-102',\n    timestamp: new Date('2023-01-04T11:00:00Z'),\n    eventType: AuditLogEventType.StatusChange,\n    oldValue: TaskStatus.InProgress,\n    newValue: TaskStatus.Done,\n    userId: 'user-2',\n    description: 'Status changed from In Progress to Done',\n  },\n\n  // Audit logs for task-103 (only creation)\n  {\n    id: 'log-010',\n    taskId: 'task-103',\n    timestamp: new Date('2023-01-03T11:00:00Z'),\n    eventType: AuditLogEventType.Creation,\n    oldValue: null,\n    newValue: 'task-103',\n    userId: 'user-3',\n    description: 'Task created',\n  },\n];\n```\n\n```aether:src/services/taskService.ts\nimport { AuditLogEntry, Task } from '../models/task';\nimport { mockTasks, mockAuditLogs } from '../data/mockData';\n\nexport class TaskService {\n  /**\n   * Retrieves the audit log history for a specific task.\n   * @param taskId The ID of the task.\n   * @returns An array of AuditLogEntry objects, sorted by timestamp.\n   */\n  public getTaskAuditLog(taskId: string): AuditLogEntry[] {\n    // In a real application, this would query a database.\n    // For this exercise, we filter mock data.\n    const auditLogs = mockAuditLogs.filter(log => log.taskId === taskId);\n\n    // Sort logs by timestamp in ascending order\n    auditLogs.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());\n\n    return auditLogs;\n  }\n\n  /**\n   * Checks if a task exists.\n   * @param taskId The ID of the task.\n   * @returns True if the task exists, false otherwise.\n   */\n  public taskExists(taskId: string): boolean {\n    return mockTasks.some(task => task.id === taskId);\n  }\n}\n```\n\n```aether:src/routes/tasks.ts\nimport { Hono } from 'hono';\nimport { TaskService } from '../services/taskService';\n\nconst tasksRouter = new Hono();\nconst taskService = new TaskService();\n\n/**\n * GET /tasks/:id/audit-log\n * Returns the audit log history for a single task.\n */\ntasksRouter.get('/:id/audit-log', async (c) => {\n  const taskId = c.req.param('id');\n\n  if (!taskService.taskExists(taskId)) {\n    return c.json({ message: `Task with ID '${taskId}' not found.` }, 404);\n  }\n\n  const auditLogs = taskService.getTaskAuditLog(taskId);\n\n  // Hono automatically serializes the object to JSON\n  return c.json(auditLogs);\n});\n\nexport default tasksRouter;\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport tasksRouter from './routes/tasks';\n\nconst app = new Hono();\n\n// Mount the tasks router under the /api/tasks path\napp.route('/api/tasks', tasksRouter);\n\n// Basic root route\napp.get('/', (c) => {\n  return c.text('Aether Task Audit Log API is running!');\n});\n\n// Global error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ message: 'An internal server error occurred.' }, 500);\n});\n\nconst port = 3000;\nconsole.log(`Server is running on http://localhost:${port}`);\n\n// Export the app for Vercel or other serverless environments,\n// or directly run it with Node.js\nexport default {\n  port,\n  fetch: app.fetch,\n};\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 17668,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/models/task.ts\nexport enum TaskStatus {\n  Open = 'Open',\n  InProgress = 'In Progress',\n  Done = 'Done',\n  Blocked = 'Blocked',\n}\n\nexport interface Task {\n  id: string;\n  title: string;\n  description?: string;\n  status: TaskStatus;\n  assigneeId?: string;\n  createdAt: Date;\n  updatedAt: Date;\n}\n\nexport enum AuditLogEventType {\n  StatusChange = 'status_change',\n  Reassignment = 'reassignment',\n  Creation = 'creation',\n  Update = 'update',\n}\n\nexport interface AuditLogEntry {\n  id: string;\n  taskId: string;\n  timestamp: Date;\n  eventType: AuditLogEventType;\n  oldValue: string | null;\n  newValue: string | null;\n  userId: string; // ID of the user who performed the action\n  description?: string; // Optional human-readable description\n}\n```\n\n```aether:src/data/mockData.ts\nimport { Task, TaskStatus, AuditLogEntry, AuditLogEventType } from '../models/task';\n\n// Mock Users (for assigneeId and userId in audit logs)\nconst mockUsers = [\n  { id: 'user-1', name: 'Alice' },\n  { id: 'user-2', name: 'Bob' },\n  { id: 'user-3', name: 'Charlie' },\n];\n\n// Mock Tasks\nexport const mockTasks: Task[] = [\n  {\n    id: 'task-101',\n    title: 'Implement user authentication',\n    description: 'Develop and integrate user login, registration, and session management.',\n    status: TaskStatus.InProgress,\n    assigneeId: 'user-1',\n    createdAt: new Date('2023-01-01T10:00:00Z'),\n    updatedAt: new Date('2023-01-05T14:30:00Z'),\n  },\n  {\n    id: 'task-102',\n    title: 'Design database schema',\n    description: 'Create ER diagrams and define tables for the application.',\n    status: TaskStatus.Done,\n    assigneeId: 'user-2',\n    createdAt: new Date('2023-01-02T09:00:00Z'),\n    updatedAt: new Date('2023-01-04T11:00:00Z'),\n  },\n  {\n    id: 'task-103',\n    title: 'Develop API for task management',\n    description: 'Create REST endpoints for CRUD operations on tasks.',\n    status: TaskStatus.Open,\n    assigneeId: 'user-3',\n    createdAt: new Date('2023-01-03T11:00:00Z'),\n    updatedAt: new Date('2023-01-03T11:00:00Z'),\n  },\n  {\n    id: 'task-104',\n    title: 'Set up CI/CD pipeline',\n    description: 'Configure Jenkins/GitHub Actions for automated builds and deployments.',\n    status: TaskStatus.Blocked,\n    assigneeId: 'user-1',\n    createdAt: new Date('2023-01-06T13:00:00Z'),\n    updatedAt: new Date('2023-01-07T10:00:00Z'),\n  },\n];\n\n// Mock Audit Log Entries\nexport const mockAuditLogs: AuditLogEntry[] = [\n  // Audit logs for task-101\n  {\n    id: 'log-001',\n    taskId: 'task-101',\n    timestamp: new Date('2023-01-01T10:00:00Z'),\n    eventType: AuditLogEventType.Creation,\n    oldValue: null,\n    newValue: 'task-101',\n    userId: 'user-1',\n    description: 'Task created',\n  },\n  {\n    id: 'log-002',\n    taskId: 'task-101',\n    timestamp: new Date('2023-01-01T10:05:00Z'),\n    eventType: AuditLogEventType.Reassignment,\n    oldValue: null,\n    newValue: 'user-1',\n    userId: 'user-1',\n    description: 'Assigned to Alice',\n  },\n  {\n    id: 'log-003',\n    taskId: 'task-101',\n    timestamp: new Date('2023-01-02T09:30:00Z'),\n    eventType: AuditLogEventType.StatusChange,\n    oldValue: TaskStatus.Open,\n    newValue: TaskStatus.InProgress,\n    userId: 'user-1',\n    description: 'Status changed from Open to In Progress',\n  },\n  {\n    id: 'log-004',\n    taskId: 'task-101',\n    timestamp: new Date('2023-01-05T14:30:00Z'),\n    eventType: AuditLogEventType.Reassignment,\n    oldValue: 'user-1',\n    newValue: 'user-3',\n    userId: 'user-1',\n    description: 'Reassigned from Alice to Charlie',\n  },\n  {\n    id: 'log-005',\n    taskId: 'task-101',\n    timestamp: new Date('2023-01-06T10:00:00Z'),\n    eventType: AuditLogEventType.StatusChange,\n    oldValue: TaskStatus.InProgress,\n    newValue: TaskStatus.Blocked,\n    userId: 'user-3',\n    description: 'Status changed from In Progress to Blocked',\n  },\n\n  // Audit logs for task-102\n  {\n    id: 'log-006',\n    taskId: 'task-102',\n    timestamp: new Date('2023-01-02T09:00:00Z'),\n    eventType: AuditLogEventType.Creation,\n    oldValue: null,\n    newValue: 'task-102',\n    userId: 'user-2',\n    description: 'Task created',\n  },\n  {\n    id: 'log-007',\n    taskId: 'task-102',\n    timestamp: new Date('2023-01-02T09:05:00Z'),\n    eventType: AuditLogEventType.Reassignment,\n    oldValue: null,\n    newValue: 'user-2',\n    userId: 'user-2',\n    description: 'Assigned to Bob',\n  },\n  {\n    id: 'log-008',\n    taskId: 'task-102',\n    timestamp: new Date('2023-01-03T10:00:00Z'),\n    eventType: AuditLogEventType.StatusChange,\n    oldValue: TaskStatus.Open,\n    newValue: TaskStatus.InProgress,\n    userId: 'user-2',\n    description: 'Status changed from Open to In Progress',\n  },\n  {\n    id: 'log-009',\n    taskId: 'task-102',\n    timestamp: new Date('2023-01-04T11:00:00Z'),\n    eventType: AuditLogEventType.StatusChange,\n    oldValue: TaskStatus.InProgress,\n    newValue: TaskStatus.Done,\n    userId: 'user-2',\n    description: 'Status changed from In Progress to Done',\n  },\n\n  // Audit logs for task-103 (only creation)\n  {\n    id: 'log-010',\n    taskId: 'task-103',\n    timestamp: new Date('2023-01-03T11:00:00Z'),\n    eventType: AuditLogEventType.Creation,\n    oldValue: null,\n    newValue: 'task-103',\n    userId: 'user-3',\n    description: 'Task created',\n  },\n];\n```\n\n```aether:src/services/taskService.ts\nimport { AuditLogEntry, Task } from '../models/task';\nimport { mockTasks, mockAuditLogs } from '../data/mockData';\n\nexport class TaskService {\n  /**\n   * Retrieves the audit log history for a specific task.\n   * @param taskId The ID of the task.\n   * @returns An array of AuditLogEntry objects, sorted by timestamp.\n   */\n  public getTaskAuditLog(taskId: string): AuditLogEntry[] {\n    // In a real application, this would query a database.\n    // For this exercise, we filter mock data.\n    const auditLogs = mockAuditLogs.filter(log => log.taskId === taskId);\n\n    // Sort logs by timestamp in ascending order\n    auditLogs.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());\n\n    return auditLogs;\n  }\n\n  /**\n   * Checks if a task exists.\n   * @param taskId The ID of the task.\n   * @returns True if the task exists, false otherwise.\n   */\n  public taskExists(taskId: string): boolean {\n    return mockTasks.some(task => task.id === taskId);\n  }\n}\n```\n\n```aether:src/routes/tasks.ts\nimport { Hono } from 'hono';\nimport { TaskService } from '../services/taskService';\n\nconst tasksRouter = new Hono();\nconst taskService = new TaskService();\n\n/**\n * GET /tasks/:id/audit-log\n * Returns the audit log history for a single task.\n */\ntasksRouter.get('/:id/audit-log', async (c) => {\n  const taskId = c.req.param('id');\n\n  if (!taskService.taskExists(taskId)) {\n    return c.json({ message: `Task with ID '${taskId}' not found.` }, 404);\n  }\n\n  const auditLogs = taskService.getTaskAuditLog(taskId);\n\n  // Hono automatically serializes the object to JSON\n  return c.json(auditLogs);\n});\n\nexport default tasksRouter;\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport tasksRouter from './routes/tasks';\n\nconst app = new Hono();\n\n// Mount the tasks router under the /api/tasks path\napp.route('/api/tasks', tasksRouter);\n\n// Basic root route\napp.get('/', (c) => {\n  return c.text('Aether Task Audit Log API is running!');\n});\n\n// Global error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ message: 'An internal server error occurred.' }, 500);\n});\n\nconst port = 3000;\nconsole.log(`Server is running on http://localhost:${port}`);\n\n// Export the app for Vercel or other serverless environments,\n// or directly run it with Node.js\nexport default {\n  port,\n  fetch: app.fetch,\n};\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 864
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 482
+      }
+    ],
+    "durationMs": 1351
+  }
+}

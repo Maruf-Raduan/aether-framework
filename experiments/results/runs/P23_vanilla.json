@@ -1,0 +1,113 @@
+{
+  "promptId": "P23",
+  "targetDesc": "Create a route that sends a notification to a list of user ids. The notification is persisted in DB and dispatched via email/push. Caller must be a system service account.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 15869,
+      "tokensIn": 186,
+      "tokensOut": 1420,
+      "wallMs": 17214,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types.ts\nexport interface Notification {\n  id: string;\n  message: string;\n  userIds: string[];\n  status: 'pending' | 'sent' | 'failed';\n  createdAt: Date;\n  dispatchedAt?: Date;\n}\n\nexport interface SendNotificationRequest {\n  userIds: string[];\n  message: string;\n}\n```\n\n```aether:src/services/notificationService.ts\nimport { Notification } from '../types';\nimport { v4 as uuidv4 } from 'uuid';\n\n// In-memory store to simulate a database\nconst notificationsDb: Notification[] = [];\n\n/**\n * Service responsible for persisting and dispatching notifications.\n */\nexport const notificationService = {\n  /**\n   * Creates a new notification, persists it, and simulates dispatch.\n   * @param userIds The list of user IDs to notify.\n   * @param message The notification message.\n   * @returns The created Notification object.\n   */\n  async sendNotification(userIds: string[], message: string): Promise<Notification> {\n    const newNotification: Notification = {\n      id: uuidv4(),\n      message,\n      userIds,\n      status: 'pending',\n      createdAt: new Date(),\n    };\n\n    // Simulate database persistence\n    notificationsDb.push(newNotification);\n    console.log(`[DB] Notification ${newNotification.id} saved.`);\n\n    // Simulate asynchronous dispatch via email/push\n    // In a real application, this would involve calling external services\n    // or queuing messages for a background worker.\n    await new Promise(resolve => setTimeout(resolve, 100)); // Simulate network delay\n\n    newNotification.status = 'sent';\n    newNotification.dispatchedAt = new Date();\n    console.log(`[DISPATCH] Notification ${newNotification.id} dispatched to users: ${userIds.join(', ')}`);\n\n    return newNotification;\n  },\n\n  /**\n   * (Optional) Retrieves all stored notifications. For debugging/testing.\n   */\n  getAllNotifications(): Notification[] {\n    return [...notificationsDb];\n  }\n};\n```\n\n```aether:src/routes/notifications.ts\nimport { Hono } from 'hono';\nimport { notificationService } from '../services/notificationService';\nimport { SendNotificationRequest } from '../types';\n\nconst notificationsRouter = new Hono();\n\n// Hardcoded service account key for demonstration purposes.\n// In a real application, this would be loaded from environment variables\n// and validated against a more robust authentication system (e.g., JWT, API Key management).\nconst SYSTEM_SERVICE_ACCOUNT_KEY = 'super-secret-system-key-123';\n\n/**\n * POST /notifications/send\n * Sends a notification to a list of user IDs.\n * Requires a system service account key for authorization.\n */\nnotificationsRouter.post('/send', async (c) => {\n  // 1. Authorization: Check for system service account key\n  const serviceAccountKey = c.req.header('X-Service-Account-Key');\n\n  if (!serviceAccountKey || serviceAccountKey !== SYSTEM_SERVICE_ACCOUNT_KEY) {\n    return c.json({ error: 'Unauthorized: Invalid or missing system service account key' }, 401);\n  }\n\n  // 2. Request Body Validation\n  let requestBody: SendNotificationRequest;\n  try {\n    requestBody = await c.req.json();\n  } catch (error) {\n    return c.json({ error: 'Invalid JSON body' }, 400);\n  }\n\n  const { userIds, message } = requestBody;\n\n  if (!Array.isArray(userIds) || userIds.length === 0 || !userIds.every(id => typeof id === 'string' && id.trim() !== '')) {\n    return c.json({ error: 'Invalid request: userIds must be a non-empty array of strings' }, 400);\n  }\n\n  if (typeof message !== 'string' || message.trim() === '') {\n    return c.json({ error: 'Invalid request: message must be a non-empty string' }, 400);\n  }\n\n  // 3. Process Notification\n  try {\n    const notification = await notificationService.sendNotification(userIds, message);\n    return c.json({\n      message: 'Notification successfully created and dispatched.',\n      notificationId: notification.id,\n      status: notification.status,\n      dispatchedAt: notification.dispatchedAt,\n    }, 200);\n  } catch (error) {\n    console.error('Failed to send notification:', error);\n    return c.json({ error: 'Failed to process notification' }, 500);\n  }\n});\n\nexport default notificationsRouter;\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { logger } from 'hono/logger';\nimport notificationsRouter from './routes/notifications';\n\nconst app = new Hono();\n\n// Middleware for logging requests\napp.use(logger());\n\n// Mount the notifications router under the /notifications path\napp.route('/notifications', notificationsRouter);\n\n// Basic health check route\napp.get('/', (c) => {\n  return c.json({ message: 'Notification Service is running!' });\n});\n\n// Catch-all for 404 Not Found\napp.notFound((c) => {\n  return c.json({ message: 'Not Found', ok: false }, 404);\n});\n\n// Error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ message: 'Internal Server Error', ok: false }, 500);\n});\n\n// Export the Hono app for deployment (e.g., with Node.js server or Vercel)\nexport default app;\n\n// For local development, you might want to start the server directly\n// if (process.env.NODE_ENV === 'development') {\n//   const port = parseInt(process.env.PORT || '3000');\n//   console.log(`Server is running on http://localhost:${port}`);\n//   // Hono's app.listen is for Node.js environments\n//   app.listen(port);\n// }\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 17214,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types.ts\nexport interface Notification {\n  id: string;\n  message: string;\n  userIds: string[];\n  status: 'pending' | 'sent' | 'failed';\n  createdAt: Date;\n  dispatchedAt?: Date;\n}\n\nexport interface SendNotificationRequest {\n  userIds: string[];\n  message: string;\n}\n```\n\n```aether:src/services/notificationService.ts\nimport { Notification } from '../types';\nimport { v4 as uuidv4 } from 'uuid';\n\n// In-memory store to simulate a database\nconst notificationsDb: Notification[] = [];\n\n/**\n * Service responsible for persisting and dispatching notifications.\n */\nexport const notificationService = {\n  /**\n   * Creates a new notification, persists it, and simulates dispatch.\n   * @param userIds The list of user IDs to notify.\n   * @param message The notification message.\n   * @returns The created Notification object.\n   */\n  async sendNotification(userIds: string[], message: string): Promise<Notification> {\n    const newNotification: Notification = {\n      id: uuidv4(),\n      message,\n      userIds,\n      status: 'pending',\n      createdAt: new Date(),\n    };\n\n    // Simulate database persistence\n    notificationsDb.push(newNotification);\n    console.log(`[DB] Notification ${newNotification.id} saved.`);\n\n    // Simulate asynchronous dispatch via email/push\n    // In a real application, this would involve calling external services\n    // or queuing messages for a background worker.\n    await new Promise(resolve => setTimeout(resolve, 100)); // Simulate network delay\n\n    newNotification.status = 'sent';\n    newNotification.dispatchedAt = new Date();\n    console.log(`[DISPATCH] Notification ${newNotification.id} dispatched to users: ${userIds.join(', ')}`);\n\n    return newNotification;\n  },\n\n  /**\n   * (Optional) Retrieves all stored notifications. For debugging/testing.\n   */\n  getAllNotifications(): Notification[] {\n    return [...notificationsDb];\n  }\n};\n```\n\n```aether:src/routes/notifications.ts\nimport { Hono } from 'hono';\nimport { notificationService } from '../services/notificationService';\nimport { SendNotificationRequest } from '../types';\n\nconst notificationsRouter = new Hono();\n\n// Hardcoded service account key for demonstration purposes.\n// In a real application, this would be loaded from environment variables\n// and validated against a more robust authentication system (e.g., JWT, API Key management).\nconst SYSTEM_SERVICE_ACCOUNT_KEY = 'super-secret-system-key-123';\n\n/**\n * POST /notifications/send\n * Sends a notification to a list of user IDs.\n * Requires a system service account key for authorization.\n */\nnotificationsRouter.post('/send', async (c) => {\n  // 1. Authorization: Check for system service account key\n  const serviceAccountKey = c.req.header('X-Service-Account-Key');\n\n  if (!serviceAccountKey || serviceAccountKey !== SYSTEM_SERVICE_ACCOUNT_KEY) {\n    return c.json({ error: 'Unauthorized: Invalid or missing system service account key' }, 401);\n  }\n\n  // 2. Request Body Validation\n  let requestBody: SendNotificationRequest;\n  try {\n    requestBody = await c.req.json();\n  } catch (error) {\n    return c.json({ error: 'Invalid JSON body' }, 400);\n  }\n\n  const { userIds, message } = requestBody;\n\n  if (!Array.isArray(userIds) || userIds.length === 0 || !userIds.every(id => typeof id === 'string' && id.trim() !== '')) {\n    return c.json({ error: 'Invalid request: userIds must be a non-empty array of strings' }, 400);\n  }\n\n  if (typeof message !== 'string' || message.trim() === '') {\n    return c.json({ error: 'Invalid request: message must be a non-empty string' }, 400);\n  }\n\n  // 3. Process Notification\n  try {\n    const notification = await notificationService.sendNotification(userIds, message);\n    return c.json({\n      message: 'Notification successfully created and dispatched.',\n      notificationId: notification.id,\n      status: notification.status,\n      dispatchedAt: notification.dispatchedAt,\n    }, 200);\n  } catch (error) {\n    console.error('Failed to send notification:', error);\n    return c.json({ error: 'Failed to process notification' }, 500);\n  }\n});\n\nexport default notificationsRouter;\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { logger } from 'hono/logger';\nimport notificationsRouter from './routes/notifications';\n\nconst app = new Hono();\n\n// Middleware for logging requests\napp.use(logger());\n\n// Mount the notifications router under the /notifications path\napp.route('/notifications', notificationsRouter);\n\n// Basic health check route\napp.get('/', (c) => {\n  return c.json({ message: 'Notification Service is running!' });\n});\n\n// Catch-all for 404 Not Found\napp.notFound((c) => {\n  return c.json({ message: 'Not Found', ok: false }, 404);\n});\n\n// Error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ message: 'Internal Server Error', ok: false }, 500);\n});\n\n// Export the Hono app for deployment (e.g., with Node.js server or Vercel)\nexport default app;\n\n// For local development, you might want to start the server directly\n// if (process.env.NODE_ENV === 'development') {\n//   const port = parseInt(process.env.PORT || '3000');\n//   console.log(`Server is running on http://localhost:${port}`);\n//   // Hono's app.listen is for Node.js environments\n//   app.listen(port);\n// }\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 864
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 475
+      }
+    ],
+    "durationMs": 1345
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "promptId": "P26",
+  "condition": "aether",
+  "iteration": 3,
+  "passed": false,
+  "tokensIn": 1146,
+  "tokensOut": 713,
+  "tokensTotal": 1859,
+  "latencyMs": 54249,
+  "wallMs": 54249,
+  "files": [
+    {
+      "path": "modules/tasks/routes/team-velocity.ts",
+      "length": 2483
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": false,
+      "skipped": false,
+      "message": "19 TypeScript error(s). First: Cannot find module 'aether' or its corresponding type declarations."
+    }
+  ]
+}

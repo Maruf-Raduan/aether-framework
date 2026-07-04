@@ -1,0 +1,89 @@
+{
+  "promptId": "P13",
+  "condition": "aether",
+  "iteration": 3,
+  "passed": true,
+  "tokensIn": 1060,
+  "tokensOut": 1249,
+  "tokensTotal": 2309,
+  "latencyMs": 111659,
+  "wallMs": 111659,
+  "files": [
+    {
+      "path": "unnamed.ts",
+      "length": 684
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 232
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 560
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 1495
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 282
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 215
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 154
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 511
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 281
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 282
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 215
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 154
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

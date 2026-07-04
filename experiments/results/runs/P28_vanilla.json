@@ -1,0 +1,113 @@
+{
+  "promptId": "P28",
+  "targetDesc": "Create a file-upload route that accepts a multipart form, validates size and mime type, stores the file in object storage, and writes a row to the files table. Returns the file id.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 16366,
+      "tokensIn": 190,
+      "tokensOut": 2621,
+      "wallMs": 17898,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types.ts\n/**\n * Defines the structure for a file record stored in the database.\n */\nexport interface FileRecord {\n  id: string;\n  name: string;\n  mimeType: string;\n  size: number; // in bytes\n  objectStorageId: string; // ID or path in object storage\n  uploadedAt: Date;\n}\n\n/**\n * Defines the structure for creating a new file record.\n */\nexport type NewFileRecord = Omit<FileRecord, 'id' | 'uploadedAt'>;\n\n/**\n * Defines the structure for a file received from a multipart form.\n * This aligns with the standard `File` interface in browsers/Node.js environments.\n */\nexport interface UploadedFile {\n  name: string;\n  type: string; // MIME type\n  size: number; // in bytes\n  arrayBuffer(): Promise<ArrayBuffer>;\n  // Hono's File type also has `lastModified` and `webkitRelativePath` but we don't need them for this feature.\n}\n```\n```aether:src/utils/validation.ts\nimport { UploadedFile } from '../types';\n\n// Configuration for file validation\nconst MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB\nconst ALLOWED_MIME_TYPES = [\n  'image/jpeg',\n  'image/png',\n  'application/pdf',\n  'text/plain',\n];\n\n/**\n * Validates the size of an uploaded file.\n * @param fileSize The size of the file in bytes.\n * @returns True if the file size is valid, false otherwise.\n */\nexport function validateFileSize(fileSize: number): boolean {\n  return fileSize > 0 && fileSize <= MAX_FILE_SIZE_BYTES;\n}\n\n/**\n * Validates the MIME type of an uploaded file.\n * @param mimeType The MIME type string of the file.\n * @returns True if the MIME type is allowed, false otherwise.\n */\nexport function validateMimeType(mimeType: string): boolean {\n  return ALLOWED_MIME_TYPES.includes(mimeType);\n}\n\n/**\n * Performs all necessary validations for an uploaded file.\n * @param file The uploaded file object.\n * @throws Error if validation fails.\n */\nexport function validateUploadedFile(file: UploadedFile): void {\n  if (!file) {\n    throw new Error('No file provided.');\n  }\n  if (!validateFileSize(file.size)) {\n    throw new Error(\n      `File size exceeds the maximum allowed (${\n        MAX_FILE_SIZE_BYTES / (1024 * 1024)\n      } MB) or is empty.`\n    );\n  }\n  if (!validateMimeType(file.type)) {\n    throw new Error(\n      `File type '${file.type}' is not allowed. Allowed types: ${ALLOWED_MIME_TYPES.join(\n        ', '\n      )}.`\n    );\n  }\n}\n```\n```aether:src/services/objectStorage.ts\nimport { v4 as uuidv4 } from 'uuid';\n\n/**\n * A mock object storage service. In a real application, this would interact\n * with a cloud provider like AWS S3, Google Cloud Storage, or Azure Blob Storage.\n */\nclass ObjectStorageService {\n  private storage: Map<string, ArrayBuffer> = new Map();\n\n  /**\n   * Uploads a file to mock object storage.\n   * @param fileName The original name of the file.\n   * @param mimeType The MIME type of the file.\n   * @param data The file content as an ArrayBuffer.\n   * @returns A unique ID representing the stored object.\n   */\n  public async upload(\n    fileName: string,\n    mimeType: string,\n    data: ArrayBuffer\n  ): Promise<string> {\n    // Simulate network delay\n    await new Promise((resolve) => setTimeout(resolve, 100));\n\n    const objectId = `obj-${uuidv4()}-${fileName}`;\n    this.storage.set(objectId, data);\n    console.log(\n      `[ObjectStorage] Stored object: ${objectId} (Type: ${mimeType}, Size: ${data.byteLength} bytes)`\n    );\n    return objectId;\n  }\n\n  /**\n   * Retrieves a file from mock object storage.\n   * (Not directly used by the upload feature, but good for completeness)\n   * @param objectId The ID of the object to retrieve.\n   * @returns The file content as an ArrayBuffer, or undefined if not found.\n   */\n  public async get(objectId: string): Promise<ArrayBuffer | undefined> {\n    await new Promise((resolve) => setTimeout(resolve, 50));\n    return this.storage.get(objectId);\n  }\n\n  /**\n   * Deletes a file from mock object storage.\n   * (Not directly used by the upload feature, but good for completeness)\n   * @param objectId The ID of the object to delete.\n   * @returns True if deleted, false if not found.\n   */\n  public async delete(objectId: string): Promise<boolean> {\n    await new Promise((resolve) => setTimeout(resolve, 50));\n    return this.storage.delete(objectId);\n  }\n}\n\nexport const objectStorageService = new ObjectStorageService();\n```\n```aether:src/services/database.ts\nimport { v4 as uuidv4 } from 'uuid';\nimport { FileRecord, NewFileRecord } from '../types';\n\n/**\n * A mock database service for file records. In a real application, this would\n * interact with a relational database (e.g., PostgreSQL, MySQL) or a NoSQL database.\n */\nclass DatabaseService {\n  private files: Map<string, FileRecord> = new Map();\n\n  /**\n   * Creates a new file record in the mock database.\n   * @param newFile The data for the new file record.\n   * @returns The created FileRecord with its generated ID and timestamp.\n   */\n  public async createFileRecord(newFile: NewFileRecord): Promise<FileRecord> {\n    // Simulate network delay\n    await new Promise((resolve) => setTimeout(resolve, 50));\n\n    const fileRecord: FileRecord = {\n      ...newFile,\n      id: uuidv4(),\n      uploadedAt: new Date(),\n    };\n    this.files.set(fileRecord.id, fileRecord);\n    console.log(`[Database] Created file record: ${fileRecord.id}`);\n    return fileRecord;\n  }\n\n  /**\n   * Retrieves a file record by its ID.\n   * (Not directly used by the upload feature, but good for completeness)\n   * @param id The ID of the file record.\n   * @returns The FileRecord, or undefined if not found.\n   */\n  public async getFileRecord(id: string): Promise<FileRecord | undefined> {\n    await new Promise((resolve) => setTimeout(resolve, 20));\n    return this.files.get(id);\n  }\n\n  /**\n   * Deletes a file record by its ID.\n   * (Not directly used by the upload feature, but good for completeness)\n   * @param id The ID of the file record to delete.\n   * @returns True if deleted, false if not found.\n   */\n  public async deleteFileRecord(id: string): Promise<boolean> {\n    await new Promise((resolve) => setTimeout(resolve, 20));\n    return this.files.delete(id);\n  }\n}\n\nexport const databaseService = new DatabaseService();\n```\n```aether:src/routes/upload.ts\nimport { Hono } from 'hono';\nimport { objectStorageService } from '../services/objectStorage';\nimport { databaseService } from '../services/database';\nimport { validateUploadedFile } from '../utils/validation';\nimport { UploadedFile } from '../types';\n\nconst uploadRoutes = new Hono();\n\n/**\n * Handles file uploads.\n * Accepts a multipart form, validates the file, stores it in object storage,\n * and writes a record to the database. Returns the file ID.\n */\nuploadRoutes.post('/', async (c) => {\n  try {\n    const body = await c.req.parseBody();\n    const file = body['file'] as UploadedFile | undefined; // Assuming the form field name is 'file'\n\n    if (!file) {\n      return c.json({ error: 'No file uploaded or file field name is incorrect.' }, 400);\n    }\n\n    // 1. Validate file size and mime type\n    try {\n      validateUploadedFile(file);\n    } catch (validationError: any) {\n      return c.json({ error: validationError.message }, 400);\n    }\n\n    // 2. Store the file in object storage\n    const fileBuffer = await file.arrayBuffer();\n    const objectStorageId = await objectStorageService.upload(\n      file.name,\n      file.type,\n      fileBuffer\n    );\n\n    // 3. Write a row to the files table\n    const fileRecord = await databaseService.createFileRecord({\n      name: file.name,\n      mimeType: file.type,\n      size: file.size,\n      objectStorageId: objectStorageId,\n    });\n\n    // 4. Return the file ID\n    return c.json({ fileId: fileRecord.id }, 201);\n  } catch (error: any) {\n    console.error('File upload failed:', error);\n    return c.json({ error: 'Internal server error during file upload.' }, 500);\n  }\n});\n\nexport default uploadRoutes;\n```\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport uploadRoutes from './routes/upload';\n\nconst app = new Hono();\n\n// Mount the upload routes under the /upload path\napp.route('/upload', uploadRoutes);\n\n// Basic health check route\napp.get('/', (c) => {\n  return c.text('Aether File Upload Service is running!');\n});\n\n// Catch-all for 404 errors\napp.notFound((c) => {\n  return c.json({ message: 'Not Found', ok: false }, 404);\n});\n\n// Global error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ error: 'An unexpected error occurred.' }, 500);\n});\n\n// Export the Hono app for deployment (e.g., with Node.js server or Vercel)\nexport default app;\n\n// Example of how to run the server in a Node.js environment\n// (This part is typically in a separate server.ts or index.ts for Node,\n// but included here for completeness if running directly)\nif (process.env.NODE_ENV !== 'test') {\n  const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;\n  console.log(`Server is running on http://localhost:${port}`);\n\n  // Hono's app.fetch is compatible with Node.js http server\n  // For a full Node.js server, you might use:\n  // import { serve } from '@hono/node-server';\n  // serve({ fetch: app.fetch, port });\n  // For this exercise, we'll just export the app.\n}\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 17898,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types.ts\n/**\n * Defines the structure for a file record stored in the database.\n */\nexport interface FileRecord {\n  id: string;\n  name: string;\n  mimeType: string;\n  size: number; // in bytes\n  objectStorageId: string; // ID or path in object storage\n  uploadedAt: Date;\n}\n\n/**\n * Defines the structure for creating a new file record.\n */\nexport type NewFileRecord = Omit<FileRecord, 'id' | 'uploadedAt'>;\n\n/**\n * Defines the structure for a file received from a multipart form.\n * This aligns with the standard `File` interface in browsers/Node.js environments.\n */\nexport interface UploadedFile {\n  name: string;\n  type: string; // MIME type\n  size: number; // in bytes\n  arrayBuffer(): Promise<ArrayBuffer>;\n  // Hono's File type also has `lastModified` and `webkitRelativePath` but we don't need them for this feature.\n}\n```\n```aether:src/utils/validation.ts\nimport { UploadedFile } from '../types';\n\n// Configuration for file validation\nconst MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB\nconst ALLOWED_MIME_TYPES = [\n  'image/jpeg',\n  'image/png',\n  'application/pdf',\n  'text/plain',\n];\n\n/**\n * Validates the size of an uploaded file.\n * @param fileSize The size of the file in bytes.\n * @returns True if the file size is valid, false otherwise.\n */\nexport function validateFileSize(fileSize: number): boolean {\n  return fileSize > 0 && fileSize <= MAX_FILE_SIZE_BYTES;\n}\n\n/**\n * Validates the MIME type of an uploaded file.\n * @param mimeType The MIME type string of the file.\n * @returns True if the MIME type is allowed, false otherwise.\n */\nexport function validateMimeType(mimeType: string): boolean {\n  return ALLOWED_MIME_TYPES.includes(mimeType);\n}\n\n/**\n * Performs all necessary validations for an uploaded file.\n * @param file The uploaded file object.\n * @throws Error if validation fails.\n */\nexport function validateUploadedFile(file: UploadedFile): void {\n  if (!file) {\n    throw new Error('No file provided.');\n  }\n  if (!validateFileSize(file.size)) {\n    throw new Error(\n      `File size exceeds the maximum allowed (${\n        MAX_FILE_SIZE_BYTES / (1024 * 1024)\n      } MB) or is empty.`\n    );\n  }\n  if (!validateMimeType(file.type)) {\n    throw new Error(\n      `File type '${file.type}' is not allowed. Allowed types: ${ALLOWED_MIME_TYPES.join(\n        ', '\n      )}.`\n    );\n  }\n}\n```\n```aether:src/services/objectStorage.ts\nimport { v4 as uuidv4 } from 'uuid';\n\n/**\n * A mock object storage service. In a real application, this would interact\n * with a cloud provider like AWS S3, Google Cloud Storage, or Azure Blob Storage.\n */\nclass ObjectStorageService {\n  private storage: Map<string, ArrayBuffer> = new Map();\n\n  /**\n   * Uploads a file to mock object storage.\n   * @param fileName The original name of the file.\n   * @param mimeType The MIME type of the file.\n   * @param data The file content as an ArrayBuffer.\n   * @returns A unique ID representing the stored object.\n   */\n  public async upload(\n    fileName: string,\n    mimeType: string,\n    data: ArrayBuffer\n  ): Promise<string> {\n    // Simulate network delay\n    await new Promise((resolve) => setTimeout(resolve, 100));\n\n    const objectId = `obj-${uuidv4()}-${fileName}`;\n    this.storage.set(objectId, data);\n    console.log(\n      `[ObjectStorage] Stored object: ${objectId} (Type: ${mimeType}, Size: ${data.byteLength} bytes)`\n    );\n    return objectId;\n  }\n\n  /**\n   * Retrieves a file from mock object storage.\n   * (Not directly used by the upload feature, but good for completeness)\n   * @param objectId The ID of the object to retrieve.\n   * @returns The file content as an ArrayBuffer, or undefined if not found.\n   */\n  public async get(objectId: string): Promise<ArrayBuffer | undefined> {\n    await new Promise((resolve) => setTimeout(resolve, 50));\n    return this.storage.get(objectId);\n  }\n\n  /**\n   * Deletes a file from mock object storage.\n   * (Not directly used by the upload feature, but good for completeness)\n   * @param objectId The ID of the object to delete.\n   * @returns True if deleted, false if not found.\n   */\n  public async delete(objectId: string): Promise<boolean> {\n    await new Promise((resolve) => setTimeout(resolve, 50));\n    return this.storage.delete(objectId);\n  }\n}\n\nexport const objectStorageService = new ObjectStorageService();\n```\n```aether:src/services/database.ts\nimport { v4 as uuidv4 } from 'uuid';\nimport { FileRecord, NewFileRecord } from '../types';\n\n/**\n * A mock database service for file records. In a real application, this would\n * interact with a relational database (e.g., PostgreSQL, MySQL) or a NoSQL database.\n */\nclass DatabaseService {\n  private files: Map<string, FileRecord> = new Map();\n\n  /**\n   * Creates a new file record in the mock database.\n   * @param newFile The data for the new file record.\n   * @returns The created FileRecord with its generated ID and timestamp.\n   */\n  public async createFileRecord(newFile: NewFileRecord): Promise<FileRecord> {\n    // Simulate network delay\n    await new Promise((resolve) => setTimeout(resolve, 50));\n\n    const fileRecord: FileRecord = {\n      ...newFile,\n      id: uuidv4(),\n      uploadedAt: new Date(),\n    };\n    this.files.set(fileRecord.id, fileRecord);\n    console.log(`[Database] Created file record: ${fileRecord.id}`);\n    return fileRecord;\n  }\n\n  /**\n   * Retrieves a file record by its ID.\n   * (Not directly used by the upload feature, but good for completeness)\n   * @param id The ID of the file record.\n   * @returns The FileRecord, or undefined if not found.\n   */\n  public async getFileRecord(id: string): Promise<FileRecord | undefined> {\n    await new Promise((resolve) => setTimeout(resolve, 20));\n    return this.files.get(id);\n  }\n\n  /**\n   * Deletes a file record by its ID.\n   * (Not directly used by the upload feature, but good for completeness)\n   * @param id The ID of the file record to delete.\n   * @returns True if deleted, false if not found.\n   */\n  public async deleteFileRecord(id: string): Promise<boolean> {\n    await new Promise((resolve) => setTimeout(resolve, 20));\n    return this.files.delete(id);\n  }\n}\n\nexport const databaseService = new DatabaseService();\n```\n```aether:src/routes/upload.ts\nimport { Hono } from 'hono';\nimport { objectStorageService } from '../services/objectStorage';\nimport { databaseService } from '../services/database';\nimport { validateUploadedFile } from '../utils/validation';\nimport { UploadedFile } from '../types';\n\nconst uploadRoutes = new Hono();\n\n/**\n * Handles file uploads.\n * Accepts a multipart form, validates the file, stores it in object storage,\n * and writes a record to the database. Returns the file ID.\n */\nuploadRoutes.post('/', async (c) => {\n  try {\n    const body = await c.req.parseBody();\n    const file = body['file'] as UploadedFile | undefined; // Assuming the form field name is 'file'\n\n    if (!file) {\n      return c.json({ error: 'No file uploaded or file field name is incorrect.' }, 400);\n    }\n\n    // 1. Validate file size and mime type\n    try {\n      validateUploadedFile(file);\n    } catch (validationError: any) {\n      return c.json({ error: validationError.message }, 400);\n    }\n\n    // 2. Store the file in object storage\n    const fileBuffer = await file.arrayBuffer();\n    const objectStorageId = await objectStorageService.upload(\n      file.name,\n      file.type,\n      fileBuffer\n    );\n\n    // 3. Write a row to the files table\n    const fileRecord = await databaseService.createFileRecord({\n      name: file.name,\n      mimeType: file.type,\n      size: file.size,\n      objectStorageId: objectStorageId,\n    });\n\n    // 4. Return the file ID\n    return c.json({ fileId: fileRecord.id }, 201);\n  } catch (error: any) {\n    console.error('File upload failed:', error);\n    return c.json({ error: 'Internal server error during file upload.' }, 500);\n  }\n});\n\nexport default uploadRoutes;\n```\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport uploadRoutes from './routes/upload';\n\nconst app = new Hono();\n\n// Mount the upload routes under the /upload path\napp.route('/upload', uploadRoutes);\n\n// Basic health check route\napp.get('/', (c) => {\n  return c.text('Aether File Upload Service is running!');\n});\n\n// Catch-all for 404 errors\napp.notFound((c) => {\n  return c.json({ message: 'Not Found', ok: false }, 404);\n});\n\n// Global error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ error: 'An unexpected error occurred.' }, 500);\n});\n\n// Export the Hono app for deployment (e.g., with Node.js server or Vercel)\nexport default app;\n\n// Example of how to run the server in a Node.js environment\n// (This part is typically in a separate server.ts or index.ts for Node,\n// but included here for completeness if running directly)\nif (process.env.NODE_ENV !== 'test') {\n  const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;\n  console.log(`Server is running on http://localhost:${port}`);\n\n  // Hono's app.fetch is compatible with Node.js http server\n  // For a full Node.js server, you might use:\n  // import { serve } from '@hono/node-server';\n  // serve({ fetch: app.fetch, port });\n  // For this exercise, we'll just export the app.\n}\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1025
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 496
+      }
+    ],
+    "durationMs": 1531
+  }
+}

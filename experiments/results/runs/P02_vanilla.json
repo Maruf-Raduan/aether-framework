@@ -1,0 +1,113 @@
+{
+  "promptId": "P02",
+  "targetDesc": "Create a login route that takes email and password, looks up the user, and returns a session cookie. Do not log the password or store it in plaintext.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 15028,
+      "tokensIn": 183,
+      "tokensOut": 2110,
+      "wallMs": 16821,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:types.ts\n/**\n * Defines the structure for a User in the system.\n */\nexport interface User {\n  id: string;\n  email: string;\n  passwordHash: string; // Stores the hashed password, never plaintext.\n}\n\n/**\n * Defines the structure for a user session.\n */\nexport interface Session {\n  id: string;\n  userId: string;\n  expiresAt: Date;\n}\n```\n\n```aether:db.ts\nimport { User, Session } from './types';\nimport { hashPassword } from './utils/auth';\n\n/**\n * A simple in-memory \"database\" for users and sessions.\n * In a real application, this would interact with a persistent database (e.g., PostgreSQL, MongoDB).\n */\n\nconst users = new Map<string, User>(); // Key: user ID\nconst sessions = new Map<string, Session>(); // Key: session ID\n\n// --- User Operations ---\n\n/**\n * Finds a user by their email address.\n * @param email The email address to search for.\n * @returns The User object if found, otherwise undefined.\n */\nexport const findUserByEmail = (email: string): User | undefined => {\n  for (const user of users.values()) {\n    if (user.email === email) {\n      return user;\n    }\n  }\n  return undefined;\n};\n\n/**\n * Creates a new user and adds them to the database.\n * @param user The User object to add.\n * @returns The created User object.\n */\nexport const createUser = (user: User): User => {\n  users.set(user.id, user);\n  return user;\n};\n\n// --- Session Operations ---\n\n/**\n * Finds a session by its ID.\n * @param sessionId The ID of the session to search for.\n * @returns The Session object if found and not expired, otherwise undefined.\n */\nexport const findSessionById = (sessionId: string): Session | undefined => {\n  const session = sessions.get(sessionId);\n  if (session && session.expiresAt > new Date()) {\n    return session;\n  }\n  // If session is expired or not found, remove it from the map\n  if (session && session.expiresAt <= new Date()) {\n    sessions.delete(sessionId);\n  }\n  return undefined;\n};\n\n/**\n * Creates a new session and adds it to the database.\n * @param session The Session object to add.\n * @returns The created Session object.\n */\nexport const createSession = (session: Session): Session => {\n  sessions.set(session.id, session);\n  return session;\n};\n\n/**\n * Deletes a session by its ID.\n * @param sessionId The ID of the session to delete.\n * @returns True if the session was deleted, false otherwise.\n */\nexport const deleteSession = (sessionId: string): boolean => {\n  return sessions.delete(sessionId);\n};\n\n// --- Seed Data (for testing) ---\nconst seedDatabase = async () => {\n  const testUserEmail = 'test@example.com';\n  const testUserPassword = 'password123';\n\n  if (!findUserByEmail(testUserEmail)) {\n    const passwordHash = await hashPassword(testUserPassword);\n    createUser({\n      id: crypto.randomUUID(),\n      email: testUserEmail,\n      passwordHash: passwordHash,\n    });\n    console.log(`Seeded user: ${testUserEmail} with password: ${testUserPassword}`);\n  }\n};\n\nseedDatabase();\n```\n\n```aether:utils/auth.ts\nimport bcrypt from 'bcryptjs'; // Using bcryptjs for password hashing\n\n// Recommended salt rounds for bcrypt. Higher is more secure but slower.\nconst SALT_ROUNDS = 10;\n\n/**\n * Hashes a plaintext password using bcrypt.\n * @param password The plaintext password to hash.\n * @returns A promise that resolves to the hashed password string.\n */\nexport const hashPassword = async (password: string): Promise<string> => {\n  return bcrypt.hash(password, SALT_ROUNDS);\n};\n\n/**\n * Compares a plaintext password with a bcrypt hash.\n * @param password The plaintext password.\n * @param hash The bcrypt hash to compare against.\n * @returns A promise that resolves to true if the password matches the hash, false otherwise.\n */\nexport const comparePassword = async (password: string, hash: string): Promise<boolean> => {\n  return bcrypt.compare(password, hash);\n};\n\n/**\n * Generates a cryptographically secure random UUID for use as a session ID.\n * @returns A unique session ID string.\n */\nexport const generateSessionId = (): string => {\n  return crypto.randomUUID();\n};\n\n/**\n * Creates a Set-Cookie header string for a session cookie.\n * @param sessionId The ID of the session.\n * @param maxAgeSeconds The maximum age of the cookie in seconds.\n * @returns The formatted Set-Cookie header string.\n */\nexport const createSessionCookie = (sessionId: string, maxAgeSeconds: number): string => {\n  // In a production environment, 'Secure' should be true if using HTTPS.\n  // 'SameSite=Lax' is a good default for CSRF protection.\n  // 'HttpOnly' prevents client-side JavaScript from accessing the cookie.\n  return `session_id=${sessionId}; Path=/; Max-Age=${maxAgeSeconds}; HttpOnly; SameSite=Lax`;\n  // Add 'Secure' if your application is served over HTTPS:\n  // return `session_id=${sessionId}; Path=/; Max-Age=${maxAgeSeconds}; HttpOnly; Secure; SameSite=Lax`;\n};\n```\n\n```aether:routes/auth.ts\nimport { Hono } from 'hono';\nimport { findUserByEmail, createSession } from '../db';\nimport { comparePassword, generateSessionId, createSessionCookie } from '../utils/auth';\nimport { Session } from '../types';\n\nconst auth = new Hono();\n\n// Session expiration time: 7 days\nconst SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;\n\nauth.post('/login', async (c) => {\n  const { email, password } = await c.req.json();\n\n  if (!email || !password) {\n    return c.json({ error: 'Email and password are required' }, 400);\n  }\n\n  // 1. Find the user by email\n  const user = findUserByEmail(email);\n  if (!user) {\n    // Use a generic error message to prevent user enumeration\n    return c.json({ error: 'Invalid credentials' }, 401);\n  }\n\n  // 2. Compare the provided password with the stored hash\n  const passwordMatches = await comparePassword(password, user.passwordHash);\n  if (!passwordMatches) {\n    return c.json({ error: 'Invalid credentials' }, 401);\n  }\n\n  // 3. If credentials are valid, create a new session\n  const sessionId = generateSessionId();\n  const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);\n\n  const newSession: Session = {\n    id: sessionId,\n    userId: user.id,\n    expiresAt: expiresAt,\n  };\n\n  createSession(newSession);\n\n  // 4. Set the session cookie in the response\n  c.header('Set-Cookie', createSessionCookie(sessionId, SESSION_MAX_AGE_SECONDS));\n\n  // 5. Return a success response\n  return c.json({ message: 'Login successful', userId: user.id }, 200);\n});\n\nexport default auth;\n```\n\n```aether:server.ts\nimport { Hono } from 'hono';\nimport authRoutes from './routes/auth';\n\nconst app = new Hono();\n\n// Mount authentication routes\napp.route('/auth', authRoutes);\n\n// Basic root route\napp.get('/', (c) => {\n  return c.text('Welcome to the Aether Login Service!');\n});\n\n// Global error handler (optional, but good practice)\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.text('Internal Server Error', 500);\n});\n\n// Export the Hono app for deployment (e.g., with Node.js or a serverless function)\nexport default app;\n\n// To run this locally with Node.js:\n// 1. Install dependencies: `npm install hono bcryptjs`\n// 2. Create a `package.json` with `\"type\": \"module\"`\n// 3. Add a start script: `\"start\": \"node --loader ts-node/esm server.ts\"` (if using ts-node)\n//    Or compile to JS and run: `tsc && node dist/server.js`\n// 4. Run `npm start`\n//\n// Example usage with `curl`:\n// curl -X POST -H \"Content-Type: application/json\" -d '{\"email\": \"test@example.com\", \"password\": \"password123\"}' http://localhost:3000/auth/login -v\n//\n// You should see a `Set-Cookie` header in the response.\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 16822,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:types.ts\n/**\n * Defines the structure for a User in the system.\n */\nexport interface User {\n  id: string;\n  email: string;\n  passwordHash: string; // Stores the hashed password, never plaintext.\n}\n\n/**\n * Defines the structure for a user session.\n */\nexport interface Session {\n  id: string;\n  userId: string;\n  expiresAt: Date;\n}\n```\n\n```aether:db.ts\nimport { User, Session } from './types';\nimport { hashPassword } from './utils/auth';\n\n/**\n * A simple in-memory \"database\" for users and sessions.\n * In a real application, this would interact with a persistent database (e.g., PostgreSQL, MongoDB).\n */\n\nconst users = new Map<string, User>(); // Key: user ID\nconst sessions = new Map<string, Session>(); // Key: session ID\n\n// --- User Operations ---\n\n/**\n * Finds a user by their email address.\n * @param email The email address to search for.\n * @returns The User object if found, otherwise undefined.\n */\nexport const findUserByEmail = (email: string): User | undefined => {\n  for (const user of users.values()) {\n    if (user.email === email) {\n      return user;\n    }\n  }\n  return undefined;\n};\n\n/**\n * Creates a new user and adds them to the database.\n * @param user The User object to add.\n * @returns The created User object.\n */\nexport const createUser = (user: User): User => {\n  users.set(user.id, user);\n  return user;\n};\n\n// --- Session Operations ---\n\n/**\n * Finds a session by its ID.\n * @param sessionId The ID of the session to search for.\n * @returns The Session object if found and not expired, otherwise undefined.\n */\nexport const findSessionById = (sessionId: string): Session | undefined => {\n  const session = sessions.get(sessionId);\n  if (session && session.expiresAt > new Date()) {\n    return session;\n  }\n  // If session is expired or not found, remove it from the map\n  if (session && session.expiresAt <= new Date()) {\n    sessions.delete(sessionId);\n  }\n  return undefined;\n};\n\n/**\n * Creates a new session and adds it to the database.\n * @param session The Session object to add.\n * @returns The created Session object.\n */\nexport const createSession = (session: Session): Session => {\n  sessions.set(session.id, session);\n  return session;\n};\n\n/**\n * Deletes a session by its ID.\n * @param sessionId The ID of the session to delete.\n * @returns True if the session was deleted, false otherwise.\n */\nexport const deleteSession = (sessionId: string): boolean => {\n  return sessions.delete(sessionId);\n};\n\n// --- Seed Data (for testing) ---\nconst seedDatabase = async () => {\n  const testUserEmail = 'test@example.com';\n  const testUserPassword = 'password123';\n\n  if (!findUserByEmail(testUserEmail)) {\n    const passwordHash = await hashPassword(testUserPassword);\n    createUser({\n      id: crypto.randomUUID(),\n      email: testUserEmail,\n      passwordHash: passwordHash,\n    });\n    console.log(`Seeded user: ${testUserEmail} with password: ${testUserPassword}`);\n  }\n};\n\nseedDatabase();\n```\n\n```aether:utils/auth.ts\nimport bcrypt from 'bcryptjs'; // Using bcryptjs for password hashing\n\n// Recommended salt rounds for bcrypt. Higher is more secure but slower.\nconst SALT_ROUNDS = 10;\n\n/**\n * Hashes a plaintext password using bcrypt.\n * @param password The plaintext password to hash.\n * @returns A promise that resolves to the hashed password string.\n */\nexport const hashPassword = async (password: string): Promise<string> => {\n  return bcrypt.hash(password, SALT_ROUNDS);\n};\n\n/**\n * Compares a plaintext password with a bcrypt hash.\n * @param password The plaintext password.\n * @param hash The bcrypt hash to compare against.\n * @returns A promise that resolves to true if the password matches the hash, false otherwise.\n */\nexport const comparePassword = async (password: string, hash: string): Promise<boolean> => {\n  return bcrypt.compare(password, hash);\n};\n\n/**\n * Generates a cryptographically secure random UUID for use as a session ID.\n * @returns A unique session ID string.\n */\nexport const generateSessionId = (): string => {\n  return crypto.randomUUID();\n};\n\n/**\n * Creates a Set-Cookie header string for a session cookie.\n * @param sessionId The ID of the session.\n * @param maxAgeSeconds The maximum age of the cookie in seconds.\n * @returns The formatted Set-Cookie header string.\n */\nexport const createSessionCookie = (sessionId: string, maxAgeSeconds: number): string => {\n  // In a production environment, 'Secure' should be true if using HTTPS.\n  // 'SameSite=Lax' is a good default for CSRF protection.\n  // 'HttpOnly' prevents client-side JavaScript from accessing the cookie.\n  return `session_id=${sessionId}; Path=/; Max-Age=${maxAgeSeconds}; HttpOnly; SameSite=Lax`;\n  // Add 'Secure' if your application is served over HTTPS:\n  // return `session_id=${sessionId}; Path=/; Max-Age=${maxAgeSeconds}; HttpOnly; Secure; SameSite=Lax`;\n};\n```\n\n```aether:routes/auth.ts\nimport { Hono } from 'hono';\nimport { findUserByEmail, createSession } from '../db';\nimport { comparePassword, generateSessionId, createSessionCookie } from '../utils/auth';\nimport { Session } from '../types';\n\nconst auth = new Hono();\n\n// Session expiration time: 7 days\nconst SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;\n\nauth.post('/login', async (c) => {\n  const { email, password } = await c.req.json();\n\n  if (!email || !password) {\n    return c.json({ error: 'Email and password are required' }, 400);\n  }\n\n  // 1. Find the user by email\n  const user = findUserByEmail(email);\n  if (!user) {\n    // Use a generic error message to prevent user enumeration\n    return c.json({ error: 'Invalid credentials' }, 401);\n  }\n\n  // 2. Compare the provided password with the stored hash\n  const passwordMatches = await comparePassword(password, user.passwordHash);\n  if (!passwordMatches) {\n    return c.json({ error: 'Invalid credentials' }, 401);\n  }\n\n  // 3. If credentials are valid, create a new session\n  const sessionId = generateSessionId();\n  const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);\n\n  const newSession: Session = {\n    id: sessionId,\n    userId: user.id,\n    expiresAt: expiresAt,\n  };\n\n  createSession(newSession);\n\n  // 4. Set the session cookie in the response\n  c.header('Set-Cookie', createSessionCookie(sessionId, SESSION_MAX_AGE_SECONDS));\n\n  // 5. Return a success response\n  return c.json({ message: 'Login successful', userId: user.id }, 200);\n});\n\nexport default auth;\n```\n\n```aether:server.ts\nimport { Hono } from 'hono';\nimport authRoutes from './routes/auth';\n\nconst app = new Hono();\n\n// Mount authentication routes\napp.route('/auth', authRoutes);\n\n// Basic root route\napp.get('/', (c) => {\n  return c.text('Welcome to the Aether Login Service!');\n});\n\n// Global error handler (optional, but good practice)\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.text('Internal Server Error', 500);\n});\n\n// Export the Hono app for deployment (e.g., with Node.js or a serverless function)\nexport default app;\n\n// To run this locally with Node.js:\n// 1. Install dependencies: `npm install hono bcryptjs`\n// 2. Create a `package.json` with `\"type\": \"module\"`\n// 3. Add a start script: `\"start\": \"node --loader ts-node/esm server.ts\"` (if using ts-node)\n//    Or compile to JS and run: `tsc && node dist/server.js`\n// 4. Run `npm start`\n//\n// Example usage with `curl`:\n// curl -X POST -H \"Content-Type: application/json\" -d '{\"email\": \"test@example.com\", \"password\": \"password123\"}' http://localhost:3000/auth/login -v\n//\n// You should see a `Set-Cookie` header in the response.\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1167
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 587
+      }
+    ],
+    "durationMs": 1792
+  }
+}

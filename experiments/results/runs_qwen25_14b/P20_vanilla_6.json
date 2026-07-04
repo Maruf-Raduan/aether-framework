@@ -1,0 +1,57 @@
+{
+  "promptId": "P20",
+  "condition": "vanilla",
+  "iteration": 6,
+  "passed": true,
+  "tokensIn": 144,
+  "tokensOut": 820,
+  "tokensTotal": 964,
+  "latencyMs": 64760,
+  "wallMs": 64760,
+  "files": [
+    {
+      "path": "src/routes/invite-member.ts",
+      "length": 888
+    },
+    {
+      "path": "src/services/tokenService.ts",
+      "length": 283
+    },
+    {
+      "path": "src/services/emailService.ts",
+      "length": 595
+    },
+    {
+      "path": "src/middleware/isAdmin.ts",
+      "length": 196
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}
