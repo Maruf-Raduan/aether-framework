@@ -1,0 +1,121 @@
+{
+  "promptId": "P22",
+  "targetDesc": "Create a route to rename a team. Only admins may call it.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 13850,
+      "tokensIn": 123,
+      "tokensOut": 320,
+      "wallMs": 15383,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/renameTeam.ts",
+          "content": "import { Hono } from 'hono';\nimport { authMiddleware } from '../middleware/auth';\n\nconst app = new Hono();\n\napp.use('*', authMiddleware);\n\napp.put('/team/:id', async (c) => {\n  const teamId = c.req.param('id');\n  const newName = c.req.query('name');\n\n  if (!newName) {\n    return c.json({ error: 'New name is required' }, 400);\n  }\n\n  // Logic to rename the team\n  // For example:\n  // await updateTeamName(teamId, newName);\n\n  return c.json({ message: `Team ${teamId} renamed to ${newName}` });\n});\n\nexport default app;"
+        },
+        {
+          "path": "/src/middleware/auth.ts",
+          "content": "import { Hono } from 'hono';\n\nconst authMiddleware = async (c: any, next: () => Promise<any>) => {\n  const isAdmin = c.req.header('Authorization') === 'Bearer adminToken'; // Simplified for example\n\n  if (!isAdmin) {\n    return c.json({ error: 'Unauthorized' }, 403);\n  }\n\n  await next();\n};\n\nexport default authMiddleware;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 15383,
+  "finalFiles": [
+    {
+      "path": "/src/routes/renameTeam.ts",
+      "content": "import { Hono } from 'hono';\nimport { authMiddleware } from '../middleware/auth';\n\nconst app = new Hono();\n\napp.use('*', authMiddleware);\n\napp.put('/team/:id', async (c) => {\n  const teamId = c.req.param('id');\n  const newName = c.req.query('name');\n\n  if (!newName) {\n    return c.json({ error: 'New name is required' }, 400);\n  }\n\n  // Logic to rename the team\n  // For example:\n  // await updateTeamName(teamId, newName);\n\n  return c.json({ message: `Team ${teamId} renamed to ${newName}` });\n});\n\nexport default app;"
+    },
+    {
+      "path": "/src/middleware/auth.ts",
+      "content": "import { Hono } from 'hono';\n\nconst authMiddleware = async (c: any, next: () => Promise<any>) => {\n  const isAdmin = c.req.header('Authorization') === 'Bearer adminToken'; // Simplified for example\n\n  if (!isAdmin) {\n    return c.json({ error: 'Unauthorized' }, 403);\n  }\n\n  await next();\n};\n\nexport default authMiddleware;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1025
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 505
+      }
+    ],
+    "durationMs": 1533
+  }
+}

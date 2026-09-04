@@ -1,0 +1,121 @@
+{
+  "promptId": "P23",
+  "targetDesc": "Create a route that sends a notification to a list of user ids. The notification is persisted in DB and dispatched via email/push. Caller must be a system service account.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 35794,
+      "tokensIn": 144,
+      "tokensOut": 768,
+      "wallMs": 37222,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/notifications.ts",
+          "content": "import { Context, Next } from 'hono';\nimport { v4 as uuidv4 } from 'uuid';\nimport nodemailer from 'nodemailer';\n\n// Mock database to store notifications\nconst notificationDB: Notification[] = [];\n\ninterface Notification {\n  id: string;\n  userIds: string[];\n  message: string;\n  status: 'pending' | 'sent' | 'failed';\n}\n\n// Email configuration for nodemailer\nconst transporter = nodemailer.createTransport({\n  service: 'gmail',\n  auth: {\n    user: 'your-email@gmail.com',\n    pass: 'your-password'\n  }\n});\n\nexport const notificationRoute = async (c: Context, next: Next) => {\n  // Check if the caller is a system service account\n  const caller = c.req.headers.get('X-Caller');\n  if (caller !== 'system-service-account') {\n    return c.json({ error: 'Unauthorized' }, 401);\n  }\n\n  // Parse request body\n  const { userIds, message } = await c.req.json();\n\n  if (!userIds || !message) {\n    return c.json({ error: 'Missing required fields' }, 400);\n  }\n\n  // Create a new notification\n  const notificationId = uuidv4();\n  const newNotification: Notification = {\n    id: notificationId,\n    userIds,\n    message,\n    status: 'pending'\n  };\n\n  // Persist the notification in the database\n  notificationDB.push(newNotification);\n\n  // Dispatch notifications via email and push (mock implementation)\n  for (const userId of userIds) {\n    try {\n      await sendEmail(userId, newNotification.message);\n      await sendPushNotification(userId, newNotification.message);\n      newNotification.status = 'sent';\n    } catch (error) {\n      newNotification.status = 'failed';\n    }\n  }\n\n  // Update the notification in the database\n  const index = notificationDB.findIndex(n => n.id === notificationId);\n  if (index !== -1) {\n    notificationDB[index] = newNotification;\n  }\n\n  return c.json(newNotification, 201);\n};\n\nconst sendEmail = async (userId: string, message: string) => {\n  // Mock email sending logic\n  console.log(`Sending email to user ${userId}: ${message}`);\n};\n\nconst sendPushNotification = async (userId: string, message: string) => {\n  // Mock push notification sending logic\n  console.log(`Sending push notification to user ${userId}: ${message}`);\n};"
+        },
+        {
+          "path": "/src/index.ts",
+          "content": "import { Hono } from 'hono';\nimport { notificationRoute } from './routes/notifications';\n\nconst app = new Hono();\n\napp.post('/notifications', notificationRoute);\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 37222,
+  "finalFiles": [
+    {
+      "path": "/src/routes/notifications.ts",
+      "content": "import { Context, Next } from 'hono';\nimport { v4 as uuidv4 } from 'uuid';\nimport nodemailer from 'nodemailer';\n\n// Mock database to store notifications\nconst notificationDB: Notification[] = [];\n\ninterface Notification {\n  id: string;\n  userIds: string[];\n  message: string;\n  status: 'pending' | 'sent' | 'failed';\n}\n\n// Email configuration for nodemailer\nconst transporter = nodemailer.createTransport({\n  service: 'gmail',\n  auth: {\n    user: 'your-email@gmail.com',\n    pass: 'your-password'\n  }\n});\n\nexport const notificationRoute = async (c: Context, next: Next) => {\n  // Check if the caller is a system service account\n  const caller = c.req.headers.get('X-Caller');\n  if (caller !== 'system-service-account') {\n    return c.json({ error: 'Unauthorized' }, 401);\n  }\n\n  // Parse request body\n  const { userIds, message } = await c.req.json();\n\n  if (!userIds || !message) {\n    return c.json({ error: 'Missing required fields' }, 400);\n  }\n\n  // Create a new notification\n  const notificationId = uuidv4();\n  const newNotification: Notification = {\n    id: notificationId,\n    userIds,\n    message,\n    status: 'pending'\n  };\n\n  // Persist the notification in the database\n  notificationDB.push(newNotification);\n\n  // Dispatch notifications via email and push (mock implementation)\n  for (const userId of userIds) {\n    try {\n      await sendEmail(userId, newNotification.message);\n      await sendPushNotification(userId, newNotification.message);\n      newNotification.status = 'sent';\n    } catch (error) {\n      newNotification.status = 'failed';\n    }\n  }\n\n  // Update the notification in the database\n  const index = notificationDB.findIndex(n => n.id === notificationId);\n  if (index !== -1) {\n    notificationDB[index] = newNotification;\n  }\n\n  return c.json(newNotification, 201);\n};\n\nconst sendEmail = async (userId: string, message: string) => {\n  // Mock email sending logic\n  console.log(`Sending email to user ${userId}: ${message}`);\n};\n\nconst sendPushNotification = async (userId: string, message: string) => {\n  // Mock push notification sending logic\n  console.log(`Sending push notification to user ${userId}: ${message}`);\n};"
+    },
+    {
+      "path": "/src/index.ts",
+      "content": "import { Hono } from 'hono';\nimport { notificationRoute } from './routes/notifications';\n\nconst app = new Hono();\n\napp.post('/notifications', notificationRoute);\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 848
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 576
+      }
+    ],
+    "durationMs": 1427
+  }
+}

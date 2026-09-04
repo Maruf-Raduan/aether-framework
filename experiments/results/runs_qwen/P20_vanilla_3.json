@@ -1,0 +1,113 @@
+{
+  "promptId": "P20",
+  "targetDesc": "Create an invite-member route that generates a single-use invite token, emails it, and (if a valid session exists) immediately adds the invitee. Caller must be admin.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 29036,
+      "tokensIn": 144,
+      "tokensOut": 631,
+      "wallMs": 30505,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/invite-member.ts",
+          "content": "import { Hono } from 'hono';\nimport { z } from 'zod';\nimport nodemailer from 'nodemailer';\n\nconst app = new Hono();\n\n// Mock database for demonstration purposes\nlet users: any[] = [];\nlet sessions: any[] = [];\n\n// Mock user data\nusers.push({ id: 1, email: 'admin@example.com', role: 'admin' });\nusers.push({ id: 2, email: 'user@example.com', role: 'member' });\n\n// Mock session data\nsessions.push({ userId: 1, token: 'admin-session-token' });\n\nconst InviteSchema = z.object({\n  email: z.string().email(),\n});\n\napp.post('/invite-member', async (c) => {\n  const authHeader = c.req.headers.get('Authorization');\n  if (!authHeader || !authHeader.startsWith('Bearer ')) {\n    return c.json({ error: 'Unauthorized' }, 401);\n  }\n\n  const token = authHeader.split(' ')[1];\n  const session = sessions.find(s => s.token === token);\n\n  if (!session) {\n    return c.json({ error: 'Unauthorized' }, 401);\n  }\n\n  const user = users.find(u => u.id === session.userId);\n  if (user.role !== 'admin') {\n    return c.json({ error: 'Unauthorized' }, 403);\n  }\n\n  const { email } = await InviteSchema.parseAsync(await c.req.json());\n\n  // Generate a single-use invite token\n  const inviteToken = Math.random().toString(36).substring(2, 15);\n\n  // Email the invite token to the invitee\n  const transporter = nodemailer.createTransport({\n    service: 'gmail',\n    auth: {\n      user: 'your-email@gmail.com', // Replace with your email\n      pass: 'your-password', // Replace with your password\n    },\n  });\n\n  await transporter.sendMail({\n    from: 'your-email@gmail.com', // Replace with your email\n    to: email,\n    subject: 'Invitation to Join Our Community',\n    text: `You have been invited to join our community. Please use the following token to register: ${inviteToken}`,\n  });\n\n  // Add the invitee immediately if a valid session exists (for demonstration purposes)\n  const newUser = { id: users.length + 1, email, role: 'member' };\n  users.push(newUser);\n\n  return c.json({ message: 'Invite sent successfully', token: inviteToken });\n});\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 30505,
+  "finalFiles": [
+    {
+      "path": "/src/routes/invite-member.ts",
+      "content": "import { Hono } from 'hono';\nimport { z } from 'zod';\nimport nodemailer from 'nodemailer';\n\nconst app = new Hono();\n\n// Mock database for demonstration purposes\nlet users: any[] = [];\nlet sessions: any[] = [];\n\n// Mock user data\nusers.push({ id: 1, email: 'admin@example.com', role: 'admin' });\nusers.push({ id: 2, email: 'user@example.com', role: 'member' });\n\n// Mock session data\nsessions.push({ userId: 1, token: 'admin-session-token' });\n\nconst InviteSchema = z.object({\n  email: z.string().email(),\n});\n\napp.post('/invite-member', async (c) => {\n  const authHeader = c.req.headers.get('Authorization');\n  if (!authHeader || !authHeader.startsWith('Bearer ')) {\n    return c.json({ error: 'Unauthorized' }, 401);\n  }\n\n  const token = authHeader.split(' ')[1];\n  const session = sessions.find(s => s.token === token);\n\n  if (!session) {\n    return c.json({ error: 'Unauthorized' }, 401);\n  }\n\n  const user = users.find(u => u.id === session.userId);\n  if (user.role !== 'admin') {\n    return c.json({ error: 'Unauthorized' }, 403);\n  }\n\n  const { email } = await InviteSchema.parseAsync(await c.req.json());\n\n  // Generate a single-use invite token\n  const inviteToken = Math.random().toString(36).substring(2, 15);\n\n  // Email the invite token to the invitee\n  const transporter = nodemailer.createTransport({\n    service: 'gmail',\n    auth: {\n      user: 'your-email@gmail.com', // Replace with your email\n      pass: 'your-password', // Replace with your password\n    },\n  });\n\n  await transporter.sendMail({\n    from: 'your-email@gmail.com', // Replace with your email\n    to: email,\n    subject: 'Invitation to Join Our Community',\n    text: `You have been invited to join our community. Please use the following token to register: ${inviteToken}`,\n  });\n\n  // Add the invitee immediately if a valid session exists (for demonstration purposes)\n  const newUser = { id: users.length + 1, email, role: 'member' };\n  users.push(newUser);\n\n  return c.json({ message: 'Invite sent successfully', token: inviteToken });\n});\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 945
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 520
+      }
+    ],
+    "durationMs": 1469
+  }
+}

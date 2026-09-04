@@ -1,0 +1,250 @@
+{
+  "promptId": "P06",
+  "targetDesc": "Create a status-update route that transitions a task between 'todo', 'in_progress', and 'done'. Reject illegal transitions (e.g. done → todo).",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 51016,
+      "tokensIn": 1201,
+      "tokensOut": 654,
+      "wallMs": 54054,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Manages tasks, assignments, and project progress.',\n\n  dependencies: {\n    modules: ['auth'], // Depends on the auth module for user authentication\n  },\n\n  exposes: {\n    routes: [\n      // ... other task routes would go here ...\n      { method: 'PATCH', path: '/tasks/:id/status', auth: true },\n    ],\n    functions: [\n      'getTaskById',\n      'updateTaskStatus',\n      // ... other task functions ...\n    ],\n    types: ['Task', 'TaskStatus', 'TaskError'],\n  },\n\n  sideEffects: [\n    'writes to: tasks table',\n    'reads from: tasks table',\n  ],\n\n  invariants: [\n    'A task must always belong to exactly one team',\n    'Tasks can only transition between specific statuses (e.g., done -> todo is forbidden)',\n    'Deleted tasks are never hard-deleted (soft-delete only)',\n  ],\n});\n```\n```aether:modules/tasks/types.ts\nexport type TaskStatus = 'todo' | 'in_progress' | 'done';\n\nexport interface Task {\n  id: string;\n  title: string;\n  description: string | null;\n  status: TaskStatus;\n  team_id: string;\n  assigned_to_user_id: string | null;\n  created_at: Date;\n  updated_at: Date;\n  deleted_at: Date | null; // For soft-delete invariant\n}\n\nexport type TaskError =\n  | 'TASK_NOT_FOUND'\n  | 'INVALID_STATUS_TRANSITION'\n  | 'UNAUTHORIZED'\n  | 'VALIDATION_ERROR'\n  | 'DATABASE_ERROR';\n```\n```aether:modules/tasks/services/task-service.ts\nimport { query } from 'lib/db';\nimport { ok, err, Result } from 'lib/result';\nimport { Task, TaskStatus, TaskError } from '../types';\n\n/**\n * Checks if a status transition from currentStatus to newStatus is valid.\n *\n * @param currentStatus The current status of the task.\n * @param newStatus The desired new status for the task.\n * @returns True if the transition is valid, false otherwise.\n */\nfunction isValidTransition(currentStatus: TaskStatus, newStatus: TaskStatus): boolean {\n  if (currentStatus === newStatus) {\n    return true; // No change is always valid\n  }\n\n  switch (currentStatus) {\n    case 'todo':\n      // A task can move from 'todo' to 'in_progress' or directly to 'done'.\n      return newStatus === 'in_progress' || newStatus === 'done';\n    case"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 54054,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Manages tasks, assignments, and project progress.',\n\n  dependencies: {\n    modules: ['auth'], // Depends on the auth module for user authentication\n  },\n\n  exposes: {\n    routes: [\n      // ... other task routes would go here ...\n      { method: 'PATCH', path: '/tasks/:id/status', auth: true },\n    ],\n    functions: [\n      'getTaskById',\n      'updateTaskStatus',\n      // ... other task functions ...\n    ],\n    types: ['Task', 'TaskStatus', 'TaskError'],\n  },\n\n  sideEffects: [\n    'writes to: tasks table',\n    'reads from: tasks table',\n  ],\n\n  invariants: [\n    'A task must always belong to exactly one team',\n    'Tasks can only transition between specific statuses (e.g., done -> todo is forbidden)',\n    'Deleted tasks are never hard-deleted (soft-delete only)',\n  ],\n});\n```\n```aether:modules/tasks/types.ts\nexport type TaskStatus = 'todo' | 'in_progress' | 'done';\n\nexport interface Task {\n  id: string;\n  title: string;\n  description: string | null;\n  status: TaskStatus;\n  team_id: string;\n  assigned_to_user_id: string | null;\n  created_at: Date;\n  updated_at: Date;\n  deleted_at: Date | null; // For soft-delete invariant\n}\n\nexport type TaskError =\n  | 'TASK_NOT_FOUND'\n  | 'INVALID_STATUS_TRANSITION'\n  | 'UNAUTHORIZED'\n  | 'VALIDATION_ERROR'\n  | 'DATABASE_ERROR';\n```\n```aether:modules/tasks/services/task-service.ts\nimport { query } from 'lib/db';\nimport { ok, err, Result } from 'lib/result';\nimport { Task, TaskStatus, TaskError } from '../types';\n\n/**\n * Checks if a status transition from currentStatus to newStatus is valid.\n *\n * @param currentStatus The current status of the task.\n * @param newStatus The desired new status for the task.\n * @returns True if the transition is valid, false otherwise.\n */\nfunction isValidTransition(currentStatus: TaskStatus, newStatus: TaskStatus): boolean {\n  if (currentStatus === newStatus) {\n    return true; // No change is always valid\n  }\n\n  switch (currentStatus) {\n    case 'todo':\n      // A task can move from 'todo' to 'in_progress' or directly to 'done'.\n      return newStatus === 'in_progress' || newStatus === 'done';\n    case"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 803
+      }
+    ],
+    "durationMs": 1698
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 866
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 472
+      }
+    ],
+    "durationMs": 1340
+  }
+}

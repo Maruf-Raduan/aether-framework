@@ -1,0 +1,113 @@
+{
+  "promptId": "P16",
+  "targetDesc": "Create a token-refresh route that exchanges a refresh token for a new access token. Rotate the refresh token on every use.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 16403,
+      "tokensIn": 133,
+      "tokensOut": 375,
+      "wallMs": 17812,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/token-refresh.ts",
+          "content": "import { Hono } from 'hono';\nimport { z } from 'zod';\n\nconst app = new Hono();\n\nconst RefreshTokenSchema = z.string().min(1);\n\napp.post('/token-refresh', async (c) => {\n  const body = await c.req.json();\n  const result = RefreshTokenSchema.safeParse(body.refresh_token);\n\n  if (!result.success) {\n    return c.json({ error: 'Invalid refresh token' }, 400);\n  }\n\n  const refreshToken = result.data;\n\n  // Simulate token rotation and generation\n  const newAccessToken = generateNewAccessToken();\n  const newRefreshToken = generateNewRefreshToken();\n\n  // Store the new refresh token securely (e.g., in a database)\n  storeRefreshToken(newRefreshToken);\n\n  return c.json({ access_token: newAccessToken, refresh_token: newRefreshToken });\n});\n\nfunction generateNewAccessToken(): string {\n  // Implement logic to generate a new access token\n  return 'new-access-token';\n}\n\nfunction generateNewRefreshToken(): string {\n  // Implement logic to generate a new refresh token\n  return 'new-refresh-token';\n}\n\nfunction storeRefreshToken(refreshToken: string): void {\n  // Implement logic to securely store the refresh token (e.g., in a database)\n  console.log('Storing refresh token:', refreshToken);\n}\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 17812,
+  "finalFiles": [
+    {
+      "path": "/src/routes/token-refresh.ts",
+      "content": "import { Hono } from 'hono';\nimport { z } from 'zod';\n\nconst app = new Hono();\n\nconst RefreshTokenSchema = z.string().min(1);\n\napp.post('/token-refresh', async (c) => {\n  const body = await c.req.json();\n  const result = RefreshTokenSchema.safeParse(body.refresh_token);\n\n  if (!result.success) {\n    return c.json({ error: 'Invalid refresh token' }, 400);\n  }\n\n  const refreshToken = result.data;\n\n  // Simulate token rotation and generation\n  const newAccessToken = generateNewAccessToken();\n  const newRefreshToken = generateNewRefreshToken();\n\n  // Store the new refresh token securely (e.g., in a database)\n  storeRefreshToken(newRefreshToken);\n\n  return c.json({ access_token: newAccessToken, refresh_token: newRefreshToken });\n});\n\nfunction generateNewAccessToken(): string {\n  // Implement logic to generate a new access token\n  return 'new-access-token';\n}\n\nfunction generateNewRefreshToken(): string {\n  // Implement logic to generate a new refresh token\n  return 'new-refresh-token';\n}\n\nfunction storeRefreshToken(refreshToken: string): void {\n  // Implement logic to securely store the refresh token (e.g., in a database)\n  console.log('Storing refresh token:', refreshToken);\n}\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 887
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 517
+      }
+    ],
+    "durationMs": 1408
+  }
+}

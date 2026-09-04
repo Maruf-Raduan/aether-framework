@@ -1,0 +1,113 @@
+{
+  "promptId": "P10",
+  "targetDesc": "Create a route that returns the audit-log history of a single task (status changes, reassignments).",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 17361,
+      "tokensIn": 129,
+      "tokensOut": 396,
+      "wallMs": 18627,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/task-audit-log.ts",
+          "content": "import { Hono } from 'hono';\nimport { Context } from 'hono/types';\n\nconst app = new Hono();\n\napp.get('/task/:taskId/audit-log', async (c: Context) => {\n  const taskId = c.req.param('taskId');\n\n  // Simulate fetching audit log data from a database\n  const auditLogData = await fetchAuditLogForTask(taskId);\n\n  if (!auditLogData) {\n    return c.json({ error: 'Task not found' }, 404);\n  }\n\n  return c.json(auditLogData, 200);\n});\n\nasync function fetchAuditLogForTask(taskId: string): Promise<any | null> {\n  // Replace this with actual database query logic\n  const mockAuditLog = [\n    { taskId: '1', action: 'created', timestamp: new Date().toISOString() },\n    { taskId: '1', action: 'reassigned to John Doe', timestamp: new Date(new Date().getTime() + 3600000).toISOString() },\n    { taskId: '1', action: 'status changed to in progress', timestamp: new Date(new Date().getTime() + 7200000).toISOString() }\n  ];\n\n  return mockAuditLog.filter(log => log.taskId === taskId);\n}\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 18627,
+  "finalFiles": [
+    {
+      "path": "/src/routes/task-audit-log.ts",
+      "content": "import { Hono } from 'hono';\nimport { Context } from 'hono/types';\n\nconst app = new Hono();\n\napp.get('/task/:taskId/audit-log', async (c: Context) => {\n  const taskId = c.req.param('taskId');\n\n  // Simulate fetching audit log data from a database\n  const auditLogData = await fetchAuditLogForTask(taskId);\n\n  if (!auditLogData) {\n    return c.json({ error: 'Task not found' }, 404);\n  }\n\n  return c.json(auditLogData, 200);\n});\n\nasync function fetchAuditLogForTask(taskId: string): Promise<any | null> {\n  // Replace this with actual database query logic\n  const mockAuditLog = [\n    { taskId: '1', action: 'created', timestamp: new Date().toISOString() },\n    { taskId: '1', action: 'reassigned to John Doe', timestamp: new Date(new Date().getTime() + 3600000).toISOString() },\n    { taskId: '1', action: 'status changed to in progress', timestamp: new Date(new Date().getTime() + 7200000).toISOString() }\n  ];\n\n  return mockAuditLog.filter(log => log.taskId === taskId);\n}\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 804
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 459
+      }
+    ],
+    "durationMs": 1266
+  }
+}

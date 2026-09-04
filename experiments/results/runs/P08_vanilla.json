@@ -1,0 +1,113 @@
+{
+  "promptId": "P08",
+  "targetDesc": "Create a soft-delete route for tasks. The task must remain in the database with a deletedAt timestamp; never hard-delete.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 11716,
+      "tokensIn": 178,
+      "tokensOut": 1473,
+      "wallMs": 13248,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types.ts\nexport interface Task {\n  id: string;\n  title: string;\n  description?: string;\n  createdAt: Date;\n  updatedAt: Date;\n  deletedAt?: Date; // Soft-delete marker\n}\n```\n\n```aether:src/db.ts\nimport { Task } from './types';\n\n// In-memory database simulation\nconst tasks: Task[] = [\n  {\n    id: 'task-1',\n    title: 'Buy groceries',\n    description: 'Milk, eggs, bread, butter',\n    createdAt: new Date(),\n    updatedAt: new Date(),\n  },\n  {\n    id: 'task-2',\n    title: 'Finish project report',\n    description: 'Complete the Q3 financial report',\n    createdAt: new Date(),\n    updatedAt: new Date(),\n  },\n  {\n    id: 'task-3',\n    title: 'Call mom',\n    description: 'Wish her a happy birthday',\n    createdAt: new Date(),\n    updatedAt: new Date(),\n  },\n];\n\nexport const getTasks = (): Task[] => {\n  // Return only non-deleted tasks for a typical \"list all\" scenario\n  return tasks.filter(task => !task.deletedAt);\n};\n\nexport const getTaskById = (id: string): Task | undefined => {\n  return tasks.find(task => task.id === id);\n};\n\nexport const softDeleteTask = (id: string): Task | undefined => {\n  const taskIndex = tasks.findIndex(task => task.id === id);\n  if (taskIndex === -1) {\n    return undefined;\n  }\n\n  // Ensure we don't re-delete an already deleted task, or update its deletedAt if already set\n  if (tasks[taskIndex].deletedAt) {\n    return tasks[taskIndex]; // Already soft-deleted, return as is\n  }\n\n  tasks[taskIndex] = {\n    ...tasks[taskIndex],\n    deletedAt: new Date(),\n    updatedAt: new Date(), // Also update updatedAt when soft-deleting\n  };\n  return tasks[taskIndex];\n};\n\n// For demonstration purposes, a way to add tasks\nexport const addTask = (title: string, description?: string): Task => {\n  const newTask: Task = {\n    id: `task-${tasks.length + 1}`,\n    title,\n    description,\n    createdAt: new Date(),\n    updatedAt: new Date(),\n  };\n  tasks.push(newTask);\n  return newTask;\n};\n```\n\n```aether:src/routes/tasks.ts\nimport { Hono } from 'hono';\nimport { getTasks, getTaskById, softDeleteTask } from '../db';\n\nconst tasksRouter = new Hono();\n\n// GET /tasks - List all non-deleted tasks\ntasksRouter.get('/', (c) => {\n  const tasks = getTasks();\n  return c.json(tasks);\n});\n\n// GET /tasks/:id - Get a single task (including potentially deleted ones for admin views, or just non-deleted)\n// For this exercise, we'll allow fetching by ID even if deleted, but the main list filters them out.\ntasksRouter.get('/:id', (c) => {\n  const { id } = c.req.param();\n  const task = getTaskById(id);\n\n  if (!task) {\n    return c.json({ message: 'Task not found' }, 404);\n  }\n  return c.json(task);\n});\n\n// DELETE /tasks/:id - Soft-delete a task\ntasksRouter.delete('/:id', (c) => {\n  const { id } = c.req.param();\n  const updatedTask = softDeleteTask(id);\n\n  if (!updatedTask) {\n    return c.json({ message: 'Task not found' }, 404);\n  }\n\n  if (updatedTask.deletedAt) {\n    return c.json({ message: 'Task soft-deleted successfully', task: updatedTask }, 200);\n  } else {\n    // This case should ideally not be hit if softDeleteTask correctly sets deletedAt\n    return c.json({ message: 'Failed to soft-delete task' }, 500);\n  }\n});\n\nexport default tasksRouter;\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport tasksRouter from './routes/tasks';\n\nconst app = new Hono();\n\n// Basic logging middleware\napp.use('*', async (c, next) => {\n  console.log(`[${c.req.method}] ${c.req.url}`);\n  await next();\n});\n\n// Register task routes\napp.route('/tasks', tasksRouter);\n\n// Root route\napp.get('/', (c) => {\n  return c.text('Welcome to the Task API! Try /tasks');\n});\n\n// Global error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ message: 'An internal server error occurred' }, 500);\n});\n\n// Export the Hono app for serverless environments or direct Node.js execution\nexport default app;\n\n// To run with Node.js (e.g., using `node src/index.ts` with a runner like `tsx` or `ts-node`)\n// This part is for local development and demonstration.\nif (process.env.NODE_ENV !== 'test') {\n  const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;\n  console.log(`Server is running on http://localhost:${port}`);\n  // Hono's app.fetch is compatible with Node.js http server\n  // For a full Node.js server, you'd typically use something like:\n  // import { serve } from '@hono/node-server';\n  // serve({ fetch: app.fetch, port });\n  // For this exercise, we'll keep it minimal and assume a runtime that can handle `app.fetch`.\n  // If you were to run this directly with `node`, you'd need `@hono/node-server`.\n  // For example, in a separate file `server.ts`:\n  // import { serve } from '@hono/node-server';\n  // import app from './index';\n  // serve({ fetch: app.fetch, port: 3000 });\n}\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 13248,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types.ts\nexport interface Task {\n  id: string;\n  title: string;\n  description?: string;\n  createdAt: Date;\n  updatedAt: Date;\n  deletedAt?: Date; // Soft-delete marker\n}\n```\n\n```aether:src/db.ts\nimport { Task } from './types';\n\n// In-memory database simulation\nconst tasks: Task[] = [\n  {\n    id: 'task-1',\n    title: 'Buy groceries',\n    description: 'Milk, eggs, bread, butter',\n    createdAt: new Date(),\n    updatedAt: new Date(),\n  },\n  {\n    id: 'task-2',\n    title: 'Finish project report',\n    description: 'Complete the Q3 financial report',\n    createdAt: new Date(),\n    updatedAt: new Date(),\n  },\n  {\n    id: 'task-3',\n    title: 'Call mom',\n    description: 'Wish her a happy birthday',\n    createdAt: new Date(),\n    updatedAt: new Date(),\n  },\n];\n\nexport const getTasks = (): Task[] => {\n  // Return only non-deleted tasks for a typical \"list all\" scenario\n  return tasks.filter(task => !task.deletedAt);\n};\n\nexport const getTaskById = (id: string): Task | undefined => {\n  return tasks.find(task => task.id === id);\n};\n\nexport const softDeleteTask = (id: string): Task | undefined => {\n  const taskIndex = tasks.findIndex(task => task.id === id);\n  if (taskIndex === -1) {\n    return undefined;\n  }\n\n  // Ensure we don't re-delete an already deleted task, or update its deletedAt if already set\n  if (tasks[taskIndex].deletedAt) {\n    return tasks[taskIndex]; // Already soft-deleted, return as is\n  }\n\n  tasks[taskIndex] = {\n    ...tasks[taskIndex],\n    deletedAt: new Date(),\n    updatedAt: new Date(), // Also update updatedAt when soft-deleting\n  };\n  return tasks[taskIndex];\n};\n\n// For demonstration purposes, a way to add tasks\nexport const addTask = (title: string, description?: string): Task => {\n  const newTask: Task = {\n    id: `task-${tasks.length + 1}`,\n    title,\n    description,\n    createdAt: new Date(),\n    updatedAt: new Date(),\n  };\n  tasks.push(newTask);\n  return newTask;\n};\n```\n\n```aether:src/routes/tasks.ts\nimport { Hono } from 'hono';\nimport { getTasks, getTaskById, softDeleteTask } from '../db';\n\nconst tasksRouter = new Hono();\n\n// GET /tasks - List all non-deleted tasks\ntasksRouter.get('/', (c) => {\n  const tasks = getTasks();\n  return c.json(tasks);\n});\n\n// GET /tasks/:id - Get a single task (including potentially deleted ones for admin views, or just non-deleted)\n// For this exercise, we'll allow fetching by ID even if deleted, but the main list filters them out.\ntasksRouter.get('/:id', (c) => {\n  const { id } = c.req.param();\n  const task = getTaskById(id);\n\n  if (!task) {\n    return c.json({ message: 'Task not found' }, 404);\n  }\n  return c.json(task);\n});\n\n// DELETE /tasks/:id - Soft-delete a task\ntasksRouter.delete('/:id', (c) => {\n  const { id } = c.req.param();\n  const updatedTask = softDeleteTask(id);\n\n  if (!updatedTask) {\n    return c.json({ message: 'Task not found' }, 404);\n  }\n\n  if (updatedTask.deletedAt) {\n    return c.json({ message: 'Task soft-deleted successfully', task: updatedTask }, 200);\n  } else {\n    // This case should ideally not be hit if softDeleteTask correctly sets deletedAt\n    return c.json({ message: 'Failed to soft-delete task' }, 500);\n  }\n});\n\nexport default tasksRouter;\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport tasksRouter from './routes/tasks';\n\nconst app = new Hono();\n\n// Basic logging middleware\napp.use('*', async (c, next) => {\n  console.log(`[${c.req.method}] ${c.req.url}`);\n  await next();\n});\n\n// Register task routes\napp.route('/tasks', tasksRouter);\n\n// Root route\napp.get('/', (c) => {\n  return c.text('Welcome to the Task API! Try /tasks');\n});\n\n// Global error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ message: 'An internal server error occurred' }, 500);\n});\n\n// Export the Hono app for serverless environments or direct Node.js execution\nexport default app;\n\n// To run with Node.js (e.g., using `node src/index.ts` with a runner like `tsx` or `ts-node`)\n// This part is for local development and demonstration.\nif (process.env.NODE_ENV !== 'test') {\n  const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;\n  console.log(`Server is running on http://localhost:${port}`);\n  // Hono's app.fetch is compatible with Node.js http server\n  // For a full Node.js server, you'd typically use something like:\n  // import { serve } from '@hono/node-server';\n  // serve({ fetch: app.fetch, port });\n  // For this exercise, we'll keep it minimal and assume a runtime that can handle `app.fetch`.\n  // If you were to run this directly with `node`, you'd need `@hono/node-server`.\n  // For example, in a separate file `server.ts`:\n  // import { serve } from '@hono/node-server';\n  // import app from './index';\n  // serve({ fetch: app.fetch, port: 3000 });\n}\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1001
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 521
+      }
+    ],
+    "durationMs": 1532
+  }
+}

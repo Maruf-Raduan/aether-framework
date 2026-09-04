@@ -1,0 +1,113 @@
+{
+  "promptId": "P11",
+  "targetDesc": "Create a route that transfers a task from one team to another. Both teams must exist; the caller must be admin of the source team. Emit a task.transferred event.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 19973,
+      "tokensIn": 144,
+      "tokensOut": 663,
+      "wallMs": 21436,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/transferTask.ts",
+          "content": "import { Hono } from 'hono';\nimport { z, ZodError } from 'zod';\n\nconst app = new Hono();\n\nconst transferTaskSchema = z.object({\n  taskId: z.string(),\n  sourceTeamId: z.string(),\n  targetTeamId: z.string(),\n});\n\napp.post('/transfer-task', async (c) => {\n  try {\n    const { taskId, sourceTeamId, targetTeamId } = transferTaskSchema.parse(await c.req.json());\n\n    // Check if the caller is an admin of the source team\n    // This is a placeholder for actual authentication and authorization logic\n    const isAdminOfSourceTeam = await checkIfUserIsAdmin(c.env.TEAMS_DB, sourceTeamId, c.req.user.id);\n    if (!isAdminOfSourceTeam) {\n      return c.json({ error: 'Unauthorized' }, 403);\n    }\n\n    // Check if both teams exist\n    const sourceTeamExists = await teamExists(c.env.TEAMS_DB, sourceTeamId);\n    const targetTeamExists = await teamExists(c.env.TEAMS_DB, targetTeamId);\n    if (!sourceTeamExists || !targetTeamExists) {\n      return c.json({ error: 'One or both teams do not exist' }, 400);\n    }\n\n    // Transfer the task\n    await transferTask(c.env.TASKS_DB, taskId, sourceTeamId, targetTeamId);\n\n    // Emit a task.transferred event\n    await emitEvent('task.transferred', { taskId, sourceTeamId, targetTeamId });\n\n    return c.json({ message: 'Task transferred successfully' }, 200);\n  } catch (error) {\n    if (error instanceof ZodError) {\n      return c.json({ error: error.issues }, 400);\n    }\n    return c.json({ error: 'Internal server error' }, 500);\n  }\n});\n\nasync function checkIfUserIsAdmin(db: D1Database, teamId: string, userId: string): Promise<boolean> {\n  // Placeholder for actual logic to check if the user is an admin of the team\n  return true;\n}\n\nasync function teamExists(db: D1Database, teamId: string): Promise<boolean> {\n  // Placeholder for actual logic to check if the team exists\n  return true;\n}\n\nasync function transferTask(db: D1Database, taskId: string, sourceTeamId: string, targetTeamId: string): Promise<void> {\n  // Placeholder for actual logic to transfer the task\n}\n\nasync function emitEvent(eventType: string, eventData: any): Promise<void> {\n  // Placeholder for actual logic to emit an event\n}\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 21436,
+  "finalFiles": [
+    {
+      "path": "/src/routes/transferTask.ts",
+      "content": "import { Hono } from 'hono';\nimport { z, ZodError } from 'zod';\n\nconst app = new Hono();\n\nconst transferTaskSchema = z.object({\n  taskId: z.string(),\n  sourceTeamId: z.string(),\n  targetTeamId: z.string(),\n});\n\napp.post('/transfer-task', async (c) => {\n  try {\n    const { taskId, sourceTeamId, targetTeamId } = transferTaskSchema.parse(await c.req.json());\n\n    // Check if the caller is an admin of the source team\n    // This is a placeholder for actual authentication and authorization logic\n    const isAdminOfSourceTeam = await checkIfUserIsAdmin(c.env.TEAMS_DB, sourceTeamId, c.req.user.id);\n    if (!isAdminOfSourceTeam) {\n      return c.json({ error: 'Unauthorized' }, 403);\n    }\n\n    // Check if both teams exist\n    const sourceTeamExists = await teamExists(c.env.TEAMS_DB, sourceTeamId);\n    const targetTeamExists = await teamExists(c.env.TEAMS_DB, targetTeamId);\n    if (!sourceTeamExists || !targetTeamExists) {\n      return c.json({ error: 'One or both teams do not exist' }, 400);\n    }\n\n    // Transfer the task\n    await transferTask(c.env.TASKS_DB, taskId, sourceTeamId, targetTeamId);\n\n    // Emit a task.transferred event\n    await emitEvent('task.transferred', { taskId, sourceTeamId, targetTeamId });\n\n    return c.json({ message: 'Task transferred successfully' }, 200);\n  } catch (error) {\n    if (error instanceof ZodError) {\n      return c.json({ error: error.issues }, 400);\n    }\n    return c.json({ error: 'Internal server error' }, 500);\n  }\n});\n\nasync function checkIfUserIsAdmin(db: D1Database, teamId: string, userId: string): Promise<boolean> {\n  // Placeholder for actual logic to check if the user is an admin of the team\n  return true;\n}\n\nasync function teamExists(db: D1Database, teamId: string): Promise<boolean> {\n  // Placeholder for actual logic to check if the team exists\n  return true;\n}\n\nasync function transferTask(db: D1Database, taskId: string, sourceTeamId: string, targetTeamId: string): Promise<void> {\n  // Placeholder for actual logic to transfer the task\n}\n\nasync function emitEvent(eventType: string, eventData: any): Promise<void> {\n  // Placeholder for actual logic to emit an event\n}\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 917
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 542
+      }
+    ],
+    "durationMs": 1463
+  }
+}

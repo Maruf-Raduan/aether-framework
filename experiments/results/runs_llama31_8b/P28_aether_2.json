@@ -1,0 +1,49 @@
+{
+  "promptId": "P28",
+  "condition": "aether",
+  "iteration": 2,
+  "passed": true,
+  "tokensIn": 1051,
+  "tokensOut": 662,
+  "tokensTotal": 1713,
+  "latencyMs": 17544,
+  "wallMs": 17544,
+  "files": [
+    {
+      "path": "unnamed.ts",
+      "length": 504
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 1386
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

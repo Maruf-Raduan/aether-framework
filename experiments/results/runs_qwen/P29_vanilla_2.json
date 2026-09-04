@@ -1,0 +1,145 @@
+{
+  "promptId": "P29",
+  "targetDesc": "Create a download route that streams a file from object storage. Caller must be a member of the file's owning team. Returns 404 (not 403) on access denied to avoid existence leak.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 33769,
+      "tokensIn": 153,
+      "tokensOut": 765,
+      "wallMs": 35090,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/download.ts",
+          "content": "import { Hono } from 'hono';\nimport { getTeamMembers, isFileAccessibleToUser } from '../utils/fileUtils';\n\nconst app = new Hono();\n\napp.get('/download/:fileId', async (c) => {\n  const fileId = c.req.param('fileId');\n  const userId = c.env.USER_ID; // Assuming user ID is stored in the environment\n\n  if (!userId) {\n    return c.status(401).json({ error: 'Unauthorized' });\n  }\n\n  try {\n    const file = await getFileFromStorage(fileId); // Assume this function fetches the file from storage\n    const teamMembers = await getTeamMembers(file.teamId);\n\n    if (!isFileAccessibleToUser(userId, teamMembers)) {\n      return c.status(404).json({ error: 'Not Found' });\n    }\n\n    const response = new Response(file.content, {\n      headers: {\n        'Content-Type': file.mimeType,\n        'Content-Disposition': `attachment; filename=\"${file.name}\"`,\n      },\n    });\n\n    return response;\n  } catch (error) {\n    console.error('Error downloading file:', error);\n    return c.status(500).json({ error: 'Internal Server Error' });\n  }\n});\n\nexport default app;"
+        },
+        {
+          "path": "/src/utils/fileUtils.ts",
+          "content": "import { getFileFromStorage, isUserInTeam } from '../services/storageService';\n\nexport async function getTeamMembers(teamId: string): Promise<string[]> {\n  // Assume this function fetches the team members from storage\n  return ['user1', 'user2']; // Example team members\n}\n\nexport function isFileAccessibleToUser(userId: string, teamMembers: string[]): boolean {\n  return teamMembers.includes(userId);\n}"
+        },
+        {
+          "path": "/src/services/storageService.ts",
+          "content": "import { getFileById } from '../data/fileRepository';\n\nexport async function getFileFromStorage(fileId: string): Promise<{ content: Blob; mimeType: string; name: string; teamId: string }> {\n  const file = await getFileById(fileId); // Assume this function fetches the file by ID\n  return {\n    content: new Blob([file.data], { type: file.mimeType }),\n    mimeType: file.mimeType,\n    name: file.name,\n    teamId: file.teamId,\n  };\n}\n\nexport async function isUserInTeam(userId: string, teamId: string): Promise<boolean> {\n  // Assume this function checks if the user is in the specified team\n  return true; // Example implementation\n}"
+        },
+        {
+          "path": "/src/data/fileRepository.ts",
+          "content": "import { getFileById } from '../data/fileData';\n\nexport async function getFileById(fileId: string): Promise<{ data: ArrayBuffer; mimeType: string; name: string; teamId: string }> {\n  const file = await getFileById(fileId); // Assume this function fetches the file by ID\n  return {\n    data: new Uint8Array(file.data).buffer,\n    mimeType: file.mimeType,\n    name: file.name,\n    teamId: file.teamId,\n  };\n}"
+        },
+        {
+          "path": "/src/data/fileData.ts",
+          "content": "export async function getFileById(fileId: string): Promise<{ data: ArrayBuffer; mimeType: string; name: string; teamId: string }> {\n  // Assume this function fetches the file by ID from storage\n  return {\n    data: new Uint8Array([0, 1, 2, 3]).buffer,\n    mimeType: 'application/octet-stream',\n    name: 'example.txt',\n    teamId: 'team1',\n  };\n}"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 35090,
+  "finalFiles": [
+    {
+      "path": "/src/routes/download.ts",
+      "content": "import { Hono } from 'hono';\nimport { getTeamMembers, isFileAccessibleToUser } from '../utils/fileUtils';\n\nconst app = new Hono();\n\napp.get('/download/:fileId', async (c) => {\n  const fileId = c.req.param('fileId');\n  const userId = c.env.USER_ID; // Assuming user ID is stored in the environment\n\n  if (!userId) {\n    return c.status(401).json({ error: 'Unauthorized' });\n  }\n\n  try {\n    const file = await getFileFromStorage(fileId); // Assume this function fetches the file from storage\n    const teamMembers = await getTeamMembers(file.teamId);\n\n    if (!isFileAccessibleToUser(userId, teamMembers)) {\n      return c.status(404).json({ error: 'Not Found' });\n    }\n\n    const response = new Response(file.content, {\n      headers: {\n        'Content-Type': file.mimeType,\n        'Content-Disposition': `attachment; filename=\"${file.name}\"`,\n      },\n    });\n\n    return response;\n  } catch (error) {\n    console.error('Error downloading file:', error);\n    return c.status(500).json({ error: 'Internal Server Error' });\n  }\n});\n\nexport default app;"
+    },
+    {
+      "path": "/src/utils/fileUtils.ts",
+      "content": "import { getFileFromStorage, isUserInTeam } from '../services/storageService';\n\nexport async function getTeamMembers(teamId: string): Promise<string[]> {\n  // Assume this function fetches the team members from storage\n  return ['user1', 'user2']; // Example team members\n}\n\nexport function isFileAccessibleToUser(userId: string, teamMembers: string[]): boolean {\n  return teamMembers.includes(userId);\n}"
+    },
+    {
+      "path": "/src/services/storageService.ts",
+      "content": "import { getFileById } from '../data/fileRepository';\n\nexport async function getFileFromStorage(fileId: string): Promise<{ content: Blob; mimeType: string; name: string; teamId: string }> {\n  const file = await getFileById(fileId); // Assume this function fetches the file by ID\n  return {\n    content: new Blob([file.data], { type: file.mimeType }),\n    mimeType: file.mimeType,\n    name: file.name,\n    teamId: file.teamId,\n  };\n}\n\nexport async function isUserInTeam(userId: string, teamId: string): Promise<boolean> {\n  // Assume this function checks if the user is in the specified team\n  return true; // Example implementation\n}"
+    },
+    {
+      "path": "/src/data/fileRepository.ts",
+      "content": "import { getFileById } from '../data/fileData';\n\nexport async function getFileById(fileId: string): Promise<{ data: ArrayBuffer; mimeType: string; name: string; teamId: string }> {\n  const file = await getFileById(fileId); // Assume this function fetches the file by ID\n  return {\n    data: new Uint8Array(file.data).buffer,\n    mimeType: file.mimeType,\n    name: file.name,\n    teamId: file.teamId,\n  };\n}"
+    },
+    {
+      "path": "/src/data/fileData.ts",
+      "content": "export async function getFileById(fileId: string): Promise<{ data: ArrayBuffer; mimeType: string; name: string; teamId: string }> {\n  // Assume this function fetches the file by ID from storage\n  return {\n    data: new Uint8Array([0, 1, 2, 3]).buffer,\n    mimeType: 'application/octet-stream',\n    name: 'example.txt',\n    teamId: 'team1',\n  };\n}"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 821
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 497
+      }
+    ],
+    "durationMs": 1321
+  }
+}

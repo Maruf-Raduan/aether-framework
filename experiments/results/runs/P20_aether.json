@@ -1,0 +1,250 @@
+{
+  "promptId": "P20",
+  "targetDesc": "Create an invite-member route that generates a single-use invite token, emails it, and (if a valid session exists) immediately adds the invitee. Caller must be admin.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 18919,
+      "tokensIn": 1203,
+      "tokensOut": 1495,
+      "wallMs": 22028,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:modules/teams/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'teams',\n  description: 'Manages teams, team members, and team-related operations.',\n\n  dependencies: {\n    modules: ['auth'],\n  },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/teams/:teamId/members/invite', auth: true },\n      // ... other team routes\n    ],\n    functions: [\n      'createTeam',\n      'getTeamById',\n      'addTeamMember',\n      'removeTeamMember',\n      'isTeamAdmin', // New function for admin check\n      'inviteMember', // New function for inviting members\n    ],\n    types: ['Team', 'TeamMember', 'TeamMemberRole', 'InviteToken', 'InviteError'],\n  },\n\n  sideEffects: [\n    'writes to: teams table',\n    'writes to: team_members table',\n    'writes to: invite_tokens table',\n    'sends: invitation emails',\n  ],\n\n  invariants: [\n    'A team must always have at least one admin',\n    'Team members must be unique per team',\n    'Invite tokens must be single-use and expire',\n  ],\n});\n```\n\n```aether:modules/teams/types.ts\nimport { z } from 'zod';\n\n// Assuming User type comes from the auth module\nimport type { User } from '@auth/types';\n\nexport const TeamMemberRoleSchema = z.enum(['member', 'admin']);\nexport type TeamMemberRole = z.infer<typeof TeamMemberRoleSchema>;\n\nexport interface Team {\n  id: string;\n  name: string;\n  createdAt: Date;\n  updatedAt: Date;\n}\n\nexport interface TeamMember {\n  userId: string;\n  teamId: string;\n  role: TeamMemberRole;\n  joinedAt: Date;\n}\n\nexport interface InviteToken {\n  id: string;\n  teamId: string;\n  inviterId: string;\n  inviteeEmail: string;\n  token: string;\n  expiresAt: Date;\n  createdAt: Date;\n  usedAt: Date | null;\n  usedByUserId: string | null;\n}\n\nexport type InviteError =\n  | 'TEAM_NOT_FOUND'\n  | 'NOT_ADMIN'\n  | 'ALREADY_TEAM_MEMBER'\n  | 'EMAIL_SEND_FAILED'\n  | 'DATABASE_ERROR'\n  | 'INVALID_INPUT';\n```\n\n```aether:lib/email.ts\n// This is a mock implementation for demonstration purposes.\n// In a real application, this would integrate with an email service.\n\nexport async function sendEmail(to: string, subject: string, body: string): Promise<boolean> {\n  console.log(`--- Sending Email ---`);\n  console.log(`To: ${to}`);\n  console.log(`Subject: ${subject}`);\n  console.log(`Body: ${body}`);\n  console.log(`---------------------`);\n\n  // Simulate email sending success/failure\n  // For now, always succeed. In a real app, this would involve network calls.\n  return true;\n}\n```\n\n```aether:lib/validate.ts\nimport { z } from 'zod';\nimport { ok, err, Result } from './result';\n\n// Helper to parse request body using Zod\nexport async function parseBody<T extends z.ZodTypeAny>(\n  req: Request,\n  schema: T,\n): Promise<Result<z.infer<T>, { type: 'VALIDATION_ERROR'; errors: z.ZodIssue[] }>> {\n  try {\n    const json = await req.json();\n    const parsed = schema.parse(json);\n    return ok(parsed);\n  } catch (error) {\n    if (error instanceof z.ZodError) {\n      return err({ type: 'VALIDATION_ERROR', errors: error.errors });\n    }\n    // For non-Zod errors during JSON parsing (e.g., malformed JSON)\n    return err({ type: 'VALIDATION_ERROR', errors: [{\n      code: z.ZodIssueCode.custom,\n      path: [],\n      message: 'Invalid request body format',\n    }]});\n  }\n}\n\n// Helper to parse URL query parameters using Zod\nexport function parseQuery<T extends z.ZodTypeAny>(\n  req: Request,\n  schema: T,\n): Result<z.infer<T>, { type: 'VALIDATION_ERROR'; errors: z.ZodIssue[] }> {\n  try {\n    const url = new URL(req.url);\n    const queryParams: Record<string, string> = {};\n    for (const [key, value] of url.searchParams.entries()) {\n      queryParams[key] = value;\n    }\n    const parsed = schema.parse(queryParams);\n    return ok(parsed);\n  } catch (error) {\n    if (error instanceof z.ZodError) {\n      return err({ type: 'VALIDATION_ERROR', errors: error.errors });\n    }\n    return err({ type: 'VALIDATION_ERROR', errors: [{\n      code: z.ZodIssueCode.custom,\n      path: [],\n      message: 'Invalid query parameters format',\n    }]});\n  }\n}\n\n// Helper to parse URL path parameters using Zod\n// This assumes the router provides params on the Request object or a similar context.\n// For a generic handler, we'll simulate extracting from a path pattern.\n// In a real framework, `req.params` would be available.\nexport function parseParams<T extends z.ZodTypeAny>(\n  req: Request,\n  schema: T,\n  pathPattern: string, // e.g., \"/teams/:teamId/members/invite\"\n): Result<z.infer<T>, { type: 'VALIDATION_ERROR'; errors: z.ZodIssue[] }> {\n  try {\n    const url = new URL(req.url);\n    const path = url.pathname;\n    const paramNames: string[] = [];\n    const patternParts = pathPattern.split('/');\n    const pathParts = path.split('/');\n\n    const params: Record<string, string> = {};\n\n    for (let i = 0; i < patternParts.length; i++) {\n      if (patternParts[i].startsWith(':')) {\n        const paramName = patternParts[i].substring(1);\n        if (pathParts[i])"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 22028,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:modules/teams/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'teams',\n  description: 'Manages teams, team members, and team-related operations.',\n\n  dependencies: {\n    modules: ['auth'],\n  },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/teams/:teamId/members/invite', auth: true },\n      // ... other team routes\n    ],\n    functions: [\n      'createTeam',\n      'getTeamById',\n      'addTeamMember',\n      'removeTeamMember',\n      'isTeamAdmin', // New function for admin check\n      'inviteMember', // New function for inviting members\n    ],\n    types: ['Team', 'TeamMember', 'TeamMemberRole', 'InviteToken', 'InviteError'],\n  },\n\n  sideEffects: [\n    'writes to: teams table',\n    'writes to: team_members table',\n    'writes to: invite_tokens table',\n    'sends: invitation emails',\n  ],\n\n  invariants: [\n    'A team must always have at least one admin',\n    'Team members must be unique per team',\n    'Invite tokens must be single-use and expire',\n  ],\n});\n```\n\n```aether:modules/teams/types.ts\nimport { z } from 'zod';\n\n// Assuming User type comes from the auth module\nimport type { User } from '@auth/types';\n\nexport const TeamMemberRoleSchema = z.enum(['member', 'admin']);\nexport type TeamMemberRole = z.infer<typeof TeamMemberRoleSchema>;\n\nexport interface Team {\n  id: string;\n  name: string;\n  createdAt: Date;\n  updatedAt: Date;\n}\n\nexport interface TeamMember {\n  userId: string;\n  teamId: string;\n  role: TeamMemberRole;\n  joinedAt: Date;\n}\n\nexport interface InviteToken {\n  id: string;\n  teamId: string;\n  inviterId: string;\n  inviteeEmail: string;\n  token: string;\n  expiresAt: Date;\n  createdAt: Date;\n  usedAt: Date | null;\n  usedByUserId: string | null;\n}\n\nexport type InviteError =\n  | 'TEAM_NOT_FOUND'\n  | 'NOT_ADMIN'\n  | 'ALREADY_TEAM_MEMBER'\n  | 'EMAIL_SEND_FAILED'\n  | 'DATABASE_ERROR'\n  | 'INVALID_INPUT';\n```\n\n```aether:lib/email.ts\n// This is a mock implementation for demonstration purposes.\n// In a real application, this would integrate with an email service.\n\nexport async function sendEmail(to: string, subject: string, body: string): Promise<boolean> {\n  console.log(`--- Sending Email ---`);\n  console.log(`To: ${to}`);\n  console.log(`Subject: ${subject}`);\n  console.log(`Body: ${body}`);\n  console.log(`---------------------`);\n\n  // Simulate email sending success/failure\n  // For now, always succeed. In a real app, this would involve network calls.\n  return true;\n}\n```\n\n```aether:lib/validate.ts\nimport { z } from 'zod';\nimport { ok, err, Result } from './result';\n\n// Helper to parse request body using Zod\nexport async function parseBody<T extends z.ZodTypeAny>(\n  req: Request,\n  schema: T,\n): Promise<Result<z.infer<T>, { type: 'VALIDATION_ERROR'; errors: z.ZodIssue[] }>> {\n  try {\n    const json = await req.json();\n    const parsed = schema.parse(json);\n    return ok(parsed);\n  } catch (error) {\n    if (error instanceof z.ZodError) {\n      return err({ type: 'VALIDATION_ERROR', errors: error.errors });\n    }\n    // For non-Zod errors during JSON parsing (e.g., malformed JSON)\n    return err({ type: 'VALIDATION_ERROR', errors: [{\n      code: z.ZodIssueCode.custom,\n      path: [],\n      message: 'Invalid request body format',\n    }]});\n  }\n}\n\n// Helper to parse URL query parameters using Zod\nexport function parseQuery<T extends z.ZodTypeAny>(\n  req: Request,\n  schema: T,\n): Result<z.infer<T>, { type: 'VALIDATION_ERROR'; errors: z.ZodIssue[] }> {\n  try {\n    const url = new URL(req.url);\n    const queryParams: Record<string, string> = {};\n    for (const [key, value] of url.searchParams.entries()) {\n      queryParams[key] = value;\n    }\n    const parsed = schema.parse(queryParams);\n    return ok(parsed);\n  } catch (error) {\n    if (error instanceof z.ZodError) {\n      return err({ type: 'VALIDATION_ERROR', errors: error.errors });\n    }\n    return err({ type: 'VALIDATION_ERROR', errors: [{\n      code: z.ZodIssueCode.custom,\n      path: [],\n      message: 'Invalid query parameters format',\n    }]});\n  }\n}\n\n// Helper to parse URL path parameters using Zod\n// This assumes the router provides params on the Request object or a similar context.\n// For a generic handler, we'll simulate extracting from a path pattern.\n// In a real framework, `req.params` would be available.\nexport function parseParams<T extends z.ZodTypeAny>(\n  req: Request,\n  schema: T,\n  pathPattern: string, // e.g., \"/teams/:teamId/members/invite\"\n): Result<z.infer<T>, { type: 'VALIDATION_ERROR'; errors: z.ZodIssue[] }> {\n  try {\n    const url = new URL(req.url);\n    const path = url.pathname;\n    const paramNames: string[] = [];\n    const patternParts = pathPattern.split('/');\n    const pathParts = path.split('/');\n\n    const params: Record<string, string> = {};\n\n    for (let i = 0; i < patternParts.length; i++) {\n      if (patternParts[i].startsWith(':')) {\n        const paramName = patternParts[i].substring(1);\n        if (pathParts[i])"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 865
+      }
+    ],
+    "durationMs": 1711
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 903
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 492
+      }
+    ],
+    "durationMs": 1397
+  }
+}

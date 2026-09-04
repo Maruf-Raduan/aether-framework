@@ -1,0 +1,57 @@
+{
+  "promptId": "P07",
+  "condition": "aether",
+  "iteration": 2,
+  "passed": true,
+  "tokensIn": 1041,
+  "tokensOut": 640,
+  "tokensTotal": 1681,
+  "latencyMs": 16817,
+  "wallMs": 16817,
+  "files": [
+    {
+      "path": "modules/auth/assign-task.route.ts",
+      "length": 1164
+    },
+    {
+      "path": "lib/auth.ts",
+      "length": 239
+    },
+    {
+      "path": "lib/db.ts",
+      "length": 421
+    },
+    {
+      "path": "lib/validate.ts",
+      "length": 229
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

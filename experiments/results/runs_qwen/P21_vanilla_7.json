@@ -1,0 +1,129 @@
+{
+  "promptId": "P21",
+  "targetDesc": "Create a remove-member route. The owner cannot be removed. After removal, all tasks assigned to that user in the team are unassigned (transaction).",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 24906,
+      "tokensIn": 139,
+      "tokensOut": 549,
+      "wallMs": 26384,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/removeMember.ts",
+          "content": "import { Hono } from 'hono';\nimport { db } from '../db'; // Assuming you have a database setup\n\nconst app = new Hono();\n\napp.delete('/team/:teamId/member/:memberId', async (c) => {\n  const teamId = c.req.param('teamId');\n  const memberId = c.req.param('memberId');\n\n  if (!teamId || !memberId) {\n    return c.json({ error: 'Team ID and Member ID are required' }, 400);\n  }\n\n  // Check if the member is the owner\n  const team = await db.teams.findFirst({\n    where: { id: teamId, ownerId: memberId },\n  });\n\n  if (team) {\n    return c.json({ error: 'Owner cannot be removed' }, 403);\n  }\n\n  // Remove the member from the team\n  await db.members.deleteMany({\n    where: { teamId, userId: memberId },\n  });\n\n  // Unassign all tasks assigned to the member in the team\n  await db.tasks.updateMany({\n    where: { teamId, assigneeId: memberId },\n    data: { assigneeId: null },\n  });\n\n  return c.json({ message: 'Member removed successfully' }, 200);\n});\n\nexport default app;"
+        },
+        {
+          "path": "/src/db/schema.ts",
+          "content": "import { defineTable } from 'drizzle-orm';\nimport { pgTable, text, uuid } from 'drizzle-orm/pg-core';\n\nexport const teams = defineTable({\n  id: uuid().primaryKey(),\n  ownerId: uuid().notNull(),\n  name: text().notNull(),\n});\n\nexport const members = defineTable({\n  id: uuid().primaryKey(),\n  teamId: uuid().notNull(),\n  userId: uuid().notNull(),\n});\n\nexport const tasks = defineTable({\n  id: uuid().primaryKey(),\n  teamId: uuid().notNull(),\n  assigneeId: uuid().nullable(),\n  title: text().notNull(),\n});"
+        },
+        {
+          "path": "/src/db/index.ts",
+          "content": "import { drizzle } from 'drizzle-orm/pg-js';\nimport { pgClient } from './pgClient'; // Assuming you have a PostgreSQL client setup\n\nexport const db = drizzle(pgClient);"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 26384,
+  "finalFiles": [
+    {
+      "path": "/src/routes/removeMember.ts",
+      "content": "import { Hono } from 'hono';\nimport { db } from '../db'; // Assuming you have a database setup\n\nconst app = new Hono();\n\napp.delete('/team/:teamId/member/:memberId', async (c) => {\n  const teamId = c.req.param('teamId');\n  const memberId = c.req.param('memberId');\n\n  if (!teamId || !memberId) {\n    return c.json({ error: 'Team ID and Member ID are required' }, 400);\n  }\n\n  // Check if the member is the owner\n  const team = await db.teams.findFirst({\n    where: { id: teamId, ownerId: memberId },\n  });\n\n  if (team) {\n    return c.json({ error: 'Owner cannot be removed' }, 403);\n  }\n\n  // Remove the member from the team\n  await db.members.deleteMany({\n    where: { teamId, userId: memberId },\n  });\n\n  // Unassign all tasks assigned to the member in the team\n  await db.tasks.updateMany({\n    where: { teamId, assigneeId: memberId },\n    data: { assigneeId: null },\n  });\n\n  return c.json({ message: 'Member removed successfully' }, 200);\n});\n\nexport default app;"
+    },
+    {
+      "path": "/src/db/schema.ts",
+      "content": "import { defineTable } from 'drizzle-orm';\nimport { pgTable, text, uuid } from 'drizzle-orm/pg-core';\n\nexport const teams = defineTable({\n  id: uuid().primaryKey(),\n  ownerId: uuid().notNull(),\n  name: text().notNull(),\n});\n\nexport const members = defineTable({\n  id: uuid().primaryKey(),\n  teamId: uuid().notNull(),\n  userId: uuid().notNull(),\n});\n\nexport const tasks = defineTable({\n  id: uuid().primaryKey(),\n  teamId: uuid().notNull(),\n  assigneeId: uuid().nullable(),\n  title: text().notNull(),\n});"
+    },
+    {
+      "path": "/src/db/index.ts",
+      "content": "import { drizzle } from 'drizzle-orm/pg-js';\nimport { pgClient } from './pgClient'; // Assuming you have a PostgreSQL client setup\n\nexport const db = drizzle(pgClient);"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 925
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 548
+      }
+    ],
+    "durationMs": 1478
+  }
+}

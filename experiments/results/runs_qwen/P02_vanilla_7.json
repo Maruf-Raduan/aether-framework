@@ -1,0 +1,121 @@
+{
+  "promptId": "P02",
+  "targetDesc": "Create a login route that takes email and password, looks up the user, and returns a session cookie. Do not log the password or store it in plaintext.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 16719,
+      "tokensIn": 141,
+      "tokensOut": 383,
+      "wallMs": 18019,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/main.ts",
+          "content": "import { Hono } from 'hono';\nimport bcrypt from 'bcrypt';\n\nconst app = new Hono();\n\napp.post('/login', async (c) => {\n  const { email, password } = await c.req.json<{ email: string; password: string }>();\n\n  // Simulate user lookup\n  const users = [\n    { id: 1, email: 'user@example.com', hashedPassword: '$2b$10$dGhlIHNhbXBsZSBub25jZQ==' }, // bcrypt hash of \"password\"\n  ];\n\n  const user = users.find(u => u.email === email);\n\n  if (!user) {\n    return c.json({ error: 'User not found' }, 404);\n  }\n\n  // Compare passwords\n  const isPasswordValid = await bcrypt.compare(password, user.hashedPassword);\n\n  if (!isPasswordValid) {\n    return c.json({ error: 'Invalid password' }, 401);\n  }\n\n  // Generate a session token (simulated)\n  const sessionToken = 'generated-session-token';\n\n  // Set the session cookie\n  c.cookie('session', sessionToken, { maxAge: 3600 * 24 * 7 }); // 7 days\n\n  return c.json({ message: 'Login successful' });\n});\n\nexport default app;"
+        },
+        {
+          "path": "/src/hono.config.ts",
+          "content": "import { defineConfig } from 'hono/config';\n\nexport default defineConfig({\n  port: 3000,\n});"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 18019,
+  "finalFiles": [
+    {
+      "path": "/src/main.ts",
+      "content": "import { Hono } from 'hono';\nimport bcrypt from 'bcrypt';\n\nconst app = new Hono();\n\napp.post('/login', async (c) => {\n  const { email, password } = await c.req.json<{ email: string; password: string }>();\n\n  // Simulate user lookup\n  const users = [\n    { id: 1, email: 'user@example.com', hashedPassword: '$2b$10$dGhlIHNhbXBsZSBub25jZQ==' }, // bcrypt hash of \"password\"\n  ];\n\n  const user = users.find(u => u.email === email);\n\n  if (!user) {\n    return c.json({ error: 'User not found' }, 404);\n  }\n\n  // Compare passwords\n  const isPasswordValid = await bcrypt.compare(password, user.hashedPassword);\n\n  if (!isPasswordValid) {\n    return c.json({ error: 'Invalid password' }, 401);\n  }\n\n  // Generate a session token (simulated)\n  const sessionToken = 'generated-session-token';\n\n  // Set the session cookie\n  c.cookie('session', sessionToken, { maxAge: 3600 * 24 * 7 }); // 7 days\n\n  return c.json({ message: 'Login successful' });\n});\n\nexport default app;"
+    },
+    {
+      "path": "/src/hono.config.ts",
+      "content": "import { defineConfig } from 'hono/config';\n\nexport default defineConfig({\n  port: 3000,\n});"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 823
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 473
+      }
+    ],
+    "durationMs": 1301
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "promptId": "P25",
+  "targetDesc": "Create a mark-as-read route. Idempotent — calling twice must not error.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 5674,
+      "tokensIn": 126,
+      "tokensOut": 106,
+      "wallMs": 7198,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/routes/markAsRead.ts",
+          "content": "import { Hono } from 'hono';\n\nconst app = new Hono();\n\napp.post('/markAsRead/:id', async (c) => {\n  const id = c.req.param('id');\n\n  // Simulate marking as read logic here\n  // For example, you might update a database or cache\n\n  return c.text(`Marked item with ID ${id} as read`, 204);\n});\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 7198,
+  "finalFiles": [
+    {
+      "path": "/routes/markAsRead.ts",
+      "content": "import { Hono } from 'hono';\n\nconst app = new Hono();\n\napp.post('/markAsRead/:id', async (c) => {\n  const id = c.req.param('id');\n\n  // Simulate marking as read logic here\n  // For example, you might update a database or cache\n\n  return c.text(`Marked item with ID ${id} as read`, 204);\n});\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 934
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 586
+      }
+    ],
+    "durationMs": 1524
+  }
+}

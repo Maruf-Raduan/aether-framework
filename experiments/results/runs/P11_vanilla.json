@@ -1,0 +1,113 @@
+{
+  "promptId": "P11",
+  "targetDesc": "Create a route that transfers a task from one team to another. Both teams must exist; the caller must be admin of the source team. Emit a task.transferred event.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 17227,
+      "tokensIn": 187,
+      "tokensOut": 2498,
+      "wallMs": 18586,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types.ts\nexport interface User {\n  id: string;\n  name: string;\n  teamMemberships: { teamId: string; role: 'member' | 'admin' }[];\n}\n\nexport interface Team {\n  id: string;\n  name: string;\n}\n\nexport interface Task {\n  id: string;\n  title: string;\n  description: string;\n  teamId: string;\n  assignedTo?: string; // User ID\n  status: 'pending' | 'in-progress' | 'completed';\n}\n\n// Custom Hono context for our application\nexport type AppContext = {\n  Variables: {\n    user: User; // Injected by auth middleware\n  };\n};\n```\n\n```aether:src/db.ts\nimport { Task, Team, User } from './types';\n\n// --- In-memory \"Database\" ---\nconst users: User[] = [\n  {\n    id: 'user-1',\n    name: 'Alice Admin',\n    teamMemberships: [{ teamId: 'team-1', role: 'admin' }],\n  },\n  {\n    id: 'user-2',\n    name: 'Bob Member',\n    teamMemberships: [{ teamId: 'team-1', role: 'member' }],\n  },\n  {\n    id: 'user-3',\n    name: 'Charlie Admin',\n    teamMemberships: [{ teamId: 'team-2', role: 'admin' }],\n  },\n];\n\nconst teams: Team[] = [\n  { id: 'team-1', name: 'Alpha Team' },\n  { id: 'team-2', name: 'Beta Team' },\n  { id: 'team-3', name: 'Gamma Team' },\n];\n\nconst tasks: Task[] = [\n  {\n    id: 'task-1',\n    title: 'Implement login feature',\n    description: 'Develop the user authentication system.',\n    teamId: 'team-1',\n    assignedTo: 'user-2',\n    status: 'in-progress',\n  },\n  {\n    id: 'task-2',\n    title: 'Design database schema',\n    description: 'Create the initial database structure.',\n    teamId: 'team-1',\n    assignedTo: 'user-1',\n    status: 'pending',\n  },\n  {\n    id: 'task-3',\n    title: 'Setup CI/CD pipeline',\n    description: 'Configure automated build and deployment.',\n    teamId: 'team-2',\n    assignedTo: 'user-3',\n    status: 'pending',\n  },\n];\n\n// --- Database Access Functions ---\n\nexport const getUserById = (id: string): User | undefined => {\n  return users.find((u) => u.id === id);\n};\n\nexport const getTeamById = (id: string): Team | undefined => {\n  return teams.find((t) => t.id === id);\n};\n\nexport const getTaskById = (id: string): Task | undefined => {\n  return tasks.find((t) => t.id === id);\n};\n\nexport const updateTask = (updatedTask: Task): Task | undefined => {\n  const index = tasks.findIndex((t) => t.id === updatedTask.id);\n  if (index !== -1) {\n    tasks[index] = { ...tasks[index], ...updatedTask };\n    return tasks[index];\n  }\n  return undefined;\n};\n```\n\n```aether:src/events.ts\n// --- Simple Event Emitter Simulation ---\ntype EventName = 'task.transferred';\n\ninterface TaskTransferredEvent {\n  taskId: string;\n  oldTeamId: string;\n  newTeamId: string;\n  transferredByUserId: string;\n  timestamp: Date;\n}\n\ntype EventPayload = TaskTransferredEvent;\n\ntype EventListener = (payload: EventPayload) => void;\n\nconst listeners: Map<EventName, EventListener[]> = new Map();\n\nexport const emit = (eventName: EventName, payload: EventPayload) => {\n  const eventListeners = listeners.get(eventName);\n  if (eventListeners) {\n    console.log(`[EVENT] Emitting '${eventName}' with payload:`, payload);\n    eventListeners.forEach((listener) => listener(payload));\n  }\n};\n\nexport const on = (eventName: EventName, listener: EventListener) => {\n  if (!listeners.has(eventName)) {\n    listeners.set(eventName, []);\n  }\n  listeners.get(eventName)?.push(listener);\n};\n\n// Example listener (for demonstration/logging)\non('task.transferred', (event) => {\n  console.log(\n    `[LOG] Task ${event.taskId} transferred from ${event.oldTeamId} to ${event.newTeamId} by ${event.transferredByUserId} at ${event.timestamp.toISOString()}`\n  );\n});\n```\n\n```aether:src/middleware/auth.ts\nimport { Context, Next } from 'hono';\nimport { AppContext, User } from '../types';\nimport { getUserById } from '../db';\n\n// This is a simplified auth middleware. In a real app, it would\n// parse tokens, verify sessions, etc. For this exercise, we'll\n// just assume a 'x-user-id' header is present.\nexport const authMiddleware = async (c: Context<AppContext>, next: Next) => {\n  const userId = c.req.header('x-user-id');\n\n  if (!userId) {\n    return c.json({ error: 'Authentication required: x-user-id header missing' }, 401);\n  }\n\n  const user: User | undefined = getUserById(userId);\n\n  if (!user) {\n    return c.json({ error: 'Authentication failed: User not found' }, 401);\n  }\n\n  // Attach the user object to the Hono context for later use\n  c.set('user', user);\n  await next();\n};\n```\n\n```aether:src/routes/tasks/transfer.ts\nimport { Hono } from 'hono';\nimport { AppContext } from '../../types';\nimport { getTaskById, getTeamById, updateTask } from '../../db';\nimport { authMiddleware } from '../../middleware/auth';\nimport { emit } from '../../events';\n\n// Define the Hono app with our custom context\nconst tasksRouter = new Hono<AppContext>();\n\ntasksRouter.put('/:taskId/transfer', authMiddleware, async (c) => {\n  const { taskId } = c.req.param();\n  const currentUser = c.get('user'); // Injected by authMiddleware\n\n  const { sourceTeamId, targetTeamId } = await c.req.json();\n\n  // 1. Validate input\n  if (!sourceTeamId || !targetTeamId) {\n    return c.json({ error: 'Missing sourceTeamId or targetTeamId in request body' }, 400);\n  }\n\n  if (sourceTeamId === targetTeamId) {\n    return c.json({ error: 'Cannot transfer a task to its current team' }, 400);\n  }\n\n  // 2. Check if task exists\n  const task = getTaskById(taskId);\n  if (!task) {\n    return c.json({ error: `Task with ID '${taskId}' not found` }, 404);\n  }\n\n  // 3. Verify task belongs to the source team\n  if (task.teamId !== sourceTeamId) {\n    return c.json(\n      {\n        error: `Task '${taskId}' does not belong to source team '${sourceTeamId}'. It belongs to '${task.teamId}'.`,\n      },\n      400\n    );\n  }\n\n  // 4. Check if source and target teams exist\n  const sourceTeam = getTeamById(sourceTeamId);\n  const targetTeam = getTeamById(targetTeamId);\n\n  if (!sourceTeam) {\n    return c.json({ error: `Source team with ID '${sourceTeamId}' not found` }, 404);\n  }\n  if (!targetTeam) {\n    return c.json({ error: `Target team with ID '${targetTeamId}' not found` }, 404);\n  }\n\n  // 5. Check if the current user is an admin of the source team\n  const isSourceTeamAdmin = currentUser.teamMemberships.some(\n    (membership) => membership.teamId === sourceTeamId && membership.role === 'admin'\n  );\n\n  if (!isSourceTeamAdmin) {\n    return c.json(\n      { error: `User '${currentUser.id}' is not an admin of source team '${sourceTeamId}'` },\n      403\n    );\n  }\n\n  // 6. Perform the transfer\n  const oldTeamId = task.teamId;\n  task.teamId = targetTeamId; // Update the task's teamId\n\n  const updatedTask = updateTask(task);\n\n  if (!updatedTask) {\n    // This should ideally not happen if getTaskById found it, but good for robustness\n    return c.json({ error: 'Failed to update task' }, 500);\n  }\n\n  // 7. Emit task.transferred event\n  emit('task.transferred', {\n    taskId: updatedTask.id,\n    oldTeamId: oldTeamId,\n    newTeamId: updatedTask.teamId,\n    transferredByUserId: currentUser.id,\n    timestamp: new Date(),\n  });\n\n  // 8. Respond with success\n  return c.json({ message: 'Task transferred successfully', task: updatedTask }, 200);\n});\n\nexport default tasksRouter;\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { logger } from 'hono/logger';\nimport { AppContext } from './types';\nimport tasksRouter from './routes/tasks/transfer';\n\nconst app = new Hono<AppContext>();\n\n// Middleware for logging requests\napp.use(logger());\n\n// Mount the tasks router\napp.route('/tasks', tasksRouter);\n\n// Basic root route\napp.get('/', (c) => {\n  return c.text('Task Transfer API is running!');\n});\n\n// Global error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ error: 'Internal Server Error' }, 500);\n});\n\n// Export the Hono app for deployment (e.g., with Node.js server or Vercel)\nexport default app;\n\n// To run locally with Node.js:\n// import { serve } from '@hono/node-server';\n// serve({ fetch: app.fetch, port: 3000 }, () => {\n//   console.log('Server is running on http://localhost:3000');\n// });\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 18586,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types.ts\nexport interface User {\n  id: string;\n  name: string;\n  teamMemberships: { teamId: string; role: 'member' | 'admin' }[];\n}\n\nexport interface Team {\n  id: string;\n  name: string;\n}\n\nexport interface Task {\n  id: string;\n  title: string;\n  description: string;\n  teamId: string;\n  assignedTo?: string; // User ID\n  status: 'pending' | 'in-progress' | 'completed';\n}\n\n// Custom Hono context for our application\nexport type AppContext = {\n  Variables: {\n    user: User; // Injected by auth middleware\n  };\n};\n```\n\n```aether:src/db.ts\nimport { Task, Team, User } from './types';\n\n// --- In-memory \"Database\" ---\nconst users: User[] = [\n  {\n    id: 'user-1',\n    name: 'Alice Admin',\n    teamMemberships: [{ teamId: 'team-1', role: 'admin' }],\n  },\n  {\n    id: 'user-2',\n    name: 'Bob Member',\n    teamMemberships: [{ teamId: 'team-1', role: 'member' }],\n  },\n  {\n    id: 'user-3',\n    name: 'Charlie Admin',\n    teamMemberships: [{ teamId: 'team-2', role: 'admin' }],\n  },\n];\n\nconst teams: Team[] = [\n  { id: 'team-1', name: 'Alpha Team' },\n  { id: 'team-2', name: 'Beta Team' },\n  { id: 'team-3', name: 'Gamma Team' },\n];\n\nconst tasks: Task[] = [\n  {\n    id: 'task-1',\n    title: 'Implement login feature',\n    description: 'Develop the user authentication system.',\n    teamId: 'team-1',\n    assignedTo: 'user-2',\n    status: 'in-progress',\n  },\n  {\n    id: 'task-2',\n    title: 'Design database schema',\n    description: 'Create the initial database structure.',\n    teamId: 'team-1',\n    assignedTo: 'user-1',\n    status: 'pending',\n  },\n  {\n    id: 'task-3',\n    title: 'Setup CI/CD pipeline',\n    description: 'Configure automated build and deployment.',\n    teamId: 'team-2',\n    assignedTo: 'user-3',\n    status: 'pending',\n  },\n];\n\n// --- Database Access Functions ---\n\nexport const getUserById = (id: string): User | undefined => {\n  return users.find((u) => u.id === id);\n};\n\nexport const getTeamById = (id: string): Team | undefined => {\n  return teams.find((t) => t.id === id);\n};\n\nexport const getTaskById = (id: string): Task | undefined => {\n  return tasks.find((t) => t.id === id);\n};\n\nexport const updateTask = (updatedTask: Task): Task | undefined => {\n  const index = tasks.findIndex((t) => t.id === updatedTask.id);\n  if (index !== -1) {\n    tasks[index] = { ...tasks[index], ...updatedTask };\n    return tasks[index];\n  }\n  return undefined;\n};\n```\n\n```aether:src/events.ts\n// --- Simple Event Emitter Simulation ---\ntype EventName = 'task.transferred';\n\ninterface TaskTransferredEvent {\n  taskId: string;\n  oldTeamId: string;\n  newTeamId: string;\n  transferredByUserId: string;\n  timestamp: Date;\n}\n\ntype EventPayload = TaskTransferredEvent;\n\ntype EventListener = (payload: EventPayload) => void;\n\nconst listeners: Map<EventName, EventListener[]> = new Map();\n\nexport const emit = (eventName: EventName, payload: EventPayload) => {\n  const eventListeners = listeners.get(eventName);\n  if (eventListeners) {\n    console.log(`[EVENT] Emitting '${eventName}' with payload:`, payload);\n    eventListeners.forEach((listener) => listener(payload));\n  }\n};\n\nexport const on = (eventName: EventName, listener: EventListener) => {\n  if (!listeners.has(eventName)) {\n    listeners.set(eventName, []);\n  }\n  listeners.get(eventName)?.push(listener);\n};\n\n// Example listener (for demonstration/logging)\non('task.transferred', (event) => {\n  console.log(\n    `[LOG] Task ${event.taskId} transferred from ${event.oldTeamId} to ${event.newTeamId} by ${event.transferredByUserId} at ${event.timestamp.toISOString()}`\n  );\n});\n```\n\n```aether:src/middleware/auth.ts\nimport { Context, Next } from 'hono';\nimport { AppContext, User } from '../types';\nimport { getUserById } from '../db';\n\n// This is a simplified auth middleware. In a real app, it would\n// parse tokens, verify sessions, etc. For this exercise, we'll\n// just assume a 'x-user-id' header is present.\nexport const authMiddleware = async (c: Context<AppContext>, next: Next) => {\n  const userId = c.req.header('x-user-id');\n\n  if (!userId) {\n    return c.json({ error: 'Authentication required: x-user-id header missing' }, 401);\n  }\n\n  const user: User | undefined = getUserById(userId);\n\n  if (!user) {\n    return c.json({ error: 'Authentication failed: User not found' }, 401);\n  }\n\n  // Attach the user object to the Hono context for later use\n  c.set('user', user);\n  await next();\n};\n```\n\n```aether:src/routes/tasks/transfer.ts\nimport { Hono } from 'hono';\nimport { AppContext } from '../../types';\nimport { getTaskById, getTeamById, updateTask } from '../../db';\nimport { authMiddleware } from '../../middleware/auth';\nimport { emit } from '../../events';\n\n// Define the Hono app with our custom context\nconst tasksRouter = new Hono<AppContext>();\n\ntasksRouter.put('/:taskId/transfer', authMiddleware, async (c) => {\n  const { taskId } = c.req.param();\n  const currentUser = c.get('user'); // Injected by authMiddleware\n\n  const { sourceTeamId, targetTeamId } = await c.req.json();\n\n  // 1. Validate input\n  if (!sourceTeamId || !targetTeamId) {\n    return c.json({ error: 'Missing sourceTeamId or targetTeamId in request body' }, 400);\n  }\n\n  if (sourceTeamId === targetTeamId) {\n    return c.json({ error: 'Cannot transfer a task to its current team' }, 400);\n  }\n\n  // 2. Check if task exists\n  const task = getTaskById(taskId);\n  if (!task) {\n    return c.json({ error: `Task with ID '${taskId}' not found` }, 404);\n  }\n\n  // 3. Verify task belongs to the source team\n  if (task.teamId !== sourceTeamId) {\n    return c.json(\n      {\n        error: `Task '${taskId}' does not belong to source team '${sourceTeamId}'. It belongs to '${task.teamId}'.`,\n      },\n      400\n    );\n  }\n\n  // 4. Check if source and target teams exist\n  const sourceTeam = getTeamById(sourceTeamId);\n  const targetTeam = getTeamById(targetTeamId);\n\n  if (!sourceTeam) {\n    return c.json({ error: `Source team with ID '${sourceTeamId}' not found` }, 404);\n  }\n  if (!targetTeam) {\n    return c.json({ error: `Target team with ID '${targetTeamId}' not found` }, 404);\n  }\n\n  // 5. Check if the current user is an admin of the source team\n  const isSourceTeamAdmin = currentUser.teamMemberships.some(\n    (membership) => membership.teamId === sourceTeamId && membership.role === 'admin'\n  );\n\n  if (!isSourceTeamAdmin) {\n    return c.json(\n      { error: `User '${currentUser.id}' is not an admin of source team '${sourceTeamId}'` },\n      403\n    );\n  }\n\n  // 6. Perform the transfer\n  const oldTeamId = task.teamId;\n  task.teamId = targetTeamId; // Update the task's teamId\n\n  const updatedTask = updateTask(task);\n\n  if (!updatedTask) {\n    // This should ideally not happen if getTaskById found it, but good for robustness\n    return c.json({ error: 'Failed to update task' }, 500);\n  }\n\n  // 7. Emit task.transferred event\n  emit('task.transferred', {\n    taskId: updatedTask.id,\n    oldTeamId: oldTeamId,\n    newTeamId: updatedTask.teamId,\n    transferredByUserId: currentUser.id,\n    timestamp: new Date(),\n  });\n\n  // 8. Respond with success\n  return c.json({ message: 'Task transferred successfully', task: updatedTask }, 200);\n});\n\nexport default tasksRouter;\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { logger } from 'hono/logger';\nimport { AppContext } from './types';\nimport tasksRouter from './routes/tasks/transfer';\n\nconst app = new Hono<AppContext>();\n\n// Middleware for logging requests\napp.use(logger());\n\n// Mount the tasks router\napp.route('/tasks', tasksRouter);\n\n// Basic root route\napp.get('/', (c) => {\n  return c.text('Task Transfer API is running!');\n});\n\n// Global error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ error: 'Internal Server Error' }, 500);\n});\n\n// Export the Hono app for deployment (e.g., with Node.js server or Vercel)\nexport default app;\n\n// To run locally with Node.js:\n// import { serve } from '@hono/node-server';\n// serve({ fetch: app.fetch, port: 3000 }, () => {\n//   console.log('Server is running on http://localhost:3000');\n// });\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 877
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 477
+      }
+    ],
+    "durationMs": 1359
+  }
+}

@@ -1,0 +1,5 @@
+• LLM code-gen studies measure correctness; conformance, tokens, cost stay unmeasured.
+• 2,451 evaluations across 5 model families reveal a capacity-dependent funnel effect.
+• Models 12B+ show 34-52% output token cuts and up to 37% API cost savings via Aether.
+• Models 8B and under show negligible or negative effects, with more verbose output.
+• Larger-model token compression coincides with lower compilation reliability.

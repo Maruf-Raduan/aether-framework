@@ -1,0 +1,73 @@
+{
+  "promptId": "P22",
+  "condition": "vanilla",
+  "iteration": 9,
+  "passed": true,
+  "tokensIn": 104,
+  "tokensOut": 579,
+  "tokensTotal": 683,
+  "latencyMs": 14914,
+  "wallMs": 14914,
+  "files": [
+    {
+      "path": "src/routes/team.renames.ts",
+      "length": 0
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 731
+    },
+    {
+      "path": "src/middleware/admin.ts",
+      "length": 0
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 222
+    },
+    {
+      "path": "src/services/team.ts",
+      "length": 0
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 330
+    },
+    {
+      "path": "src/routes/team.rename.request.ts",
+      "length": 0
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 203
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

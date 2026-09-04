@@ -1,0 +1,113 @@
+{
+  "promptId": "P03",
+  "targetDesc": "Create a logout route that invalidates the current session and clears the cookie.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 3549,
+      "tokensIn": 124,
+      "tokensOut": 103,
+      "wallMs": 4900,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/routes/logout.ts",
+          "content": "import { Hono } from 'hono';\n\nconst app = new Hono();\n\napp.post('/logout', (c) => {\n  // Clear the session cookie\n  c.cookie('session', '', {\n    expires: new Date(0), // Set expiration date to past\n    httpOnly: true,\n    secure: process.env.NODE_ENV === 'production',\n  });\n\n  return c.text('Logged out successfully');\n});\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 4900,
+  "finalFiles": [
+    {
+      "path": "/routes/logout.ts",
+      "content": "import { Hono } from 'hono';\n\nconst app = new Hono();\n\napp.post('/logout', (c) => {\n  // Clear the session cookie\n  c.cookie('session', '', {\n    expires: new Date(0), // Set expiration date to past\n    httpOnly: true,\n    secure: process.env.NODE_ENV === 'production',\n  });\n\n  return c.text('Logged out successfully');\n});\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 889
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 454
+      }
+    ],
+    "durationMs": 1350
+  }
+}

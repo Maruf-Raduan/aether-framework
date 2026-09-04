@@ -1,0 +1,250 @@
+{
+  "promptId": "P17",
+  "targetDesc": "Create a password-reset-request route that emails a one-time reset link. Always return 200 even when the email is unknown (avoid user enumeration).",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 15147,
+      "tokensIn": 1200,
+      "tokensOut": 1387,
+      "wallMs": 18522,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:modules/auth/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'auth',\n  description: 'Handles user authentication, session management, and authorization utilities.',\n\n  dependencies: { modules: [] },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/auth/login',   auth: false },\n      { method: 'POST', path: '/auth/logout',  auth: true },\n      { method: 'GET',  path: '/auth/session', auth: true },\n      { method: 'POST', path: '/auth/password-reset-request', auth: false }, // New route\n    ],\n    functions: ['requireUser', 'getSession', 'createSession', 'invalidateSession'],\n    types: ['User', 'Session', 'AuthError'],\n  },\n\n  sideEffects: [\n    'writes to: sessions table',\n    'reads from: users table',\n    'writes to: password_reset_tokens table', // New side effect\n    'sends: password reset emails',           // New side effect\n  ],\n\n  invariants: [\n    'A session must always be bound to exactly one user',\n    'Expired sessions must never be returned as valid',\n    'Logout must invalidate the session immediately',\n    'Password reset tokens must be single-use and expire after a set duration', // New invariant\n    'Password reset requests must not reveal user existence',                   // New invariant\n  ],\n});\n```\n```aether:modules/auth/routes/password-reset-request.ts\nimport { Request, Response } from 'aether';\nimport { parseBody } from '/lib/validate';\nimport { ok, err, Result } from '/lib/result';\nimport { query } from '/lib/db';\nimport { z } from 'zod';\nimport crypto from 'crypto'; // For generating secure tokens\n\n// Assume a simple email sending utility exists\n// In a real app, this would integrate with an email service (e.g., SendGrid, Mailgun)\nasync function sendEmail(to: string, subject: string, body: string): Promise<Result<true, Error>> {\n  console.log(`Sending email to: ${to}`);\n  console.log(`Subject: ${subject}`);\n  console.log(`Body: ${body}`);\n  // Simulate email sending delay\n  await new Promise(resolve => setTimeout(resolve, 500));\n  // In a real application, you'd handle potential email sending errors here\n  return ok(true);\n}\n\n// Schema for the request body\nconst passwordResetRequestSchema = z.object({\n  email: z.string().email('Invalid email address'),\n});\n\n// Generate a secure, URL-safe token\nfunction generateSecureToken(): string {\n  return crypto.randomBytes(32).toString('hex'); // 64 characters long\n}\n\nexport default async function passwordResetRequest(req: Request): Promise<Response> {\n  const bodyResult = await parseBody(req, passwordResetRequestSchema);\n\n  if (bodyResult.isErr()) {\n    // For security, we still return 200 OK even on validation errors\n    // to avoid revealing information about expected input formats.\n    // Log the error internally for debugging.\n    console.warn('Password reset request body validation failed:', bodyResult.error);\n    return new Response(null, { status: 200 });\n  }\n\n  const { email } = bodyResult.value;\n\n  // Look up the user by email\n  const userQueryResult = await query<{ id: string }>('SELECT id FROM users WHERE email = $1', [email]);\n\n  if (userQueryResult.isErr()) {\n    console.error('Database error during user lookup for password reset:', userQueryResult.error);\n    // System error, but for security, still return 200 OK to the client\n    return new Response(null, { status: 200 });\n  }\n\n  const user = userQueryResult.value[0];\n\n  if (user) {\n    // User found, proceed to generate and store token\n    const token = generateSecureToken();\n    const expiresAt = new Date(Date.now() + 3600 * 1000); // Token valid for 1 hour\n\n    const insertTokenResult = await query(\n      `INSERT INTO password_reset_tokens (user_id, token, expires_at)\n       VALUES ($1, $2, $3)`,\n      [user.id, token, expiresAt.toISOString()]\n    );\n\n    if (insertTokenResult.isErr()) {\n      console.error('Database error inserting password reset token:', insertTokenResult.error);\n      // System error, but for security, still return 200 OK to the client\n      return new Response(null, { status: 200 });\n    }\n\n    // Construct the reset link (replace with your actual frontend URL)\n    const resetLink = `http://localhost:3000/reset-password?token=${token}`; // TODO: Use actual domain from config\n\n    const emailResult = await sendEmail(\n      email,\n      'Password Reset Request for my-app',\n      `You have requested a password reset for your my-app account.\n      Please click on the following link to reset your password: ${resetLink}\n\n      This link will expire in 1 hour. If you did not request this, please ignore this email.`\n    );\n\n    if (emailResult.isErr()) {\n      console.error('Failed to send password reset email:', emailResult.error);\n      // Log the error, but still return 200 OK to the client\n    }\n  } else {\n    // User not found. For security, do nothing and still return 200 OK.\n    console.log(`Password reset requested for unknown email: ${email}. Returning 200 OK.`);\n  }\n\n  // Always return 200 OK to prevent user enumeration, regardless of whether the email exists\n  // or if there were internal errors (which should be logged).\n  return new Response(null, { status: 200 });\n}\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 18522,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:modules/auth/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'auth',\n  description: 'Handles user authentication, session management, and authorization utilities.',\n\n  dependencies: { modules: [] },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/auth/login',   auth: false },\n      { method: 'POST', path: '/auth/logout',  auth: true },\n      { method: 'GET',  path: '/auth/session', auth: true },\n      { method: 'POST', path: '/auth/password-reset-request', auth: false }, // New route\n    ],\n    functions: ['requireUser', 'getSession', 'createSession', 'invalidateSession'],\n    types: ['User', 'Session', 'AuthError'],\n  },\n\n  sideEffects: [\n    'writes to: sessions table',\n    'reads from: users table',\n    'writes to: password_reset_tokens table', // New side effect\n    'sends: password reset emails',           // New side effect\n  ],\n\n  invariants: [\n    'A session must always be bound to exactly one user',\n    'Expired sessions must never be returned as valid',\n    'Logout must invalidate the session immediately',\n    'Password reset tokens must be single-use and expire after a set duration', // New invariant\n    'Password reset requests must not reveal user existence',                   // New invariant\n  ],\n});\n```\n```aether:modules/auth/routes/password-reset-request.ts\nimport { Request, Response } from 'aether';\nimport { parseBody } from '/lib/validate';\nimport { ok, err, Result } from '/lib/result';\nimport { query } from '/lib/db';\nimport { z } from 'zod';\nimport crypto from 'crypto'; // For generating secure tokens\n\n// Assume a simple email sending utility exists\n// In a real app, this would integrate with an email service (e.g., SendGrid, Mailgun)\nasync function sendEmail(to: string, subject: string, body: string): Promise<Result<true, Error>> {\n  console.log(`Sending email to: ${to}`);\n  console.log(`Subject: ${subject}`);\n  console.log(`Body: ${body}`);\n  // Simulate email sending delay\n  await new Promise(resolve => setTimeout(resolve, 500));\n  // In a real application, you'd handle potential email sending errors here\n  return ok(true);\n}\n\n// Schema for the request body\nconst passwordResetRequestSchema = z.object({\n  email: z.string().email('Invalid email address'),\n});\n\n// Generate a secure, URL-safe token\nfunction generateSecureToken(): string {\n  return crypto.randomBytes(32).toString('hex'); // 64 characters long\n}\n\nexport default async function passwordResetRequest(req: Request): Promise<Response> {\n  const bodyResult = await parseBody(req, passwordResetRequestSchema);\n\n  if (bodyResult.isErr()) {\n    // For security, we still return 200 OK even on validation errors\n    // to avoid revealing information about expected input formats.\n    // Log the error internally for debugging.\n    console.warn('Password reset request body validation failed:', bodyResult.error);\n    return new Response(null, { status: 200 });\n  }\n\n  const { email } = bodyResult.value;\n\n  // Look up the user by email\n  const userQueryResult = await query<{ id: string }>('SELECT id FROM users WHERE email = $1', [email]);\n\n  if (userQueryResult.isErr()) {\n    console.error('Database error during user lookup for password reset:', userQueryResult.error);\n    // System error, but for security, still return 200 OK to the client\n    return new Response(null, { status: 200 });\n  }\n\n  const user = userQueryResult.value[0];\n\n  if (user) {\n    // User found, proceed to generate and store token\n    const token = generateSecureToken();\n    const expiresAt = new Date(Date.now() + 3600 * 1000); // Token valid for 1 hour\n\n    const insertTokenResult = await query(\n      `INSERT INTO password_reset_tokens (user_id, token, expires_at)\n       VALUES ($1, $2, $3)`,\n      [user.id, token, expiresAt.toISOString()]\n    );\n\n    if (insertTokenResult.isErr()) {\n      console.error('Database error inserting password reset token:', insertTokenResult.error);\n      // System error, but for security, still return 200 OK to the client\n      return new Response(null, { status: 200 });\n    }\n\n    // Construct the reset link (replace with your actual frontend URL)\n    const resetLink = `http://localhost:3000/reset-password?token=${token}`; // TODO: Use actual domain from config\n\n    const emailResult = await sendEmail(\n      email,\n      'Password Reset Request for my-app',\n      `You have requested a password reset for your my-app account.\n      Please click on the following link to reset your password: ${resetLink}\n\n      This link will expire in 1 hour. If you did not request this, please ignore this email.`\n    );\n\n    if (emailResult.isErr()) {\n      console.error('Failed to send password reset email:', emailResult.error);\n      // Log the error, but still return 200 OK to the client\n    }\n  } else {\n    // User not found. For security, do nothing and still return 200 OK.\n    console.log(`Password reset requested for unknown email: ${email}. Returning 200 OK.`);\n  }\n\n  // Always return 200 OK to prevent user enumeration, regardless of whether the email exists\n  // or if there were internal errors (which should be logged).\n  return new Response(null, { status: 200 });\n}\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 907
+      }
+    ],
+    "durationMs": 1941
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 924
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 507
+      }
+    ],
+    "durationMs": 1433
+  }
+}

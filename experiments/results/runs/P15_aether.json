@@ -1,0 +1,250 @@
+{
+  "promptId": "P15",
+  "targetDesc": "Create a Stripe webhook handler that verifies the signature, parses the event, and updates the matching subscription. Idempotent on event id.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 20590,
+      "tokensIn": 1192,
+      "tokensOut": 2320,
+      "wallMs": 23554,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:modules/billing/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'billing',\n  description: 'Handles billing-related operations, including Stripe webhooks and subscription management.',\n\n  dependencies: { modules: [] },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/stripe/webhook', auth: false },\n    ],\n    functions: [], // No exposed functions for other modules for now\n    types: [],     // No exposed types for other modules for now\n  },\n\n  sideEffects: [\n    'writes to: subscriptions table',\n    'writes to: processed_webhooks table',\n  ],\n\n  invariants: [\n    'Stripe webhooks must be verified before processing.',\n    'Webhook events must be processed idempotently.',\n    'Subscription status updates must reflect the latest state from Stripe.',\n  ],\n});\n```\n```aether:modules/billing/services/subscription_service.ts\nimport { query } from '~/lib/db';\nimport { Result, ok, err } from '~/lib/result';\n\n// Define internal types for clarity\ntype SubscriptionStatus = 'active' | 'canceled' | 'past_due' | 'unpaid' | 'trialing' | 'incomplete' | 'incomplete_expired' | 'paused';\n\n/**\n * Records a processed webhook event ID to ensure idempotency.\n * @param eventId The unique ID of the Stripe event.\n * @returns A Result indicating success or if the event was already processed or a DB error.\n */\nexport async function recordProcessedEvent(eventId: string): Promise<Result<void, 'ALREADY_PROCESSED' | 'DB_ERROR'>> {\n  try {\n    // Attempt to insert the event ID. If it already exists (due to unique constraint),\n    // the ON CONFLICT clause will prevent an error and do nothing.\n    const result = await query(\n      `INSERT INTO processed_webhooks (event_id, created_at)\n       VALUES ($1, NOW())\n       ON CONFLICT (event_id) DO NOTHING\n       RETURNING event_id;`,\n      [eventId]\n    );\n\n    if (result.rows.length === 0) {\n      // If no row was returned, it means the event_id already existed and DO NOTHING was executed.\n      return err('ALREADY_PROCESSED');\n    }\n\n    return ok(undefined);\n  } catch (error) {\n    console.error('Database error recording processed event:', error);\n    return err('DB_ERROR');\n  }\n}\n\n/**\n * Updates the status and period end of a subscription in the database.\n * @param stripeSubscriptionId The Stripe ID of the subscription.\n * @param status The new status of the subscription.\n * @param currentPeriodEnd The end date of the current billing period.\n * @returns A Result indicating success or if the subscription was not found or a DB error.\n */\nexport async function updateSubscriptionStatus(\n  stripeSubscriptionId: string,\n  status: SubscriptionStatus,\n  currentPeriodEnd: Date\n): Promise<Result<void, 'NOT_FOUND' | 'DB_ERROR'>> {\n  try {\n    const result = await query(\n      `UPDATE subscriptions\n       SET status = $1, current_period_end = $2, updated_at = NOW()\n       WHERE stripe_subscription_id = $3;`,\n      [status, currentPeriodEnd, stripeSubscriptionId]\n    );\n\n    if (result.rowCount === 0) {\n      return err('NOT_FOUND');\n    }\n\n    return ok(undefined);\n  } catch (error) {\n    console.error('Database error updating subscription status:', error);\n    return err('DB_ERROR');\n  }\n}\n\n/**\n * Creates a new subscription in the database.\n * This might be called for `customer.subscription.created` events.\n * @param stripeSubscriptionId The Stripe ID of the subscription.\n * @param userId The ID of the user associated with the subscription.\n * @param status The initial status of the subscription.\n * @param currentPeriodEnd The end date of the current billing period.\n * @returns A Result indicating success or a DB error.\n */\nexport async function createSubscription(\n  stripeSubscriptionId: string,\n  userId: string, // Assuming a user ID is available or can be derived\n  status: SubscriptionStatus,\n  currentPeriodEnd: Date\n): Promise<Result<void, 'DB_ERROR'>> {\n  try {\n    await query(\n      `INSERT INTO subscriptions (stripe_subscription_id, user_id, status, current_period_end, created_at, updated_at)\n       VALUES ($1, $2, $3, $4, NOW(), NOW());`,\n      [stripeSubscriptionId, userId, status, currentPeriodEnd]\n    );\n    return ok(undefined);\n  } catch (error) {\n    console.error('Database error creating subscription:', error);\n    return err('DB_ERROR');\n  }\n}\n```\n```aether:modules/billing/routes/stripe_webhook.ts\nimport Stripe from 'stripe';\nimport { Request } from '@aether/server'; // Assuming a common Request type from the server framework\nimport { Response } from '@aether/server'; // Assuming a common Response type from the server framework\nimport { recordProcessedEvent, updateSubscriptionStatus, createSubscription } from '../services/subscription_service';\nimport { ok, err } from '~/lib/result'; // Import ok and err for explicit Result handling\n\n// Initialize Stripe with the secret key from environment variables\n// Ensure STRIPE_SECRET_KEY is set in your environment\nconst stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {\n  apiVersion: '2023-10-16', // Use a specific API version\n});\n\n// Ensure STRIPE_WEBHOOK_SECRET is set in your environment\nconst stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;\n\nif (!stripeWebhookSecret) {\n  console.error('STRIPE_WEBHOOK_SECRET is not set. Stripe webhooks will not be verified.');\n  // In a real application, you might want to throw an error or exit here.\n}\n\n/**\n * Handles incoming Stripe webhook events.\n * Verifies the signature, parses the event, and updates the matching subscription.\n * This route is intentionally unauthenticated.\n * @param req The incoming HTTP request.\n * @returns A Response object indicating the outcome of the webhook processing.\n */\nexport async function handler(req: Request): Promise<Response> {\n  // Webhooks are unauthenticated by design, so no call to requireUser(req) here.\n\n  if (!stripeWebhookSecret) {\n    return new Response(JSON.stringify({ error: 'Stripe webhook secret not configured.' }), {\n      status: 500,\n      headers: { 'Content-Type': 'application/json' },\n    });\n  }\n\n  const signature = req.headers['stripe-signature'];\n  if (!signature) {\n    return new Response(JSON.stringify({ error: 'No Stripe-Signature header found.' }), {\n      status: 400,\n      headers: { 'Content-Type': 'application/json' },\n    });\n  }\n\n  // Bun's Request object provides .text() for raw body\n  const rawBody = await req.text();\n\n  let event: Stripe.Event;\n\n  try {\n    event = stripe.webhooks.constructEvent(rawBody, signature, stripeWebhookSecret);\n  } catch (err: any) {\n    console.error(`Stripe webhook signature verification failed: ${err.message}`);\n    return new Response(JSON.stringify({ error: `Webhook Error: ${err.message}` }), {\n      status: 400,\n      headers: { 'Content-Type': 'application/json' },\n    });\n  }\n\n  // Idempotency check: record the event ID\n  const recordResult = await recordProcessedEvent(event.id);\n  if (recordResult.isErr() && recordResult.error === 'ALREADY_PROCESSED') {\n    console.log(`Stripe event ${event.id} already processed. Skipping.`);\n    return new Response(JSON.stringify({ received: true, message: 'Event already processed.' }), {\n      status: 200,\n      headers: { 'Content-Type': 'application/json' },\n    });\n  } else if (recordResult.isErr()) {\n    console.error(`Database error during idempotency check for event ${event.id}:`, recordResult.error);\n    return new Response(JSON.stringify({ error: 'Internal server error during idempotency check.' }), {\n      status: 500,\n      headers: { 'Content-Type': 'application/json' },\n    });\n  }\n\n  // Handle the event\n  try {\n    switch (event.type) {\n      case 'customer.subscription.updated': {\n        const subscription = event.data.object as Stripe.Subscription;\n        const status = subscription.status;\n        const currentPeriodEnd = new Date(subscription.current_period_end * 1000); // Convert Unix timestamp to Date\n\n        const updateResult = await updateSubscriptionStatus(subscription.id, status, currentPeriodEnd);\n\n        if (updateResult.isErr()) {\n          if (updateResult.error === 'NOT_FOUND') {\n            console.warn(`Subscription ${subscription.id} not found in DB for update. Attempting to create.`);\n            // If not found, it might be a race condition where 'created' event hasn't been processed yet,\n            // or the subscription was created outside our system.\n            // For simplicity, we'll assume a user_id can be derived or is linked via customer_id.\n            // In a real app, you'd link Stripe Customer ID to your internal User ID.\n            // For now, we'll use a placeholder or assume it's handled by 'customer.subscription.created'.\n            // If we want to handle it here, we'd need to fetch the customer and link to a user.\n            // For this request, we'll just log and return 200, assuming 'created' event handles initial creation.\n            // Or,"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 23554,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:modules/billing/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'billing',\n  description: 'Handles billing-related operations, including Stripe webhooks and subscription management.',\n\n  dependencies: { modules: [] },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/stripe/webhook', auth: false },\n    ],\n    functions: [], // No exposed functions for other modules for now\n    types: [],     // No exposed types for other modules for now\n  },\n\n  sideEffects: [\n    'writes to: subscriptions table',\n    'writes to: processed_webhooks table',\n  ],\n\n  invariants: [\n    'Stripe webhooks must be verified before processing.',\n    'Webhook events must be processed idempotently.',\n    'Subscription status updates must reflect the latest state from Stripe.',\n  ],\n});\n```\n```aether:modules/billing/services/subscription_service.ts\nimport { query } from '~/lib/db';\nimport { Result, ok, err } from '~/lib/result';\n\n// Define internal types for clarity\ntype SubscriptionStatus = 'active' | 'canceled' | 'past_due' | 'unpaid' | 'trialing' | 'incomplete' | 'incomplete_expired' | 'paused';\n\n/**\n * Records a processed webhook event ID to ensure idempotency.\n * @param eventId The unique ID of the Stripe event.\n * @returns A Result indicating success or if the event was already processed or a DB error.\n */\nexport async function recordProcessedEvent(eventId: string): Promise<Result<void, 'ALREADY_PROCESSED' | 'DB_ERROR'>> {\n  try {\n    // Attempt to insert the event ID. If it already exists (due to unique constraint),\n    // the ON CONFLICT clause will prevent an error and do nothing.\n    const result = await query(\n      `INSERT INTO processed_webhooks (event_id, created_at)\n       VALUES ($1, NOW())\n       ON CONFLICT (event_id) DO NOTHING\n       RETURNING event_id;`,\n      [eventId]\n    );\n\n    if (result.rows.length === 0) {\n      // If no row was returned, it means the event_id already existed and DO NOTHING was executed.\n      return err('ALREADY_PROCESSED');\n    }\n\n    return ok(undefined);\n  } catch (error) {\n    console.error('Database error recording processed event:', error);\n    return err('DB_ERROR');\n  }\n}\n\n/**\n * Updates the status and period end of a subscription in the database.\n * @param stripeSubscriptionId The Stripe ID of the subscription.\n * @param status The new status of the subscription.\n * @param currentPeriodEnd The end date of the current billing period.\n * @returns A Result indicating success or if the subscription was not found or a DB error.\n */\nexport async function updateSubscriptionStatus(\n  stripeSubscriptionId: string,\n  status: SubscriptionStatus,\n  currentPeriodEnd: Date\n): Promise<Result<void, 'NOT_FOUND' | 'DB_ERROR'>> {\n  try {\n    const result = await query(\n      `UPDATE subscriptions\n       SET status = $1, current_period_end = $2, updated_at = NOW()\n       WHERE stripe_subscription_id = $3;`,\n      [status, currentPeriodEnd, stripeSubscriptionId]\n    );\n\n    if (result.rowCount === 0) {\n      return err('NOT_FOUND');\n    }\n\n    return ok(undefined);\n  } catch (error) {\n    console.error('Database error updating subscription status:', error);\n    return err('DB_ERROR');\n  }\n}\n\n/**\n * Creates a new subscription in the database.\n * This might be called for `customer.subscription.created` events.\n * @param stripeSubscriptionId The Stripe ID of the subscription.\n * @param userId The ID of the user associated with the subscription.\n * @param status The initial status of the subscription.\n * @param currentPeriodEnd The end date of the current billing period.\n * @returns A Result indicating success or a DB error.\n */\nexport async function createSubscription(\n  stripeSubscriptionId: string,\n  userId: string, // Assuming a user ID is available or can be derived\n  status: SubscriptionStatus,\n  currentPeriodEnd: Date\n): Promise<Result<void, 'DB_ERROR'>> {\n  try {\n    await query(\n      `INSERT INTO subscriptions (stripe_subscription_id, user_id, status, current_period_end, created_at, updated_at)\n       VALUES ($1, $2, $3, $4, NOW(), NOW());`,\n      [stripeSubscriptionId, userId, status, currentPeriodEnd]\n    );\n    return ok(undefined);\n  } catch (error) {\n    console.error('Database error creating subscription:', error);\n    return err('DB_ERROR');\n  }\n}\n```\n```aether:modules/billing/routes/stripe_webhook.ts\nimport Stripe from 'stripe';\nimport { Request } from '@aether/server'; // Assuming a common Request type from the server framework\nimport { Response } from '@aether/server'; // Assuming a common Response type from the server framework\nimport { recordProcessedEvent, updateSubscriptionStatus, createSubscription } from '../services/subscription_service';\nimport { ok, err } from '~/lib/result'; // Import ok and err for explicit Result handling\n\n// Initialize Stripe with the secret key from environment variables\n// Ensure STRIPE_SECRET_KEY is set in your environment\nconst stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {\n  apiVersion: '2023-10-16', // Use a specific API version\n});\n\n// Ensure STRIPE_WEBHOOK_SECRET is set in your environment\nconst stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;\n\nif (!stripeWebhookSecret) {\n  console.error('STRIPE_WEBHOOK_SECRET is not set. Stripe webhooks will not be verified.');\n  // In a real application, you might want to throw an error or exit here.\n}\n\n/**\n * Handles incoming Stripe webhook events.\n * Verifies the signature, parses the event, and updates the matching subscription.\n * This route is intentionally unauthenticated.\n * @param req The incoming HTTP request.\n * @returns A Response object indicating the outcome of the webhook processing.\n */\nexport async function handler(req: Request): Promise<Response> {\n  // Webhooks are unauthenticated by design, so no call to requireUser(req) here.\n\n  if (!stripeWebhookSecret) {\n    return new Response(JSON.stringify({ error: 'Stripe webhook secret not configured.' }), {\n      status: 500,\n      headers: { 'Content-Type': 'application/json' },\n    });\n  }\n\n  const signature = req.headers['stripe-signature'];\n  if (!signature) {\n    return new Response(JSON.stringify({ error: 'No Stripe-Signature header found.' }), {\n      status: 400,\n      headers: { 'Content-Type': 'application/json' },\n    });\n  }\n\n  // Bun's Request object provides .text() for raw body\n  const rawBody = await req.text();\n\n  let event: Stripe.Event;\n\n  try {\n    event = stripe.webhooks.constructEvent(rawBody, signature, stripeWebhookSecret);\n  } catch (err: any) {\n    console.error(`Stripe webhook signature verification failed: ${err.message}`);\n    return new Response(JSON.stringify({ error: `Webhook Error: ${err.message}` }), {\n      status: 400,\n      headers: { 'Content-Type': 'application/json' },\n    });\n  }\n\n  // Idempotency check: record the event ID\n  const recordResult = await recordProcessedEvent(event.id);\n  if (recordResult.isErr() && recordResult.error === 'ALREADY_PROCESSED') {\n    console.log(`Stripe event ${event.id} already processed. Skipping.`);\n    return new Response(JSON.stringify({ received: true, message: 'Event already processed.' }), {\n      status: 200,\n      headers: { 'Content-Type': 'application/json' },\n    });\n  } else if (recordResult.isErr()) {\n    console.error(`Database error during idempotency check for event ${event.id}:`, recordResult.error);\n    return new Response(JSON.stringify({ error: 'Internal server error during idempotency check.' }), {\n      status: 500,\n      headers: { 'Content-Type': 'application/json' },\n    });\n  }\n\n  // Handle the event\n  try {\n    switch (event.type) {\n      case 'customer.subscription.updated': {\n        const subscription = event.data.object as Stripe.Subscription;\n        const status = subscription.status;\n        const currentPeriodEnd = new Date(subscription.current_period_end * 1000); // Convert Unix timestamp to Date\n\n        const updateResult = await updateSubscriptionStatus(subscription.id, status, currentPeriodEnd);\n\n        if (updateResult.isErr()) {\n          if (updateResult.error === 'NOT_FOUND') {\n            console.warn(`Subscription ${subscription.id} not found in DB for update. Attempting to create.`);\n            // If not found, it might be a race condition where 'created' event hasn't been processed yet,\n            // or the subscription was created outside our system.\n            // For simplicity, we'll assume a user_id can be derived or is linked via customer_id.\n            // In a real app, you'd link Stripe Customer ID to your internal User ID.\n            // For now, we'll use a placeholder or assume it's handled by 'customer.subscription.created'.\n            // If we want to handle it here, we'd need to fetch the customer and link to a user.\n            // For this request, we'll just log and return 200, assuming 'created' event handles initial creation.\n            // Or,"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 841
+      }
+    ],
+    "durationMs": 1688
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 804
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 469
+      }
+    ],
+    "durationMs": 1276
+  }
+}

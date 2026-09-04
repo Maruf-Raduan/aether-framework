@@ -1,0 +1,46 @@
+{
+  "promptId": "P25",
+  "condition": "aether",
+  "iteration": 3,
+  "passed": false,
+  "tokensIn": 1135,
+  "tokensOut": 240,
+  "tokensTotal": 1375,
+  "latencyMs": 18748,
+  "wallMs": 18748,
+  "files": [
+    {
+      "path": "modules/tasks/routes/mark-as-read.ts",
+      "length": 762
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": false,
+      "skipped": false,
+      "message": "5 TypeScript error(s). First: Cannot find module 'aether' or its corresponding type declarations."
+    }
+  ]
+}

@@ -1,0 +1,250 @@
+{
+  "promptId": "P02",
+  "targetDesc": "Create a login route that takes email and password, looks up the user, and returns a session cookie. Do not log the password or store it in plaintext.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 3263,
+      "tokensIn": 1071,
+      "tokensOut": 75,
+      "wallMs": 6330,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/auth/lib/queries.ts\nimport { query } from '../lib/db';\n\nexport async function getUserByEmail(email: string): Promise<User | null> {\n  const result = await query('SELECT * FROM users WHERE email = $1', [email]);\n  return result.rows.length > 0 ? result.rows[0] : null;\n}"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 6330,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/auth/lib/queries.ts\nimport { query } from '../lib/db';\n\nexport async function getUserByEmail(email: string): Promise<User | null> {\n  const result = await query('SELECT * FROM users WHERE email = $1', [email]);\n  return result.rows.length > 0 ? result.rows[0] : null;\n}"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 847
+      }
+    ],
+    "durationMs": 1835
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 775
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 455
+      }
+    ],
+    "durationMs": 1233
+  }
+}

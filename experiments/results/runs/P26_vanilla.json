@@ -1,0 +1,113 @@
+{
+  "promptId": "P26",
+  "targetDesc": "Create a route that returns the team's task velocity over the last 30 days: tasks completed per day, average cycle time, WIP count. Read-only, no side effects.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 22527,
+      "tokensIn": 190,
+      "tokensOut": 2382,
+      "wallMs": 23925,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types.ts\nexport type TaskStatus = 'todo' | 'in-progress' | 'done';\n\nexport interface Task {\n  id: string;\n  title: string;\n  status: TaskStatus;\n  createdAt: Date;\n  completedAt?: Date; // Only present if status is 'done'\n}\n\nexport interface VelocityReport {\n  periodInDays: number;\n  tasksCompletedPerDay: number;\n  averageCycleTimeInDays: number;\n  workInProgressCount: number;\n}\n```\n\n```aether:src/data.ts\nimport { Task } from './types';\n\n// Helper to create a date relative to 'now' for consistent mock data\nconst createDate = (daysAgo: number, hoursAgo: number = 0): Date => {\n  const now = new Date();\n  now.setDate(now.getDate() - daysAgo);\n  now.setHours(now.getHours() - hoursAgo);\n  now.setMinutes(Math.floor(Math.random() * 60)); // Add some random minutes\n  now.setSeconds(Math.floor(Math.random() * 60)); // Add some random seconds\n  now.setMilliseconds(Math.floor(Math.random() * 1000)); // Add some random milliseconds\n  return now;\n};\n\nexport const mockTasks: Task[] = [\n  // Completed tasks within the last 30 days\n  {\n    id: 'task-001',\n    title: 'Implement user authentication',\n    status: 'done',\n    createdAt: createDate(25, 10), // Created 25 days, 10 hours ago\n    completedAt: createDate(20, 5), // Completed 20 days, 5 hours ago\n  },\n  {\n    id: 'task-002',\n    title: 'Design database schema',\n    status: 'done',\n    createdAt: createDate(18, 12),\n    completedAt: createDate(15, 3),\n  },\n  {\n    id: 'task-003',\n    title: 'Set up CI/CD pipeline',\n    status: 'done',\n    createdAt: createDate(10, 8),\n    completedAt: createDate(8, 2),\n  },\n  {\n    id: 'task-004',\n    title: 'Develop API endpoints for products',\n    status: 'done',\n    createdAt: createDate(7, 15),\n    completedAt: createDate(5, 1),\n  },\n  {\n    id: 'task-005',\n    title: 'Write unit tests for services',\n    status: 'done',\n    createdAt: createDate(3, 20),\n    completedAt: createDate(2, 10),\n  },\n  {\n    id: 'task-006',\n    title: 'Refactor old legacy code',\n    status: 'done',\n    createdAt: createDate(28, 1),\n    completedAt: createDate(27, 1),\n  },\n  {\n    id: 'task-007',\n    title: 'Fix critical bug in payment gateway',\n    status: 'done',\n    createdAt: createDate(1, 5),\n    completedAt: createDate(0, 10), // Completed less than a day ago\n  },\n\n  // Completed tasks outside the last 30 days (should not be counted for velocity)\n  {\n    id: 'task-008',\n    title: 'Initial project setup',\n    status: 'done',\n    createdAt: createDate(40, 0),\n    completedAt: createDate(35, 0),\n  },\n  {\n    id: 'task-009',\n    title: 'Research new framework',\n    status: 'done',\n    createdAt: createDate(32, 0),\n    completedAt: createDate(31, 0),\n  },\n\n  // In-progress tasks (WIP)\n  {\n    id: 'task-010',\n    title: 'Implement frontend UI for dashboard',\n    status: 'in-progress',\n    createdAt: createDate(10, 0),\n  },\n  {\n    id: 'task-011',\n    title: 'Review pull requests',\n    status: 'in-progress',\n    createdAt: createDate(2, 0),\n  },\n  {\n    id: 'task-012',\n    title: 'Prepare deployment script',\n    status: 'in-progress',\n    createdAt: createDate(5, 0),\n  },\n\n  // To-do tasks (not WIP, not completed)\n  {\n    id: 'task-013',\n    title: 'Plan next sprint features',\n    status: 'todo',\n    createdAt: createDate(1, 0),\n  },\n  {\n    id: 'task-014',\n    title: 'Write documentation for API',\n    status: 'todo',\n    createdAt: createDate(0, 1),\n  },\n];\n```\n\n```aether:src/utils.ts\n/**\n * Converts milliseconds to days.\n * @param ms - The time in milliseconds.\n * @returns The time in days.\n */\nexport const msToDays = (ms: number): number => ms / (1000 * 60 * 60 * 24);\n\n/**\n * Checks if a given date falls within the last N days from the current date.\n * @param date - The date to check.\n * @param days - The number of days to look back.\n * @returns True if the date is within the last N days, false otherwise.\n */\nexport const isDateWithinLastNDays = (date: Date, days: number): boolean => {\n  const now = new Date();\n  const nDaysAgo = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);\n  return date >= nDaysAgo && date <= now;\n};\n```\n\n```aether:src/velocityService.ts\nimport { mockTasks } from './data';\nimport { Task, VelocityReport } from './types';\nimport { isDateWithinLastNDays, msToDays } from './utils';\n\nconst VELOCITY_PERIOD_DAYS = 30;\n\n/**\n * Calculates the team's task velocity metrics.\n * @param tasks - An array of tasks to analyze.\n * @returns A VelocityReport object containing tasks completed per day, average cycle time, and WIP count.\n */\nexport function calculateVelocity(tasks: Task[]): VelocityReport {\n  const now = new Date();\n\n  // 1. Filter completed tasks within the last N days\n  const completedTasksInPeriod = tasks.filter(task =>\n    task.status === 'done' &&\n    task.completedAt &&\n    isDateWithinLastNDays(task.completedAt, VELOCITY_PERIOD_DAYS)\n  );\n\n  // 2. Calculate Tasks Completed Per Day\n  const tasksCompletedCount = completedTasksInPeriod.length;\n  const tasksCompletedPerDay = tasksCompletedCount > 0\n    ? tasksCompletedCount / VELOCITY_PERIOD_DAYS\n    : 0;\n\n  // 3. Calculate Average Cycle Time\n  let totalCycleTimeMs = 0;\n  if (tasksCompletedCount > 0) {\n    for (const task of completedTasksInPeriod) {\n      if (task.createdAt && task.completedAt) {\n        totalCycleTimeMs += task.completedAt.getTime() - task.createdAt.getTime();\n      }\n    }\n  }\n  const averageCycleTimeInDays = tasksCompletedCount > 0\n    ? msToDays(totalCycleTimeMs / tasksCompletedCount)\n    : 0;\n\n  // 4. Calculate Work In Progress (WIP) Count\n  const workInProgressCount = tasks.filter(task => task.status === 'in-progress').length;\n\n  return {\n    periodInDays: VELOCITY_PERIOD_DAYS,\n    tasksCompletedPerDay: parseFloat(tasksCompletedPerDay.toFixed(2)), // Round for readability\n    averageCycleTimeInDays: parseFloat(averageCycleTimeInDays.toFixed(2)), // Round for readability\n    workInProgressCount,\n  };\n}\n\n/**\n * Fetches the velocity report using mock data.\n * In a real application, this would interact with a database or external API.\n */\nexport async function getVelocityReport(): Promise<VelocityReport> {\n  // Simulate an async data fetch\n  return new Promise((resolve) => {\n    setTimeout(() => {\n      resolve(calculateVelocity(mockTasks));\n    }, 50); // Small delay to simulate network latency\n  });\n}\n```\n\n```aether:src/routes/velocity.ts\nimport { getVelocityReport } from '../velocityService';\nimport { VelocityReport } from '../types';\n\n/**\n * Route handler for fetching the team's task velocity.\n * This function is designed to be framework-agnostic, returning a plain object\n * that a web framework (like Hono, Express, etc.) would then serialize to JSON.\n *\n * @returns A Promise that resolves to a VelocityReport object.\n */\nexport async function getTeamVelocityRouteHandler(): Promise<VelocityReport> {\n  try {\n    const report = await getVelocityReport();\n    return report;\n  } catch (error) {\n    // In a real application, you might log the error and return a more specific\n    // error object or throw an HTTP-specific error.\n    console.error('Failed to retrieve velocity report:', error);\n    // For this exercise, we'll re-throw or return a generic error structure.\n    // Assuming the framework will catch and handle this as a 500 Internal Server Error.\n    throw new Error('Unable to generate velocity report.');\n  }\n}\n\n// Example of how this handler might be used (not part of the required output, but for context):\n/*\nimport { Hono } from 'hono';\nconst app = new Hono();\napp.get('/velocity', async (c) => {\n  try {\n    const report = await getTeamVelocityRouteHandler();\n    return c.json(report);\n  } catch (error: any) {\n    return c.json({ error: error.message }, 500);\n  }\n});\n*/\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 23925,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types.ts\nexport type TaskStatus = 'todo' | 'in-progress' | 'done';\n\nexport interface Task {\n  id: string;\n  title: string;\n  status: TaskStatus;\n  createdAt: Date;\n  completedAt?: Date; // Only present if status is 'done'\n}\n\nexport interface VelocityReport {\n  periodInDays: number;\n  tasksCompletedPerDay: number;\n  averageCycleTimeInDays: number;\n  workInProgressCount: number;\n}\n```\n\n```aether:src/data.ts\nimport { Task } from './types';\n\n// Helper to create a date relative to 'now' for consistent mock data\nconst createDate = (daysAgo: number, hoursAgo: number = 0): Date => {\n  const now = new Date();\n  now.setDate(now.getDate() - daysAgo);\n  now.setHours(now.getHours() - hoursAgo);\n  now.setMinutes(Math.floor(Math.random() * 60)); // Add some random minutes\n  now.setSeconds(Math.floor(Math.random() * 60)); // Add some random seconds\n  now.setMilliseconds(Math.floor(Math.random() * 1000)); // Add some random milliseconds\n  return now;\n};\n\nexport const mockTasks: Task[] = [\n  // Completed tasks within the last 30 days\n  {\n    id: 'task-001',\n    title: 'Implement user authentication',\n    status: 'done',\n    createdAt: createDate(25, 10), // Created 25 days, 10 hours ago\n    completedAt: createDate(20, 5), // Completed 20 days, 5 hours ago\n  },\n  {\n    id: 'task-002',\n    title: 'Design database schema',\n    status: 'done',\n    createdAt: createDate(18, 12),\n    completedAt: createDate(15, 3),\n  },\n  {\n    id: 'task-003',\n    title: 'Set up CI/CD pipeline',\n    status: 'done',\n    createdAt: createDate(10, 8),\n    completedAt: createDate(8, 2),\n  },\n  {\n    id: 'task-004',\n    title: 'Develop API endpoints for products',\n    status: 'done',\n    createdAt: createDate(7, 15),\n    completedAt: createDate(5, 1),\n  },\n  {\n    id: 'task-005',\n    title: 'Write unit tests for services',\n    status: 'done',\n    createdAt: createDate(3, 20),\n    completedAt: createDate(2, 10),\n  },\n  {\n    id: 'task-006',\n    title: 'Refactor old legacy code',\n    status: 'done',\n    createdAt: createDate(28, 1),\n    completedAt: createDate(27, 1),\n  },\n  {\n    id: 'task-007',\n    title: 'Fix critical bug in payment gateway',\n    status: 'done',\n    createdAt: createDate(1, 5),\n    completedAt: createDate(0, 10), // Completed less than a day ago\n  },\n\n  // Completed tasks outside the last 30 days (should not be counted for velocity)\n  {\n    id: 'task-008',\n    title: 'Initial project setup',\n    status: 'done',\n    createdAt: createDate(40, 0),\n    completedAt: createDate(35, 0),\n  },\n  {\n    id: 'task-009',\n    title: 'Research new framework',\n    status: 'done',\n    createdAt: createDate(32, 0),\n    completedAt: createDate(31, 0),\n  },\n\n  // In-progress tasks (WIP)\n  {\n    id: 'task-010',\n    title: 'Implement frontend UI for dashboard',\n    status: 'in-progress',\n    createdAt: createDate(10, 0),\n  },\n  {\n    id: 'task-011',\n    title: 'Review pull requests',\n    status: 'in-progress',\n    createdAt: createDate(2, 0),\n  },\n  {\n    id: 'task-012',\n    title: 'Prepare deployment script',\n    status: 'in-progress',\n    createdAt: createDate(5, 0),\n  },\n\n  // To-do tasks (not WIP, not completed)\n  {\n    id: 'task-013',\n    title: 'Plan next sprint features',\n    status: 'todo',\n    createdAt: createDate(1, 0),\n  },\n  {\n    id: 'task-014',\n    title: 'Write documentation for API',\n    status: 'todo',\n    createdAt: createDate(0, 1),\n  },\n];\n```\n\n```aether:src/utils.ts\n/**\n * Converts milliseconds to days.\n * @param ms - The time in milliseconds.\n * @returns The time in days.\n */\nexport const msToDays = (ms: number): number => ms / (1000 * 60 * 60 * 24);\n\n/**\n * Checks if a given date falls within the last N days from the current date.\n * @param date - The date to check.\n * @param days - The number of days to look back.\n * @returns True if the date is within the last N days, false otherwise.\n */\nexport const isDateWithinLastNDays = (date: Date, days: number): boolean => {\n  const now = new Date();\n  const nDaysAgo = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);\n  return date >= nDaysAgo && date <= now;\n};\n```\n\n```aether:src/velocityService.ts\nimport { mockTasks } from './data';\nimport { Task, VelocityReport } from './types';\nimport { isDateWithinLastNDays, msToDays } from './utils';\n\nconst VELOCITY_PERIOD_DAYS = 30;\n\n/**\n * Calculates the team's task velocity metrics.\n * @param tasks - An array of tasks to analyze.\n * @returns A VelocityReport object containing tasks completed per day, average cycle time, and WIP count.\n */\nexport function calculateVelocity(tasks: Task[]): VelocityReport {\n  const now = new Date();\n\n  // 1. Filter completed tasks within the last N days\n  const completedTasksInPeriod = tasks.filter(task =>\n    task.status === 'done' &&\n    task.completedAt &&\n    isDateWithinLastNDays(task.completedAt, VELOCITY_PERIOD_DAYS)\n  );\n\n  // 2. Calculate Tasks Completed Per Day\n  const tasksCompletedCount = completedTasksInPeriod.length;\n  const tasksCompletedPerDay = tasksCompletedCount > 0\n    ? tasksCompletedCount / VELOCITY_PERIOD_DAYS\n    : 0;\n\n  // 3. Calculate Average Cycle Time\n  let totalCycleTimeMs = 0;\n  if (tasksCompletedCount > 0) {\n    for (const task of completedTasksInPeriod) {\n      if (task.createdAt && task.completedAt) {\n        totalCycleTimeMs += task.completedAt.getTime() - task.createdAt.getTime();\n      }\n    }\n  }\n  const averageCycleTimeInDays = tasksCompletedCount > 0\n    ? msToDays(totalCycleTimeMs / tasksCompletedCount)\n    : 0;\n\n  // 4. Calculate Work In Progress (WIP) Count\n  const workInProgressCount = tasks.filter(task => task.status === 'in-progress').length;\n\n  return {\n    periodInDays: VELOCITY_PERIOD_DAYS,\n    tasksCompletedPerDay: parseFloat(tasksCompletedPerDay.toFixed(2)), // Round for readability\n    averageCycleTimeInDays: parseFloat(averageCycleTimeInDays.toFixed(2)), // Round for readability\n    workInProgressCount,\n  };\n}\n\n/**\n * Fetches the velocity report using mock data.\n * In a real application, this would interact with a database or external API.\n */\nexport async function getVelocityReport(): Promise<VelocityReport> {\n  // Simulate an async data fetch\n  return new Promise((resolve) => {\n    setTimeout(() => {\n      resolve(calculateVelocity(mockTasks));\n    }, 50); // Small delay to simulate network latency\n  });\n}\n```\n\n```aether:src/routes/velocity.ts\nimport { getVelocityReport } from '../velocityService';\nimport { VelocityReport } from '../types';\n\n/**\n * Route handler for fetching the team's task velocity.\n * This function is designed to be framework-agnostic, returning a plain object\n * that a web framework (like Hono, Express, etc.) would then serialize to JSON.\n *\n * @returns A Promise that resolves to a VelocityReport object.\n */\nexport async function getTeamVelocityRouteHandler(): Promise<VelocityReport> {\n  try {\n    const report = await getVelocityReport();\n    return report;\n  } catch (error) {\n    // In a real application, you might log the error and return a more specific\n    // error object or throw an HTTP-specific error.\n    console.error('Failed to retrieve velocity report:', error);\n    // For this exercise, we'll re-throw or return a generic error structure.\n    // Assuming the framework will catch and handle this as a 500 Internal Server Error.\n    throw new Error('Unable to generate velocity report.');\n  }\n}\n\n// Example of how this handler might be used (not part of the required output, but for context):\n/*\nimport { Hono } from 'hono';\nconst app = new Hono();\napp.get('/velocity', async (c) => {\n  try {\n    const report = await getTeamVelocityRouteHandler();\n    return c.json(report);\n  } catch (error: any) {\n    return c.json({ error: error.message }, 500);\n  }\n});\n*/\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 938
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 455
+      }
+    ],
+    "durationMs": 1397
+  }
+}

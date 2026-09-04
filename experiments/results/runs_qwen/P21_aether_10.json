@@ -1,0 +1,274 @@
+{
+  "promptId": "P21",
+  "targetDesc": "Create a remove-member route. The owner cannot be removed. After removal, all tasks assigned to that user in the team are unassigned (transaction).",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 33696,
+      "tokensIn": 1066,
+      "tokensOut": 759,
+      "wallMs": 36717,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/auth/lib/queries.ts\nimport { query } from '../db';\n\nexport async function getUserById(userId: string) {\n  const result = await query('SELECT * FROM users WHERE id = $1', [userId]);\n  return result.rows[0];\n}\n\nexport async function getSessionByToken(token: string) {\n  const result = await query('SELECT * FROM sessions WHERE token = $1', [token]);\n  return result.rows[0];\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/auth/lib/transactions.ts\nimport { transaction } from '../db';\nimport { getUserById, getSessionByToken } from './queries';\n\nexport async function removeMemberFromTeam(teamId: string, userId: string) {\n  await transaction(async (client) => {\n    // Check if the user is the owner of the team\n    const user = await getUserById(userId);\n    if (user.role === 'owner') {\n      throw new Error('Owner cannot be removed');\n    }\n\n    // Remove the user from the team\n    await client.query('DELETE FROM team_members WHERE team_id = $1 AND user_id = $2', [teamId, userId]);\n\n    // Unassign all tasks assigned to the user in the team\n    await client.query('UPDATE tasks SET assignee_id = NULL WHERE team_id = $1 AND assignee_id = $2', [teamId, userId]);\n  });\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/auth/routes/remove-member.ts\nimport { Router } from 'bun';\nimport { requireUser, getSession } from '../../lib/auth';\nimport { removeMemberFromTeam } from '../lib/transactions';\n\nconst router = new Router();\n\nrouter.post('/auth/remove-member', async (req) => {\n  const user = await requireUser(req);\n  const session = await getSession(req);\n\n  // Parse request body\n  const { teamId, userId } = await parseBody<{ teamId: string; userId: string }>(req);\n\n  // Remove member from team in a transaction\n  try {\n    await removeMemberFromTeam(teamId, userId);\n    return new Response(JSON.stringify({ message: 'User removed successfully' }), { status: 200 });\n  } catch (error) {\n    return new Response(JSON.stringify({ error: error.message }), { status: 400 });\n  }\n});\n\nexport default router;"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/auth/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'auth',\n  description: 'Handles user authentication, session management, and authorization utilities.',\n\n  dependencies: { modules: [] },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/auth/login',   auth: false },\n      { method: 'POST', path: '/auth/logout',  auth: true },\n      { method: 'GET',  path: '/auth/session', auth: true },\n      { method: 'POST', path: '/auth/remove-member', auth: true },\n    ],\n    functions: ['requireUser', 'getSession', 'createSession', 'invalidateSession'],\n    types: ['User', 'Session', 'AuthError'],\n  },\n\n  sideEffects: [\n    'writes to: sessions table',\n    'reads from: users table',\n    'writes to: team_members table',\n    'updates tasks table',\n  ],\n\n  invariants: [\n    'A session must always be bound to exactly one user',\n    'Expired sessions must never be returned as valid',\n    'Logout must invalidate the session immediately',\n    'Owner cannot be removed from a team',\n    'All tasks assigned to a removed member must be unassigned',\n  ],\n});"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 36717,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/auth/lib/queries.ts\nimport { query } from '../db';\n\nexport async function getUserById(userId: string) {\n  const result = await query('SELECT * FROM users WHERE id = $1', [userId]);\n  return result.rows[0];\n}\n\nexport async function getSessionByToken(token: string) {\n  const result = await query('SELECT * FROM sessions WHERE token = $1', [token]);\n  return result.rows[0];\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/auth/lib/transactions.ts\nimport { transaction } from '../db';\nimport { getUserById, getSessionByToken } from './queries';\n\nexport async function removeMemberFromTeam(teamId: string, userId: string) {\n  await transaction(async (client) => {\n    // Check if the user is the owner of the team\n    const user = await getUserById(userId);\n    if (user.role === 'owner') {\n      throw new Error('Owner cannot be removed');\n    }\n\n    // Remove the user from the team\n    await client.query('DELETE FROM team_members WHERE team_id = $1 AND user_id = $2', [teamId, userId]);\n\n    // Unassign all tasks assigned to the user in the team\n    await client.query('UPDATE tasks SET assignee_id = NULL WHERE team_id = $1 AND assignee_id = $2', [teamId, userId]);\n  });\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/auth/routes/remove-member.ts\nimport { Router } from 'bun';\nimport { requireUser, getSession } from '../../lib/auth';\nimport { removeMemberFromTeam } from '../lib/transactions';\n\nconst router = new Router();\n\nrouter.post('/auth/remove-member', async (req) => {\n  const user = await requireUser(req);\n  const session = await getSession(req);\n\n  // Parse request body\n  const { teamId, userId } = await parseBody<{ teamId: string; userId: string }>(req);\n\n  // Remove member from team in a transaction\n  try {\n    await removeMemberFromTeam(teamId, userId);\n    return new Response(JSON.stringify({ message: 'User removed successfully' }), { status: 200 });\n  } catch (error) {\n    return new Response(JSON.stringify({ error: error.message }), { status: 400 });\n  }\n});\n\nexport default router;"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/auth/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'auth',\n  description: 'Handles user authentication, session management, and authorization utilities.',\n\n  dependencies: { modules: [] },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/auth/login',   auth: false },\n      { method: 'POST', path: '/auth/logout',  auth: true },\n      { method: 'GET',  path: '/auth/session', auth: true },\n      { method: 'POST', path: '/auth/remove-member', auth: true },\n    ],\n    functions: ['requireUser', 'getSession', 'createSession', 'invalidateSession'],\n    types: ['User', 'Session', 'AuthError'],\n  },\n\n  sideEffects: [\n    'writes to: sessions table',\n    'reads from: users table',\n    'writes to: team_members table',\n    'updates tasks table',\n  ],\n\n  invariants: [\n    'A session must always be bound to exactly one user',\n    'Expired sessions must never be returned as valid',\n    'Logout must invalidate the session immediately',\n    'Owner cannot be removed from a team',\n    'All tasks assigned to a removed member must be unassigned',\n  ],\n});"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 841
+      }
+    ],
+    "durationMs": 1699
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 848
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 470
+      }
+    ],
+    "durationMs": 1322
+  }
+}

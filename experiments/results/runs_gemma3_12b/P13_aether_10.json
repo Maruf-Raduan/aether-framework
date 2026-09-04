@@ -1,0 +1,45 @@
+{
+  "promptId": "P13",
+  "condition": "aether",
+  "iteration": 10,
+  "passed": true,
+  "tokensIn": 1132,
+  "tokensOut": 1248,
+  "tokensTotal": 2380,
+  "latencyMs": 93687,
+  "wallMs": 93687,
+  "files": [
+    {
+      "path": "modules/payments/routes/create-subscription.ts",
+      "length": 2088
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

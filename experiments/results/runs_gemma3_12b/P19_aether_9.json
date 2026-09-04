@@ -1,0 +1,61 @@
+{
+  "promptId": "P19",
+  "condition": "aether",
+  "iteration": 9,
+  "passed": true,
+  "tokensIn": 1142,
+  "tokensOut": 1548,
+  "tokensTotal": 2690,
+  "latencyMs": 116959,
+  "wallMs": 116959,
+  "files": [
+    {
+      "path": "modules/teams/routes/create.ts",
+      "length": 1040
+    },
+    {
+      "path": "modules/teams/lib/services/create.ts",
+      "length": 616
+    },
+    {
+      "path": "modules/teams/lib/validation/create.ts",
+      "length": 509
+    },
+    {
+      "path": "modules/teams/lib/events/emit.ts",
+      "length": 277
+    },
+    {
+      "path": "modules/teams/module.contract.ts",
+      "length": 616
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

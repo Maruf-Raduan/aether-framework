@@ -1,0 +1,322 @@
+{
+  "promptId": "P27",
+  "targetDesc": "Create a route that returns a 3-month billing forecast based on current subscriptions and historical growth rate. Calls into billing and analytics modules.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 74130,
+      "tokensIn": 1060,
+      "tokensOut": 1580,
+      "wallMs": 77190,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "// /modules/billing/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'billing',\n  description: 'Handles billing operations, including subscription management and forecasting.',\n\n  dependencies: { modules: ['analytics'] },\n\n  exposes: {\n    routes: [\n      { method: 'GET', path: '/billing/forecast', auth: true },\n    ],\n    functions: ['getSubscriptionDetails', 'calculateForecast'],\n    types: ['Subscription', 'BillingError'],\n  },\n\n  sideEffects: [\n    'reads from: subscriptions table',\n    'reads from: analytics data',\n  ],\n\n  invariants: [\n    'A subscription must always be associated with a valid user',\n    'Forecast calculations must account for historical growth rates',\n  ],\n});"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// /modules/analytics/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'analytics',\n  description: 'Provides analytics data used by other modules, such as billing forecasting.',\n\n  dependencies: { modules: [] },\n\n  exposes: {\n    routes: [],\n    functions: ['getHistoricalGrowthRate'],\n    types: ['AnalyticsData', 'AnalyticsError'],\n  },\n\n  sideEffects: [\n    'reads from: historical data tables',\n  ],\n\n  invariants: [\n    'Historical data must be accurate and up-to-date',\n  ],\n});"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// /modules/billing/lib/queries.ts\nimport { query } from '../db';\nimport { Subscription, BillingError } from '../types';\n\nexport async function getSubscriptionDetails(subscriptionId: string): Promise<Subscription | BillingError> {\n  try {\n    const result = await query('SELECT * FROM subscriptions WHERE id = $1', [subscriptionId]);\n    if (result.rows.length === 0) {\n      return err(new BillingError('Subscription not found'));\n    }\n    return ok(result.rows[0] as Subscription);\n  } catch (error) {\n    return err(new BillingError('Failed to fetch subscription details'));\n  }\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// /modules/analytics/lib/queries.ts\nimport { query } from '../db';\nimport { AnalyticsData, AnalyticsError } from '../types';\n\nexport async function getHistoricalGrowthRate(): Promise<AnalyticsData | AnalyticsError> {\n  try {\n    const result = await query('SELECT * FROM historical_growth_rate');\n    if (result.rows.length === 0) {\n      return err(new AnalyticsError('No historical growth rate data found'));\n    }\n    return ok(result.rows[0] as AnalyticsData);\n  } catch (error) {\n    return err(new AnalyticsError('Failed to fetch historical growth rate data'));\n  }\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// /modules/billing/lib/forecast.ts\nimport { getSubscriptionDetails, getHistoricalGrowthRate } from './queries';\nimport { Subscription, BillingError, AnalyticsData, AnalyticsError } from '../types';\n\nexport async function calculateForecast(subscriptionId: string): Promise<number | BillingError | AnalyticsError> {\n  const subscriptionResult = await getSubscriptionDetails(subscriptionId);\n  if (isErr(subscriptionResult)) {\n    return subscriptionResult;\n  }\n\n  const analyticsResult = await getHistoricalGrowthRate();\n  if (isErr(analyticsResult)) {\n    return analyticsResult;\n  }\n\n  // Calculate forecast based on subscription details and historical growth rate\n  const { amount, duration } = subscriptionResult.data;\n  const growthRate = analyticsResult.data.growth_rate;\n\n  // Example calculation: Forecasted amount = Current amount * (1 + Growth rate)\n  const forecastedAmount = amount * (1 + growthRate);\n\n  return forecastedAmount;\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// /modules/billing/routes.ts\nimport { Router } from 'bun';\nimport { requireUser, getSession } from '../lib/auth';\nimport { calculateForecast } from './lib/forecast';\nimport { BillingError } from './types';\n\nconst router = new Router();\n\nrouter.get('/billing/forecast', async (req) => {\n  await requireUser(req);\n  const session = await getSession(req);\n\n  try {\n    const forecastedAmount = await calculateForecast(session.userId);\n    if (isErr(forecastedAmount)) {\n      return errResponse(forecastedAmount, 400);\n    }\n\n    return res({ forecasted_amount: forecastedAmount });\n  } catch (error) {\n    return errResponse(new BillingError('Failed to calculate billing forecast'), 500);\n  }\n});\n\nexport default router;"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// /modules/billing/types.ts\nimport { Result, ok, err } from '../lib/result';\n\nexport interface Subscription {\n  id: string;\n  user_id: string;\n  amount: number;\n  duration: number;\n}\n\nexport interface AnalyticsData {\n  growth_rate: number;\n}\n\nexport type BillingError = Error & { code?: string };\nexport type AnalyticsError = Error & { code?: string };\n\nfunction isErr<T>(result: Result<T, any>): result is Err<any> {\n  return (result as Err<any>).error !== undefined;\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// /modules/billing/lib/result.ts\nimport { ok, err } from '../lib/result';\n\nexport type Result<T, E> = Ok<T> | Err<E>;\n\nexport interface Ok<T> {\n  kind: 'ok';\n  data: T;\n}\n\nexport interface Err<E> {\n  kind: 'err';\n  error: E;\n}\n\nexport function ok<T>(data: T): Ok<T> {\n  return { kind: 'ok', data };\n}\n\nexport function err<E>(error: E): Err<E> {\n  return { kind: 'err', error };\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// /modules/billing/lib/auth.ts\nimport { requireUser } from '../lib/auth';\n\nexport async function calculateForecast(subscriptionId: string): Promise<number | BillingError | AnalyticsError> {\n  const subscriptionResult = await getSubscriptionDetails(subscriptionId);\n  if (isErr(subscriptionResult)) {\n    return subscriptionResult;\n  }\n\n  const analyticsResult = await getHistoricalGrowthRate();\n  if (isErr(analyticsResult)) {\n    return analyticsResult;\n  }\n\n  // Calculate forecast based on subscription details and historical growth rate\n  const { amount, duration } = subscriptionResult.data;\n  const growthRate = analyticsResult.data.growth_rate;\n\n  // Example calculation: Forecasted amount = Current amount * (1 + Growth rate)\n  const forecastedAmount = amount * (1 + growthRate);\n\n  return forecastedAmount;\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// /modules/billing/lib/forecast.ts\nimport { getSubscriptionDetails, getHistoricalGrowthRate } from './queries';\nimport { Subscription, BillingError, AnalyticsData, AnalyticsError } from '../types';\n\nexport async function calculateForecast(subscriptionId: string): Promise<number | BillingError | AnalyticsError> {\n  const subscriptionResult = await getSubscriptionDetails(subscriptionId);\n  if (isErr(subscriptionResult)) {\n    return subscriptionResult;\n  }\n\n  const analyticsResult = await getHistoricalGrowthRate();\n  if (isErr(analyticsResult)) {\n    return analyticsResult;\n  }\n\n  // Calculate forecast based on subscription details and historical growth rate\n  const { amount, duration } = subscriptionResult.data;\n  const growthRate = analyticsResult.data.growth_rate;\n\n  // Example calculation: Forecasted amount = Current amount * (1 + Growth rate)\n  const forecastedAmount = amount * (1 + growthRate);\n\n  return forecastedAmount;\n}"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 77190,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "// /modules/billing/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'billing',\n  description: 'Handles billing operations, including subscription management and forecasting.',\n\n  dependencies: { modules: ['analytics'] },\n\n  exposes: {\n    routes: [\n      { method: 'GET', path: '/billing/forecast', auth: true },\n    ],\n    functions: ['getSubscriptionDetails', 'calculateForecast'],\n    types: ['Subscription', 'BillingError'],\n  },\n\n  sideEffects: [\n    'reads from: subscriptions table',\n    'reads from: analytics data',\n  ],\n\n  invariants: [\n    'A subscription must always be associated with a valid user',\n    'Forecast calculations must account for historical growth rates',\n  ],\n});"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// /modules/analytics/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'analytics',\n  description: 'Provides analytics data used by other modules, such as billing forecasting.',\n\n  dependencies: { modules: [] },\n\n  exposes: {\n    routes: [],\n    functions: ['getHistoricalGrowthRate'],\n    types: ['AnalyticsData', 'AnalyticsError'],\n  },\n\n  sideEffects: [\n    'reads from: historical data tables',\n  ],\n\n  invariants: [\n    'Historical data must be accurate and up-to-date',\n  ],\n});"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// /modules/billing/lib/queries.ts\nimport { query } from '../db';\nimport { Subscription, BillingError } from '../types';\n\nexport async function getSubscriptionDetails(subscriptionId: string): Promise<Subscription | BillingError> {\n  try {\n    const result = await query('SELECT * FROM subscriptions WHERE id = $1', [subscriptionId]);\n    if (result.rows.length === 0) {\n      return err(new BillingError('Subscription not found'));\n    }\n    return ok(result.rows[0] as Subscription);\n  } catch (error) {\n    return err(new BillingError('Failed to fetch subscription details'));\n  }\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// /modules/analytics/lib/queries.ts\nimport { query } from '../db';\nimport { AnalyticsData, AnalyticsError } from '../types';\n\nexport async function getHistoricalGrowthRate(): Promise<AnalyticsData | AnalyticsError> {\n  try {\n    const result = await query('SELECT * FROM historical_growth_rate');\n    if (result.rows.length === 0) {\n      return err(new AnalyticsError('No historical growth rate data found'));\n    }\n    return ok(result.rows[0] as AnalyticsData);\n  } catch (error) {\n    return err(new AnalyticsError('Failed to fetch historical growth rate data'));\n  }\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// /modules/billing/lib/forecast.ts\nimport { getSubscriptionDetails, getHistoricalGrowthRate } from './queries';\nimport { Subscription, BillingError, AnalyticsData, AnalyticsError } from '../types';\n\nexport async function calculateForecast(subscriptionId: string): Promise<number | BillingError | AnalyticsError> {\n  const subscriptionResult = await getSubscriptionDetails(subscriptionId);\n  if (isErr(subscriptionResult)) {\n    return subscriptionResult;\n  }\n\n  const analyticsResult = await getHistoricalGrowthRate();\n  if (isErr(analyticsResult)) {\n    return analyticsResult;\n  }\n\n  // Calculate forecast based on subscription details and historical growth rate\n  const { amount, duration } = subscriptionResult.data;\n  const growthRate = analyticsResult.data.growth_rate;\n\n  // Example calculation: Forecasted amount = Current amount * (1 + Growth rate)\n  const forecastedAmount = amount * (1 + growthRate);\n\n  return forecastedAmount;\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// /modules/billing/routes.ts\nimport { Router } from 'bun';\nimport { requireUser, getSession } from '../lib/auth';\nimport { calculateForecast } from './lib/forecast';\nimport { BillingError } from './types';\n\nconst router = new Router();\n\nrouter.get('/billing/forecast', async (req) => {\n  await requireUser(req);\n  const session = await getSession(req);\n\n  try {\n    const forecastedAmount = await calculateForecast(session.userId);\n    if (isErr(forecastedAmount)) {\n      return errResponse(forecastedAmount, 400);\n    }\n\n    return res({ forecasted_amount: forecastedAmount });\n  } catch (error) {\n    return errResponse(new BillingError('Failed to calculate billing forecast'), 500);\n  }\n});\n\nexport default router;"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// /modules/billing/types.ts\nimport { Result, ok, err } from '../lib/result';\n\nexport interface Subscription {\n  id: string;\n  user_id: string;\n  amount: number;\n  duration: number;\n}\n\nexport interface AnalyticsData {\n  growth_rate: number;\n}\n\nexport type BillingError = Error & { code?: string };\nexport type AnalyticsError = Error & { code?: string };\n\nfunction isErr<T>(result: Result<T, any>): result is Err<any> {\n  return (result as Err<any>).error !== undefined;\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// /modules/billing/lib/result.ts\nimport { ok, err } from '../lib/result';\n\nexport type Result<T, E> = Ok<T> | Err<E>;\n\nexport interface Ok<T> {\n  kind: 'ok';\n  data: T;\n}\n\nexport interface Err<E> {\n  kind: 'err';\n  error: E;\n}\n\nexport function ok<T>(data: T): Ok<T> {\n  return { kind: 'ok', data };\n}\n\nexport function err<E>(error: E): Err<E> {\n  return { kind: 'err', error };\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// /modules/billing/lib/auth.ts\nimport { requireUser } from '../lib/auth';\n\nexport async function calculateForecast(subscriptionId: string): Promise<number | BillingError | AnalyticsError> {\n  const subscriptionResult = await getSubscriptionDetails(subscriptionId);\n  if (isErr(subscriptionResult)) {\n    return subscriptionResult;\n  }\n\n  const analyticsResult = await getHistoricalGrowthRate();\n  if (isErr(analyticsResult)) {\n    return analyticsResult;\n  }\n\n  // Calculate forecast based on subscription details and historical growth rate\n  const { amount, duration } = subscriptionResult.data;\n  const growthRate = analyticsResult.data.growth_rate;\n\n  // Example calculation: Forecasted amount = Current amount * (1 + Growth rate)\n  const forecastedAmount = amount * (1 + growthRate);\n\n  return forecastedAmount;\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// /modules/billing/lib/forecast.ts\nimport { getSubscriptionDetails, getHistoricalGrowthRate } from './queries';\nimport { Subscription, BillingError, AnalyticsData, AnalyticsError } from '../types';\n\nexport async function calculateForecast(subscriptionId: string): Promise<number | BillingError | AnalyticsError> {\n  const subscriptionResult = await getSubscriptionDetails(subscriptionId);\n  if (isErr(subscriptionResult)) {\n    return subscriptionResult;\n  }\n\n  const analyticsResult = await getHistoricalGrowthRate();\n  if (isErr(analyticsResult)) {\n    return analyticsResult;\n  }\n\n  // Calculate forecast based on subscription details and historical growth rate\n  const { amount, duration } = subscriptionResult.data;\n  const growthRate = analyticsResult.data.growth_rate;\n\n  // Example calculation: Forecasted amount = Current amount * (1 + Growth rate)\n  const forecastedAmount = amount * (1 + growthRate);\n\n  return forecastedAmount;\n}"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 842
+      }
+    ],
+    "durationMs": 1692
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 870
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 496
+      }
+    ],
+    "durationMs": 1368
+  }
+}

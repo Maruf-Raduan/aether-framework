@@ -1,0 +1,93 @@
+\subsection{Formal Specification of the Contract Schema}
+\label{sec:contract-schema}
+
+Formally, a contract instance is a tuple
+\begin{equation}
+  C = \langle N, D_{\text{desc}}, D_{\text{dep}}, R, F, T, S, I \rangle,
+  \label{eq:contract-tuple}
+\end{equation}
+where:
+\begin{itemize}
+    \item $N$ is the module name (Mandatory).
+    \item $D_{\text{desc}}$ is the textual description (Mandatory, $\ge 30$ chars).
+    \item $D_{\text{dep}}$ is a set of declared module dependencies (Mandatory, but may be empty).
+    \item $R$ is a set of route declarations (Mandatory).
+    \item $F$ is a set of exposed function names (Mandatory).
+    \item $T$ is a set of exported type names (Mandatory).
+    \item $S$ is a set of database side-effects (Expected for write-routes, warning if absent).
+    \item $I$ is a set of invariants (Mandatory, non-empty).
+\end{itemize}
+
+Each route $r \in R$ is a tuple
+\begin{equation}
+  r = \langle m, p, a, [o] \rangle,
+  \label{eq:route-tuple}
+\end{equation}
+where $m$ is an HTTP method (\texttt{GET}, \texttt{POST}, \texttt{PUT}, \texttt{PATCH}, or \texttt{DELETE}), $p$ is a path string, $a \in \{\mathit{true}, \mathit{false}\}$ indicates whether the route requires authentication, and $o$ is an optional role restriction.
+
+The concrete syntax is given by the EBNF grammar in Fig.~X:
+
+\begin{verbatim}
+<contract>       ::= "defineContract" "(" "{" 
+                       <name-decl> ","
+                       <desc-decl> ","
+                       <deps-decl> ","
+                       <exposes-decl> ","
+                       <side-effects-decl> ","
+                       <invariants-decl> 
+                     "}" ")"
+
+<name-decl>      ::= "name" ":" <string>
+
+<desc-decl>      ::= "description" ":" <string>
+
+<deps-decl>      ::= "dependencies" ":" "{" "modules" ":" "[" { <module-ref> } "]" "}"
+
+<exposes-decl>   ::= "exposes" ":" "{"
+                        "routes" ":" "[" { <route> } "]" ","
+                        "functions" ":" "[" { <string> } "]" ","
+                        "types" ":" "[" { <string> } "]"
+                     "}"
+
+<route>          ::= "{" "method" ":" <http-method> ","
+                          "path" ":" <string> ","
+                          "auth" ":" <boolean> 
+                          [ "," "role" ":" <string> ] "}"
+
+<http-method>    ::= "'GET'" | "'POST'" | "'PUT'" | "'PATCH'" | "'DELETE'"
+
+<side-effects-decl> ::= "sideEffects" ":" "[" { <string> } "]"
+
+<invariants-decl>::= "invariants" ":" "[" { <string> } "]"
+\end{verbatim}
+
+\subsubsection{Enforced Schema Constructs}
+
+\paragraph{Constructs enforced by C-Suite (Contract Validation)}
+The C-Suite executes statically against the \texttt{module.contract.ts} file to ensure structural and declarative integrity:
+\begin{itemize}
+    \item \textbf{defineContract}: Rule \textbf{C1} verifies the AST is wrapped in a default exported `defineContract()` call.
+    \item \textbf{description} ($D_{\text{desc}}$): Rule \textbf{C2} enforces that this field is present and at least 30 characters long.
+    \item \textbf{routes} ($R$): Rule \textbf{C3} enforces that every route entry contains \texttt{method}, \texttt{path}, and \texttt{auth}.
+    \item \textbf{functions} ($F$): Rule \textbf{C4} verifies that every declared function is actually exported from the module's \texttt{index.ts}.
+    \item \textbf{invariants} ($I$): Rule \textbf{C5} enforces that the invariants array is non-empty. Rule \textbf{C6} verifies that each invariant has a corresponding test case in a \texttt{*.invariants.test.ts} file.
+    \item \textbf{sideEffects} ($S$): Rule \textbf{C7} emits a warning if a state-mutating route (POST, PUT, PATCH, DELETE) exists but `sideEffects` is empty.
+    \item \textbf{dependencies} ($D_{\text{dep}}$): Rule \textbf{C8} verifies that all declared dependencies are known modules registered globally in the project manifest. Rule \textbf{C9} verifies no circular dependencies exist across the contract graph.
+\end{itemize}
+
+\paragraph{Constructs enforced by G-Suite (Generated Code Validation)}
+The G-Suite parses the generated implementation and cross-references it against the contract and manifest:
+\begin{itemize}
+    \item \textbf{routes.auth} ($a$): Rule \textbf{G2} scans the generated handlers for routes where \texttt{auth: true} and requires the explicit invocation of the \texttt{requireUser()} guard function as the first line of defense.
+    \item \textbf{invariants} ($I$): Rule \textbf{G4} is reserved to execute the generated invariant tests against the implementation, though this is currently skipped/deferred.
+\end{itemize}
+
+\subsubsection{Unenforced Schema Constructs}
+
+Several constructs carry declarative weight but are \emph{not} consulted by the generation validation engine (G-Suite) during conformance checking:
+
+\begin{itemize}
+    \item \textbf{dependencies} ($D_{\text{dep}}$): While validated statically by the C-Suite, rule \textbf{G3} (no undeclared cross-imports) completely ignores $D_{\text{dep}}$. Instead of restricting a module to its declared dependencies, G3 strictly checks that \emph{any} imported module is globally registered and that deep internal imports (bypassing \texttt{index.ts}) are prohibited.
+    \item \textbf{functions} ($F$) and \textbf{types} ($T$): Rule \textbf{G1} (no direct DB imports) does not bound database driver access to the repository layer declared through $F$ and $T$. Rather, G1 is a static blacklist of DB driver imports (e.g., \texttt{pg}, \texttt{mysql2}) enforced globally if the manifest defines AI constraints for database access.
+    \item \textbf{routes.role} ($o$): The `role` property (e.g., \texttt{role: 'admin'}) is defined in some contracts but is entirely ignored by both the C-Suite AST parser (which only extracts method, path, and auth) and the G-Suite validators. %% TODO: verify - c-suite.ts extracts only method, path, auth in extractContractData.
+\end{itemize}

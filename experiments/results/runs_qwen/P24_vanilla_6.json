@@ -1,0 +1,113 @@
+{
+  "promptId": "P24",
+  "targetDesc": "Create a route that lists the current user's notifications, paginated, with unread-first ordering.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 15267,
+      "tokensIn": 128,
+      "tokensOut": 349,
+      "wallMs": 16589,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/src/routes/notifications.ts",
+          "content": "import { Hono } from 'hono';\nimport { z } from 'zod';\n\nconst app = new Hono();\n\nconst NotificationSchema = z.object({\n  id: z.string(),\n  title: z.string(),\n  message: z.string(),\n  isRead: z.boolean(),\n});\n\ntype Notification = z.infer<typeof NotificationSchema>;\n\napp.get('/notifications', async (c) => {\n  // Simulate fetching user's notifications from a database\n  const notifications: Notification[] = [\n    { id: '1', title: 'New Order', message: 'Your order has been shipped.', isRead: false },\n    { id: '2', title: 'Product Update', message: 'Check out our new product!', isRead: true },\n    { id: '3', title: 'Order Confirmation', message: 'Thank you for your purchase.', isRead: true },\n  ];\n\n  // Pagination parameters\n  const page = parseInt(c.req.query('page')) || 1;\n  const limit = parseInt(c.req.query('limit')) || 10;\n\n  // Unread notifications first\n  const sortedNotifications = notifications.sort((a, b) => {\n    if (a.isRead && !b.isRead) return 1;\n    if (!a.isRead && b.isRead) return -1;\n    return 0;\n  });\n\n  // Paginate the results\n  const startIndex = (page - 1) * limit;\n  const endIndex = startIndex + limit;\n  const paginatedNotifications = sortedNotifications.slice(startIndex, endIndex);\n\n  return c.json(paginatedNotifications);\n});\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 16589,
+  "finalFiles": [
+    {
+      "path": "/src/routes/notifications.ts",
+      "content": "import { Hono } from 'hono';\nimport { z } from 'zod';\n\nconst app = new Hono();\n\nconst NotificationSchema = z.object({\n  id: z.string(),\n  title: z.string(),\n  message: z.string(),\n  isRead: z.boolean(),\n});\n\ntype Notification = z.infer<typeof NotificationSchema>;\n\napp.get('/notifications', async (c) => {\n  // Simulate fetching user's notifications from a database\n  const notifications: Notification[] = [\n    { id: '1', title: 'New Order', message: 'Your order has been shipped.', isRead: false },\n    { id: '2', title: 'Product Update', message: 'Check out our new product!', isRead: true },\n    { id: '3', title: 'Order Confirmation', message: 'Thank you for your purchase.', isRead: true },\n  ];\n\n  // Pagination parameters\n  const page = parseInt(c.req.query('page')) || 1;\n  const limit = parseInt(c.req.query('limit')) || 10;\n\n  // Unread notifications first\n  const sortedNotifications = notifications.sort((a, b) => {\n    if (a.isRead && !b.isRead) return 1;\n    if (!a.isRead && b.isRead) return -1;\n    return 0;\n  });\n\n  // Paginate the results\n  const startIndex = (page - 1) * limit;\n  const endIndex = startIndex + limit;\n  const paginatedNotifications = sortedNotifications.slice(startIndex, endIndex);\n\n  return c.json(paginatedNotifications);\n});\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 837
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 482
+      }
+    ],
+    "durationMs": 1322
+  }
+}

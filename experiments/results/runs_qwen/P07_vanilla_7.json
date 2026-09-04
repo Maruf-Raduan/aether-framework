@@ -1,0 +1,113 @@
+{
+  "promptId": "P07",
+  "targetDesc": "Create an assign-task route that takes assigneeId, verifies the assignee is a member of the task's team, and updates the assignment.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 17167,
+      "tokensIn": 138,
+      "tokensOut": 385,
+      "wallMs": 18436,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "/routes/assignTask.ts",
+          "content": "import { Hono } from 'hono';\nimport { z } from 'zod';\n\nconst app = new Hono();\n\nconst AssignTaskSchema = z.object({\n  assigneeId: z.string(),\n});\n\napp.put('/tasks/:taskId/assign', async (c) => {\n  const taskId = c.req.param('taskId');\n  const body = await c.req.json();\n  const parsedBody = AssignTaskSchema.safeParse(body);\n\n  if (!parsedBody.success) {\n    return c.json({ error: 'Invalid request body' }, 400);\n  }\n\n  const { assigneeId } = parsedBody.data;\n\n  // Assuming you have a function to check if the assignee is in the task's team\n  const isAssigneeInTeam = await checkIfAssigneeIsInTaskTeam(taskId, assigneeId);\n\n  if (!isAssigneeInTeam) {\n    return c.json({ error: 'Assignee is not a member of the task\\'s team' }, 403);\n  }\n\n  // Assuming you have a function to update the task assignment\n  await updateTaskAssignment(taskId, assigneeId);\n\n  return c.json({ message: 'Task assigned successfully' });\n});\n\nasync function checkIfAssigneeIsInTaskTeam(taskId: string, assigneeId: string): Promise<boolean> {\n  // Implement logic to check if the assignee is in the task's team\n  // This could involve querying a database or calling an external service\n  return true; // Placeholder\n}\n\nasync function updateTaskAssignment(taskId: string, assigneeId: string): Promise<void> {\n  // Implement logic to update the task assignment\n  // This could involve updating a document in a database or making a call to an external service\n}\n\nexport default app;"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 18436,
+  "finalFiles": [
+    {
+      "path": "/routes/assignTask.ts",
+      "content": "import { Hono } from 'hono';\nimport { z } from 'zod';\n\nconst app = new Hono();\n\nconst AssignTaskSchema = z.object({\n  assigneeId: z.string(),\n});\n\napp.put('/tasks/:taskId/assign', async (c) => {\n  const taskId = c.req.param('taskId');\n  const body = await c.req.json();\n  const parsedBody = AssignTaskSchema.safeParse(body);\n\n  if (!parsedBody.success) {\n    return c.json({ error: 'Invalid request body' }, 400);\n  }\n\n  const { assigneeId } = parsedBody.data;\n\n  // Assuming you have a function to check if the assignee is in the task's team\n  const isAssigneeInTeam = await checkIfAssigneeIsInTaskTeam(taskId, assigneeId);\n\n  if (!isAssigneeInTeam) {\n    return c.json({ error: 'Assignee is not a member of the task\\'s team' }, 403);\n  }\n\n  // Assuming you have a function to update the task assignment\n  await updateTaskAssignment(taskId, assigneeId);\n\n  return c.json({ message: 'Task assigned successfully' });\n});\n\nasync function checkIfAssigneeIsInTaskTeam(taskId: string, assigneeId: string): Promise<boolean> {\n  // Implement logic to check if the assignee is in the task's team\n  // This could involve querying a database or calling an external service\n  return true; // Placeholder\n}\n\nasync function updateTaskAssignment(taskId: string, assigneeId: string): Promise<void> {\n  // Implement logic to update the task assignment\n  // This could involve updating a document in a database or making a call to an external service\n}\n\nexport default app;"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 792
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 474
+      }
+    ],
+    "durationMs": 1269
+  }
+}

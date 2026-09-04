@@ -1,0 +1,250 @@
+{
+  "promptId": "P14",
+  "targetDesc": "Create a loader route that returns a billing summary for the current user: current plan, next invoice date, lifetime spend, and any outstanding credit. Cache the response for 60 seconds.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 9896,
+      "tokensIn": 1076,
+      "tokensOut": 268,
+      "wallMs": 13226,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/billing/routes/loader.ts\nimport { defineLoader } from 'aether';\nimport { requireUser, getSession } from '/lib/auth';\nimport { Result, ok, err } from '/lib/result';\nimport { query } from '/lib/db';\nimport { User, BillingSummary } from '/lib/types';\n\nexport default defineLoader({\n  name: 'billing-summary',\n  description: 'Returns a billing summary for the current user.',\n  auth: true,\n  cache: {\n    ttl: 60, // Cache for 60 seconds\n  },\n  async handler(req) {\n    const user = await requireUser(req);\n    if (!user) return err('Unauthorized');\n\n    const session = await getSession(req);\n    if (!session) return err('Session not found');\n\n    try {\n      const result: Result<BillingSummary, Error> = await query<BillingSummary>(\n        `\n          SELECT\n            current_plan,\n            next_invoice_date,\n            lifetime_spend,\n            outstanding_credit\n          FROM billing_summary\n          WHERE user_id = $1;\n        `,\n        [user.id]\n      );\n\n      if (result.isErr()) return err(result.error);\n\n      return ok(result.value);\n    } catch (error) {\n      return err(error as Error);\n    }\n  },\n});"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 13226,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/billing/routes/loader.ts\nimport { defineLoader } from 'aether';\nimport { requireUser, getSession } from '/lib/auth';\nimport { Result, ok, err } from '/lib/result';\nimport { query } from '/lib/db';\nimport { User, BillingSummary } from '/lib/types';\n\nexport default defineLoader({\n  name: 'billing-summary',\n  description: 'Returns a billing summary for the current user.',\n  auth: true,\n  cache: {\n    ttl: 60, // Cache for 60 seconds\n  },\n  async handler(req) {\n    const user = await requireUser(req);\n    if (!user) return err('Unauthorized');\n\n    const session = await getSession(req);\n    if (!session) return err('Session not found');\n\n    try {\n      const result: Result<BillingSummary, Error> = await query<BillingSummary>(\n        `\n          SELECT\n            current_plan,\n            next_invoice_date,\n            lifetime_spend,\n            outstanding_credit\n          FROM billing_summary\n          WHERE user_id = $1;\n        `,\n        [user.id]\n      );\n\n      if (result.isErr()) return err(result.error);\n\n      return ok(result.value);\n    } catch (error) {\n      return err(error as Error);\n    }\n  },\n});"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 859
+      }
+    ],
+    "durationMs": 1951
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 876
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 501
+      }
+    ],
+    "durationMs": 1379
+  }
+}

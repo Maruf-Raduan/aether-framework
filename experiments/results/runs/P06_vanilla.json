@@ -1,0 +1,113 @@
+{
+  "promptId": "P06",
+  "targetDesc": "Create a status-update route that transitions a task between 'todo', 'in_progress', and 'done'. Reject illegal transitions (e.g. done → todo).",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 19253,
+      "tokensIn": 186,
+      "tokensOut": 2245,
+      "wallMs": 20575,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types/task.ts\nexport enum TaskStatus {\n  Todo = 'todo',\n  InProgress = 'in_progress',\n  Done = 'done',\n}\n\nexport interface Task {\n  id: string;\n  title: string;\n  description?: string;\n  status: TaskStatus;\n}\n```\n\n```aether:src/errors/task-transition-error.ts\nimport { TaskStatus } from '../types/task';\n\nexport class TaskTransitionError extends Error {\n  constructor(currentStatus: TaskStatus, newStatus: TaskStatus, message?: string) {\n    super(message || `Invalid task status transition from '${currentStatus}' to '${newStatus}'.`);\n    this.name = 'TaskTransitionError';\n  }\n}\n```\n\n```aether:src/utils/task-transitions.ts\nimport { TaskStatus } from '../types/task';\n\n/**\n * Defines the valid state transitions for a task.\n * Keys are current statuses, values are arrays of statuses that can be transitioned to.\n */\nconst VALID_TASK_TRANSITIONS: Readonly<Record<TaskStatus, TaskStatus[]>> = {\n  [TaskStatus.Todo]: [TaskStatus.InProgress],\n  [TaskStatus.InProgress]: [TaskStatus.Todo, TaskStatus.Done],\n  [TaskStatus.Done]: [], // Once done, a task cannot transition to any other state.\n};\n\n/**\n * Checks if a transition from a current status to a new status is valid.\n * @param currentStatus The current status of the task.\n * @param newStatus The desired new status for the task.\n * @returns True if the transition is valid, false otherwise.\n */\nexport function isValidTaskTransition(currentStatus: TaskStatus, newStatus: TaskStatus): boolean {\n  if (currentStatus === newStatus) {\n    return true; // Self-transitions are always valid (no actual change, but not an \"illegal\" transition)\n  }\n  const allowedTransitions = VALID_TASK_TRANSITIONS[currentStatus];\n  return allowedTransitions ? allowedTransitions.includes(newStatus) : false;\n}\n```\n\n```aether:src/data/tasks.ts\nimport { Task, TaskStatus } from '../types/task';\n\n// A simple in-memory data store for demonstration purposes\nconst tasks: Map<string, Task> = new Map();\n\n// Seed some initial data\ntasks.set('task-1', { id: 'task-1', title: 'Buy groceries', status: TaskStatus.Todo });\ntasks.set('task-2', { id: 'task-2', title: 'Finish report', status: TaskStatus.InProgress });\ntasks.set('task-3', { id: 'task-3', title: 'Schedule meeting', status: TaskStatus.Done });\n\n/**\n * Retrieves a task by its ID.\n * @param id The ID of the task to retrieve.\n * @returns The Task object if found, otherwise undefined.\n */\nexport function getTaskById(id: string): Task | undefined {\n  return tasks.get(id);\n}\n\n/**\n * Updates the status of a task.\n * @param id The ID of the task to update.\n * @param newStatus The new status for the task.\n * @returns The updated Task object if successful, otherwise undefined (if task not found).\n */\nexport function updateTaskStatus(id: string, newStatus: TaskStatus): Task | undefined {\n  const task = tasks.get(id);\n  if (task) {\n    task.status = newStatus;\n    tasks.set(id, task); // Ensure the map is updated with the modified object\n    return { ...task }; // Return a clone to prevent external modification of the stored object\n  }\n  return undefined;\n}\n\n/**\n * Retrieves all tasks.\n * @returns An array of all tasks.\n */\nexport function getAllTasks(): Task[] {\n  return Array.from(tasks.values());\n}\n```\n\n```aether:src/routes/update-task-status.ts\nimport { TaskStatus } from '../types/task';\nimport { getTaskById, updateTaskStatus } from '../data/tasks';\nimport { isValidTaskTransition } from '../utils/task-transitions';\nimport { TaskTransitionError } from '../errors/task-transition-error';\n\n// Define a simple response structure for the route handler\ninterface ApiResponse<T> {\n  success: boolean;\n  data?: T;\n  error?: string;\n  statusCode: number;\n}\n\n/**\n * Handles the request to update a task's status.\n * This function simulates a route handler, taking parameters typically extracted from a request.\n *\n * @param taskId The ID of the task to update.\n * @param newStatus The desired new status for the task.\n * @returns An ApiResponse object indicating success or failure.\n */\nexport async function updateTaskStatusRouteHandler(\n  taskId: string,\n  newStatus: TaskStatus\n): Promise<ApiResponse<TaskStatus>> {\n  try {\n    const task = getTaskById(taskId);\n\n    if (!task) {\n      return {\n        success: false,\n        error: `Task with ID '${taskId}' not found.`,\n        statusCode: 404,\n      };\n    }\n\n    if (!Object.values(TaskStatus).includes(newStatus)) {\n      return {\n        success: false,\n        error: `Invalid status value provided: '${newStatus}'. Must be one of: ${Object.values(TaskStatus).join(', ')}.`,\n        statusCode: 400,\n      };\n    }\n\n    if (!isValidTaskTransition(task.status, newStatus)) {\n      throw new TaskTransitionError(task.status, newStatus);\n    }\n\n    const updatedTask = updateTaskStatus(taskId, newStatus);\n\n    if (!updatedTask) {\n      // This case should ideally not be reached if getTaskById succeeded,\n      // but it's a good defensive check.\n      return {\n        success: false,\n        error: `Failed to update task with ID '${taskId}'.`,\n        statusCode: 500,\n      };\n    }\n\n    return {\n      success: true,\n      data: updatedTask.status,\n      statusCode: 200,\n    };\n  } catch (error) {\n    if (error instanceof TaskTransitionError) {\n      return {\n        success: false,\n        error: error.message,\n        statusCode: 400, // Bad Request for illegal transition\n      };\n    }\n    console.error('Error updating task status:', error);\n    return {\n      success: false,\n      error: 'An unexpected error occurred.',\n      statusCode: 500,\n    };\n  }\n}\n```\n\n```aether:src/index.ts\nimport { TaskStatus } from './types/task';\nimport { getAllTasks } from './data/tasks';\nimport { updateTaskStatusRouteHandler } from './routes/update-task-status';\n\nasync function main() {\n  console.log('--- Initial Tasks ---');\n  console.log(getAllTasks());\n  console.log('\\n');\n\n  // --- Valid Transitions ---\n\n  console.log('--- Attempting Valid Transitions ---');\n\n  // task-1: todo -> in_progress\n  console.log('Updating task-1 (todo -> in_progress)...');\n  let response = await updateTaskStatusRouteHandler('task-1', TaskStatus.InProgress);\n  console.log(response); // Expected: success, status: in_progress\n\n  // task-2: in_progress -> done\n  console.log('Updating task-2 (in_progress -> done)...');\n  response = await updateTaskStatusRouteHandler('task-2', TaskStatus.Done);\n  console.log(response); // Expected: success, status: done\n\n  // task-1: in_progress -> done\n  console.log('Updating task-1 (in_progress -> done)...');\n  response = await updateTaskStatusRouteHandler('task-1', TaskStatus.Done);\n  console.log(response); // Expected: success, status: done\n\n  console.log('\\n--- Tasks After Valid Transitions ---');\n  console.log(getAllTasks());\n  console.log('\\n');\n\n  // --- Invalid Transitions ---\n\n  console.log('--- Attempting Invalid Transitions ---');\n\n  // task-3: done -> todo (illegal)\n  console.log('Updating task-3 (done -> todo)...');\n  response = await updateTaskStatusRouteHandler('task-3', TaskStatus.Todo);\n  console.log(response); // Expected: error, statusCode: 400\n\n  // task-1: done -> in_progress (illegal)\n  console.log('Updating task-1 (done -> in_progress)...');\n  response = await updateTaskStatusRouteHandler('task-1', TaskStatus.InProgress);\n  console.log(response); // Expected: error, statusCode: 400\n\n  // --- Edge Cases ---\n\n  // Non-existent task\n  console.log('Updating non-existent task (task-99 -> done)...');\n  response = await updateTaskStatusRouteHandler('task-99', TaskStatus.Done);\n  console.log(response); // Expected: error, statusCode: 404\n\n  // Invalid status string\n  console.log('Updating task-1 with invalid status string...');\n  response = await updateTaskStatusRouteHandler('task-1', 'invalid_status' as TaskStatus);\n  console.log(response); // Expected: error, statusCode: 400\n\n  // Self-transition (valid, no actual change)\n  console.log('Updating task-2 (done -> done)...');\n  response = await updateTaskStatusRouteHandler('task-2', TaskStatus.Done);\n  console.log(response); // Expected: success, status: done\n\n  console.log('\\n--- Final Tasks ---');\n  console.log(getAllTasks());\n}\n\nmain();\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 20575,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types/task.ts\nexport enum TaskStatus {\n  Todo = 'todo',\n  InProgress = 'in_progress',\n  Done = 'done',\n}\n\nexport interface Task {\n  id: string;\n  title: string;\n  description?: string;\n  status: TaskStatus;\n}\n```\n\n```aether:src/errors/task-transition-error.ts\nimport { TaskStatus } from '../types/task';\n\nexport class TaskTransitionError extends Error {\n  constructor(currentStatus: TaskStatus, newStatus: TaskStatus, message?: string) {\n    super(message || `Invalid task status transition from '${currentStatus}' to '${newStatus}'.`);\n    this.name = 'TaskTransitionError';\n  }\n}\n```\n\n```aether:src/utils/task-transitions.ts\nimport { TaskStatus } from '../types/task';\n\n/**\n * Defines the valid state transitions for a task.\n * Keys are current statuses, values are arrays of statuses that can be transitioned to.\n */\nconst VALID_TASK_TRANSITIONS: Readonly<Record<TaskStatus, TaskStatus[]>> = {\n  [TaskStatus.Todo]: [TaskStatus.InProgress],\n  [TaskStatus.InProgress]: [TaskStatus.Todo, TaskStatus.Done],\n  [TaskStatus.Done]: [], // Once done, a task cannot transition to any other state.\n};\n\n/**\n * Checks if a transition from a current status to a new status is valid.\n * @param currentStatus The current status of the task.\n * @param newStatus The desired new status for the task.\n * @returns True if the transition is valid, false otherwise.\n */\nexport function isValidTaskTransition(currentStatus: TaskStatus, newStatus: TaskStatus): boolean {\n  if (currentStatus === newStatus) {\n    return true; // Self-transitions are always valid (no actual change, but not an \"illegal\" transition)\n  }\n  const allowedTransitions = VALID_TASK_TRANSITIONS[currentStatus];\n  return allowedTransitions ? allowedTransitions.includes(newStatus) : false;\n}\n```\n\n```aether:src/data/tasks.ts\nimport { Task, TaskStatus } from '../types/task';\n\n// A simple in-memory data store for demonstration purposes\nconst tasks: Map<string, Task> = new Map();\n\n// Seed some initial data\ntasks.set('task-1', { id: 'task-1', title: 'Buy groceries', status: TaskStatus.Todo });\ntasks.set('task-2', { id: 'task-2', title: 'Finish report', status: TaskStatus.InProgress });\ntasks.set('task-3', { id: 'task-3', title: 'Schedule meeting', status: TaskStatus.Done });\n\n/**\n * Retrieves a task by its ID.\n * @param id The ID of the task to retrieve.\n * @returns The Task object if found, otherwise undefined.\n */\nexport function getTaskById(id: string): Task | undefined {\n  return tasks.get(id);\n}\n\n/**\n * Updates the status of a task.\n * @param id The ID of the task to update.\n * @param newStatus The new status for the task.\n * @returns The updated Task object if successful, otherwise undefined (if task not found).\n */\nexport function updateTaskStatus(id: string, newStatus: TaskStatus): Task | undefined {\n  const task = tasks.get(id);\n  if (task) {\n    task.status = newStatus;\n    tasks.set(id, task); // Ensure the map is updated with the modified object\n    return { ...task }; // Return a clone to prevent external modification of the stored object\n  }\n  return undefined;\n}\n\n/**\n * Retrieves all tasks.\n * @returns An array of all tasks.\n */\nexport function getAllTasks(): Task[] {\n  return Array.from(tasks.values());\n}\n```\n\n```aether:src/routes/update-task-status.ts\nimport { TaskStatus } from '../types/task';\nimport { getTaskById, updateTaskStatus } from '../data/tasks';\nimport { isValidTaskTransition } from '../utils/task-transitions';\nimport { TaskTransitionError } from '../errors/task-transition-error';\n\n// Define a simple response structure for the route handler\ninterface ApiResponse<T> {\n  success: boolean;\n  data?: T;\n  error?: string;\n  statusCode: number;\n}\n\n/**\n * Handles the request to update a task's status.\n * This function simulates a route handler, taking parameters typically extracted from a request.\n *\n * @param taskId The ID of the task to update.\n * @param newStatus The desired new status for the task.\n * @returns An ApiResponse object indicating success or failure.\n */\nexport async function updateTaskStatusRouteHandler(\n  taskId: string,\n  newStatus: TaskStatus\n): Promise<ApiResponse<TaskStatus>> {\n  try {\n    const task = getTaskById(taskId);\n\n    if (!task) {\n      return {\n        success: false,\n        error: `Task with ID '${taskId}' not found.`,\n        statusCode: 404,\n      };\n    }\n\n    if (!Object.values(TaskStatus).includes(newStatus)) {\n      return {\n        success: false,\n        error: `Invalid status value provided: '${newStatus}'. Must be one of: ${Object.values(TaskStatus).join(', ')}.`,\n        statusCode: 400,\n      };\n    }\n\n    if (!isValidTaskTransition(task.status, newStatus)) {\n      throw new TaskTransitionError(task.status, newStatus);\n    }\n\n    const updatedTask = updateTaskStatus(taskId, newStatus);\n\n    if (!updatedTask) {\n      // This case should ideally not be reached if getTaskById succeeded,\n      // but it's a good defensive check.\n      return {\n        success: false,\n        error: `Failed to update task with ID '${taskId}'.`,\n        statusCode: 500,\n      };\n    }\n\n    return {\n      success: true,\n      data: updatedTask.status,\n      statusCode: 200,\n    };\n  } catch (error) {\n    if (error instanceof TaskTransitionError) {\n      return {\n        success: false,\n        error: error.message,\n        statusCode: 400, // Bad Request for illegal transition\n      };\n    }\n    console.error('Error updating task status:', error);\n    return {\n      success: false,\n      error: 'An unexpected error occurred.',\n      statusCode: 500,\n    };\n  }\n}\n```\n\n```aether:src/index.ts\nimport { TaskStatus } from './types/task';\nimport { getAllTasks } from './data/tasks';\nimport { updateTaskStatusRouteHandler } from './routes/update-task-status';\n\nasync function main() {\n  console.log('--- Initial Tasks ---');\n  console.log(getAllTasks());\n  console.log('\\n');\n\n  // --- Valid Transitions ---\n\n  console.log('--- Attempting Valid Transitions ---');\n\n  // task-1: todo -> in_progress\n  console.log('Updating task-1 (todo -> in_progress)...');\n  let response = await updateTaskStatusRouteHandler('task-1', TaskStatus.InProgress);\n  console.log(response); // Expected: success, status: in_progress\n\n  // task-2: in_progress -> done\n  console.log('Updating task-2 (in_progress -> done)...');\n  response = await updateTaskStatusRouteHandler('task-2', TaskStatus.Done);\n  console.log(response); // Expected: success, status: done\n\n  // task-1: in_progress -> done\n  console.log('Updating task-1 (in_progress -> done)...');\n  response = await updateTaskStatusRouteHandler('task-1', TaskStatus.Done);\n  console.log(response); // Expected: success, status: done\n\n  console.log('\\n--- Tasks After Valid Transitions ---');\n  console.log(getAllTasks());\n  console.log('\\n');\n\n  // --- Invalid Transitions ---\n\n  console.log('--- Attempting Invalid Transitions ---');\n\n  // task-3: done -> todo (illegal)\n  console.log('Updating task-3 (done -> todo)...');\n  response = await updateTaskStatusRouteHandler('task-3', TaskStatus.Todo);\n  console.log(response); // Expected: error, statusCode: 400\n\n  // task-1: done -> in_progress (illegal)\n  console.log('Updating task-1 (done -> in_progress)...');\n  response = await updateTaskStatusRouteHandler('task-1', TaskStatus.InProgress);\n  console.log(response); // Expected: error, statusCode: 400\n\n  // --- Edge Cases ---\n\n  // Non-existent task\n  console.log('Updating non-existent task (task-99 -> done)...');\n  response = await updateTaskStatusRouteHandler('task-99', TaskStatus.Done);\n  console.log(response); // Expected: error, statusCode: 404\n\n  // Invalid status string\n  console.log('Updating task-1 with invalid status string...');\n  response = await updateTaskStatusRouteHandler('task-1', 'invalid_status' as TaskStatus);\n  console.log(response); // Expected: error, statusCode: 400\n\n  // Self-transition (valid, no actual change)\n  console.log('Updating task-2 (done -> done)...');\n  response = await updateTaskStatusRouteHandler('task-2', TaskStatus.Done);\n  console.log(response); // Expected: success, status: done\n\n  console.log('\\n--- Final Tasks ---');\n  console.log(getAllTasks());\n}\n\nmain();\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 838
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 479
+      }
+    ],
+    "durationMs": 1322
+  }
+}

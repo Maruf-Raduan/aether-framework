@@ -1,0 +1,113 @@
+{
+  "promptId": "P19",
+  "targetDesc": "Create a route that creates a new team, with the caller as the owner. Owner is added to team_members. Emits team.created.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 13091,
+      "tokensIn": 181,
+      "tokensOut": 1743,
+      "wallMs": 14467,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types.ts\nexport type Team = {\n  id: string;\n  name: string;\n  ownerId: string;\n};\n\nexport type TeamMember = {\n  teamId: string;\n  userId: string;\n  role: 'owner' | 'member'; // For simplicity, just owner for now\n};\n\nexport type User = {\n  id: string;\n  name: string;\n};\n\nexport type TeamCreatedEvent = {\n  teamId: string;\n  teamName: string;\n  ownerId: string;\n};\n\nexport type EventMap = {\n  'team.created': TeamCreatedEvent;\n};\n```\n\n```aether:src/utils/eventEmitter.ts\nimport { EventMap } from '../types';\n\ntype EventKey = keyof EventMap;\ntype EventListener<K extends EventKey> = (payload: EventMap[K]) => void;\n\nclass EventEmitter {\n  private listeners: { [K in EventKey]?: EventListener<K>[] } = {};\n\n  on<K extends EventKey>(eventName: K, listener: EventListener<K>): void {\n    if (!this.listeners[eventName]) {\n      this.listeners[eventName] = [];\n    }\n    this.listeners[eventName]!.push(listener);\n  }\n\n  emit<K extends EventKey>(eventName: K, payload: EventMap[K]): void {\n    const eventListeners = this.listeners[eventName];\n    if (eventListeners) {\n      eventListeners.forEach(listener => listener(payload));\n    }\n  }\n}\n\nexport const eventEmitter = new EventEmitter();\n```\n\n```aether:src/db/index.ts\nimport { Team, TeamMember } from '../types';\n\n// In a real application, this would be a database client (e.g., Prisma, TypeORM, Knex)\n// For this exercise, we'll use in-memory arrays to simulate a database.\n\nconst teams: Team[] = [];\nconst teamMembers: TeamMember[] = [];\n\nexport const db = {\n  teams: {\n    create: async (team: Team): Promise<Team> => {\n      teams.push(team);\n      return team;\n    },\n    findById: async (id: string): Promise<Team | undefined> => {\n      return teams.find(t => t.id === id);\n    },\n    // ... other team operations\n  },\n  teamMembers: {\n    add: async (member: TeamMember): Promise<TeamMember> => {\n      teamMembers.push(member);\n      return member;\n    },\n    findByTeamId: async (teamId: string): Promise<TeamMember[]> => {\n      return teamMembers.filter(tm => tm.teamId === teamId);\n    },\n    // ... other team member operations\n  },\n  // ... other collections (e.g., users)\n};\n```\n\n```aether:src/services/teamService.ts\nimport { db } from '../db';\nimport { eventEmitter } from '../utils/eventEmitter';\nimport { Team } from '../types';\nimport { v4 as uuidv4 } from 'uuid';\n\nexport class TeamService {\n  async createTeam(name: string, ownerId: string): Promise<Team> {\n    if (!name || name.trim() === '') {\n      throw new Error('Team name cannot be empty.');\n    }\n    if (!ownerId) {\n      throw new Error('Owner ID is required to create a team.');\n    }\n\n    const newTeamId = uuidv4();\n\n    const newTeam: Team = {\n      id: newTeamId,\n      name,\n      ownerId,\n    };\n\n    // 1. Create the team\n    await db.teams.create(newTeam);\n\n    // 2. Add the caller as the owner to team_members\n    await db.teamMembers.add({\n      teamId: newTeamId,\n      userId: ownerId,\n      role: 'owner',\n    });\n\n    // 3. Emit team.created event\n    eventEmitter.emit('team.created', {\n      teamId: newTeamId,\n      teamName: name,\n      ownerId,\n    });\n\n    return newTeam;\n  }\n}\n\nexport const teamService = new TeamService();\n```\n\n```aether:src/routes/teams.ts\nimport { Hono } from 'hono';\nimport { teamService } from '../services/teamService';\n\n// Define a type for the Hono context variables\ntype Variables = {\n  userId: string; // This will be set by a middleware, simulating authentication\n};\n\nconst teams = new Hono<{ Variables: Variables }>();\n\nteams.post('/', async (c) => {\n  const { name } = await c.req.json();\n  const ownerId = c.get('userId'); // Get ownerId from context (set by auth middleware)\n\n  if (!ownerId) {\n    return c.json({ error: 'Authentication required. User ID not found in context.' }, 401);\n  }\n\n  try {\n    const newTeam = await teamService.createTeam(name, ownerId);\n    return c.json(newTeam, 201);\n  } catch (error: any) {\n    console.error('Error creating team:', error);\n    if (error.message.includes('Team name cannot be empty') || error.message.includes('Owner ID is required')) {\n      return c.json({ error: error.message }, 400);\n    }\n    return c.json({ error: 'Failed to create team.' }, 500);\n  }\n});\n\nexport default teams;\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { logger } from 'hono/logger';\nimport { prettyJSON } from 'hono/pretty-json';\nimport { v4 as uuidv4 } from 'uuid';\n\nimport teamsRouter from './routes/teams';\nimport { eventEmitter } from './utils/eventEmitter';\n\nconst app = new Hono();\n\n// Middlewares\napp.use(logger()); // Logs requests to the console\napp.use(prettyJSON()); // Formats JSON responses nicely\n\n// Mock authentication middleware\n// In a real app, this would parse a JWT or session to get the user ID\napp.use('*', async (c, next) => {\n  // For demonstration, we'll just set a static user ID or generate one\n  // In a real scenario, this would come from an authenticated session/token\n  const mockUserId = 'user-' + uuidv4().split('-')[0]; // Example: user-xxxx\n  c.set('userId', mockUserId);\n  await next();\n});\n\n// Register routes\napp.route('/teams', teamsRouter);\n\n// Event Listener for team.created\neventEmitter.on('team.created', (event) => {\n  console.log(`[EVENT] Team Created:`, event);\n  // In a real application, this might trigger:\n  // - Sending a notification to the owner\n  // - Updating a search index\n  // - Logging to an analytics service\n});\n\n// Default route\napp.get('/', (c) => {\n  return c.text('Welcome to the Team Management API!');\n});\n\n// Error handling\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ error: 'Internal Server Error' }, 500);\n});\n\n// Start the server\nconst port = 3000;\nconsole.log(`Server is running on http://localhost:${port}`);\n\nexport default {\n  port,\n  fetch: app.fetch,\n};\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 14467,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types.ts\nexport type Team = {\n  id: string;\n  name: string;\n  ownerId: string;\n};\n\nexport type TeamMember = {\n  teamId: string;\n  userId: string;\n  role: 'owner' | 'member'; // For simplicity, just owner for now\n};\n\nexport type User = {\n  id: string;\n  name: string;\n};\n\nexport type TeamCreatedEvent = {\n  teamId: string;\n  teamName: string;\n  ownerId: string;\n};\n\nexport type EventMap = {\n  'team.created': TeamCreatedEvent;\n};\n```\n\n```aether:src/utils/eventEmitter.ts\nimport { EventMap } from '../types';\n\ntype EventKey = keyof EventMap;\ntype EventListener<K extends EventKey> = (payload: EventMap[K]) => void;\n\nclass EventEmitter {\n  private listeners: { [K in EventKey]?: EventListener<K>[] } = {};\n\n  on<K extends EventKey>(eventName: K, listener: EventListener<K>): void {\n    if (!this.listeners[eventName]) {\n      this.listeners[eventName] = [];\n    }\n    this.listeners[eventName]!.push(listener);\n  }\n\n  emit<K extends EventKey>(eventName: K, payload: EventMap[K]): void {\n    const eventListeners = this.listeners[eventName];\n    if (eventListeners) {\n      eventListeners.forEach(listener => listener(payload));\n    }\n  }\n}\n\nexport const eventEmitter = new EventEmitter();\n```\n\n```aether:src/db/index.ts\nimport { Team, TeamMember } from '../types';\n\n// In a real application, this would be a database client (e.g., Prisma, TypeORM, Knex)\n// For this exercise, we'll use in-memory arrays to simulate a database.\n\nconst teams: Team[] = [];\nconst teamMembers: TeamMember[] = [];\n\nexport const db = {\n  teams: {\n    create: async (team: Team): Promise<Team> => {\n      teams.push(team);\n      return team;\n    },\n    findById: async (id: string): Promise<Team | undefined> => {\n      return teams.find(t => t.id === id);\n    },\n    // ... other team operations\n  },\n  teamMembers: {\n    add: async (member: TeamMember): Promise<TeamMember> => {\n      teamMembers.push(member);\n      return member;\n    },\n    findByTeamId: async (teamId: string): Promise<TeamMember[]> => {\n      return teamMembers.filter(tm => tm.teamId === teamId);\n    },\n    // ... other team member operations\n  },\n  // ... other collections (e.g., users)\n};\n```\n\n```aether:src/services/teamService.ts\nimport { db } from '../db';\nimport { eventEmitter } from '../utils/eventEmitter';\nimport { Team } from '../types';\nimport { v4 as uuidv4 } from 'uuid';\n\nexport class TeamService {\n  async createTeam(name: string, ownerId: string): Promise<Team> {\n    if (!name || name.trim() === '') {\n      throw new Error('Team name cannot be empty.');\n    }\n    if (!ownerId) {\n      throw new Error('Owner ID is required to create a team.');\n    }\n\n    const newTeamId = uuidv4();\n\n    const newTeam: Team = {\n      id: newTeamId,\n      name,\n      ownerId,\n    };\n\n    // 1. Create the team\n    await db.teams.create(newTeam);\n\n    // 2. Add the caller as the owner to team_members\n    await db.teamMembers.add({\n      teamId: newTeamId,\n      userId: ownerId,\n      role: 'owner',\n    });\n\n    // 3. Emit team.created event\n    eventEmitter.emit('team.created', {\n      teamId: newTeamId,\n      teamName: name,\n      ownerId,\n    });\n\n    return newTeam;\n  }\n}\n\nexport const teamService = new TeamService();\n```\n\n```aether:src/routes/teams.ts\nimport { Hono } from 'hono';\nimport { teamService } from '../services/teamService';\n\n// Define a type for the Hono context variables\ntype Variables = {\n  userId: string; // This will be set by a middleware, simulating authentication\n};\n\nconst teams = new Hono<{ Variables: Variables }>();\n\nteams.post('/', async (c) => {\n  const { name } = await c.req.json();\n  const ownerId = c.get('userId'); // Get ownerId from context (set by auth middleware)\n\n  if (!ownerId) {\n    return c.json({ error: 'Authentication required. User ID not found in context.' }, 401);\n  }\n\n  try {\n    const newTeam = await teamService.createTeam(name, ownerId);\n    return c.json(newTeam, 201);\n  } catch (error: any) {\n    console.error('Error creating team:', error);\n    if (error.message.includes('Team name cannot be empty') || error.message.includes('Owner ID is required')) {\n      return c.json({ error: error.message }, 400);\n    }\n    return c.json({ error: 'Failed to create team.' }, 500);\n  }\n});\n\nexport default teams;\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { logger } from 'hono/logger';\nimport { prettyJSON } from 'hono/pretty-json';\nimport { v4 as uuidv4 } from 'uuid';\n\nimport teamsRouter from './routes/teams';\nimport { eventEmitter } from './utils/eventEmitter';\n\nconst app = new Hono();\n\n// Middlewares\napp.use(logger()); // Logs requests to the console\napp.use(prettyJSON()); // Formats JSON responses nicely\n\n// Mock authentication middleware\n// In a real app, this would parse a JWT or session to get the user ID\napp.use('*', async (c, next) => {\n  // For demonstration, we'll just set a static user ID or generate one\n  // In a real scenario, this would come from an authenticated session/token\n  const mockUserId = 'user-' + uuidv4().split('-')[0]; // Example: user-xxxx\n  c.set('userId', mockUserId);\n  await next();\n});\n\n// Register routes\napp.route('/teams', teamsRouter);\n\n// Event Listener for team.created\neventEmitter.on('team.created', (event) => {\n  console.log(`[EVENT] Team Created:`, event);\n  // In a real application, this might trigger:\n  // - Sending a notification to the owner\n  // - Updating a search index\n  // - Logging to an analytics service\n});\n\n// Default route\napp.get('/', (c) => {\n  return c.text('Welcome to the Team Management API!');\n});\n\n// Error handling\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ error: 'Internal Server Error' }, 500);\n});\n\n// Start the server\nconst port = 3000;\nconsole.log(`Server is running on http://localhost:${port}`);\n\nexport default {\n  port,\n  fetch: app.fetch,\n};\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 886
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 484
+      }
+    ],
+    "durationMs": 1375
+  }
+}

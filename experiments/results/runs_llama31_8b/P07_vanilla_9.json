@@ -1,0 +1,53 @@
+{
+  "promptId": "P07",
+  "condition": "vanilla",
+  "iteration": 9,
+  "passed": true,
+  "tokensIn": 119,
+  "tokensOut": 520,
+  "tokensTotal": 639,
+  "latencyMs": 13516,
+  "wallMs": 13516,
+  "files": [
+    {
+      "path": "unnamed.ts",
+      "length": 899
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 560
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 150
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

@@ -1,0 +1,298 @@
+{
+  "promptId": "P06",
+  "targetDesc": "Create a status-update route that transitions a task between 'todo', 'in_progress', and 'done'. Reject illegal transitions (e.g. done → todo).",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 47462,
+      "tokensIn": 1069,
+      "tokensOut": 1522,
+      "wallMs": 50570,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Handles task creation, retrieval, and status updates.',\n\n  dependencies: { modules: ['auth'] },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/tasks', auth: true },\n      { method: 'GET', path: '/tasks/:id', auth: true },\n      { method: 'PUT', path: '/tasks/:id/status', auth: true },\n    ],\n    functions: ['createTask', 'getTaskById', 'updateTaskStatus'],\n    types: ['Task', 'TaskStatus', 'TaskError'],\n  },\n\n  sideEffects: [\n    'writes to: tasks table',\n    'reads from: users table',\n  ],\n\n  invariants: [\n    'A task must always belong to exactly one user',\n    'Deleted tasks must never be hard-deleted',\n    'Illegal status transitions are not allowed',\n  ],\n});"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/lib/types.ts\nimport { z } from 'zod';\n\nexport const TaskStatus = z.enum(['todo', 'in_progress', 'done']);\nexport type TaskStatus = z.infer<typeof TaskStatus>;\n\nexport const TaskError = z.object({\n  code: z.string(),\n  message: z.string(),\n});\nexport type TaskError = z.infer<typeof TaskError>;"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/lib/db.ts\nimport { query } from '../lib/db';\n\nexport async function createTask(userId: number, title: string, description: string): Promise<Task> {\n  const result = await query('INSERT INTO tasks (user_id, title, description) VALUES ($1, $2, $3) RETURNING *', [userId, title, description]);\n  return result.rows[0];\n}\n\nexport async function getTaskById(taskId: number): Promise<Task | null> {\n  const result = await query('SELECT * FROM tasks WHERE id = $1', [taskId]);\n  return result.rows.length > 0 ? result.rows[0] : null;\n}\n\nexport async function updateTaskStatus(taskId: number, status: TaskStatus): Promise<Task> {\n  if (!['todo', 'in_progress', 'done'].includes(status)) {\n    throw new Error('Invalid task status');\n  }\n  const result = await query('UPDATE tasks SET status = $1 WHERE id = $2 RETURNING *', [status, taskId]);\n  return result.rows[0];\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/lib/validate.ts\nimport { z } from 'zod';\n\nexport function parseTaskCreateRequest(req: Request): Task {\n  const schema = z.object({\n    title: z.string().min(1),\n    description: z.string(),\n  });\n  return schema.parse(req.body);\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/lib/auth.ts\nimport { requireUser } from '../lib/auth';\n\nexport async function createTaskHandler(req: Request, res: Response) {\n  const user = await requireUser(req);\n  const taskData = parseTaskCreateRequest(req);\n  try {\n    const task = await createTask(user.id, taskData.title, taskData.description);\n    res.status(201).json(task);\n  } catch (error) {\n    res.status(400).json({ error: { code: 'task_creation_failed', message: error.message } });\n  }\n}\n\nexport async function getTaskByIdHandler(req: Request, res: Response) {\n  const taskId = parseInt(req.params.id, 10);\n  try {\n    const task = await getTaskById(taskId);\n    if (task) {\n      res.status(200).json(task);\n    } else {\n      res.status(404).json({ error: { code: 'task_not_found', message: 'Task not found' } });\n    }\n  } catch (error) {\n    res.status(500).json({ error: { code: 'internal_error', message: error.message } });\n  }\n}\n\nexport async function updateTaskStatusHandler(req: Request, res: Response) {\n  const taskId = parseInt(req.params.id, 10);\n  const status = req.body.status as TaskStatus;\n  try {\n    await requireUser(req);\n    if (!['todo', 'in_progress', 'done'].includes(status)) {\n      return res.status(400).json({ error: { code: 'invalid_status', message: 'Invalid task status' } });\n    }\n    const updatedTask = await updateTaskStatus(taskId, status);\n    res.status(200).json(updatedTask);\n  } catch (error) {\n    res.status(500).json({ error: { code: 'internal_error', message: error.message } });\n  }\n}"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/routes.ts\nimport { Router } from 'bun';\nimport { createTaskHandler, getTaskByIdHandler, updateTaskStatusHandler } from '../lib/handlers';\n\nconst router = new Router();\n\nrouter.post('/tasks', createTaskHandler);\nrouter.get('/tasks/:id', getTaskByIdHandler);\nrouter.put('/tasks/:id/status', updateTaskStatusHandler);\n\nexport default router;"
+        },
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/tasks/lib/handlers.ts\nimport { requireUser } from '../lib/auth';\nimport { Task, TaskError } from '../lib/types';\n\nexport async function createTaskHandler(req: Request, res: Response) {\n  const user = await requireUser(req);\n  const taskData = parseTaskCreateRequest(req);\n  try {\n    const task = await createTask(user.id, taskData.title, taskData.description);\n    res.status(201).json(task);\n  } catch (error) {\n    res.status(400).json({ error: { code: 'task_creation_failed', message: error.message } });\n  }\n}\n\nexport async function getTaskByIdHandler(req: Request, res: Response) {\n  const taskId = parseInt(req.params.id, 10);\n  try {\n    const task = await getTaskById(taskId);\n    if (task) {\n      res.status(200).json(task);\n    } else {\n      res.status(404).json({ error: { code: 'task_not_found', message: 'Task not found' } });\n    }\n  } catch (error) {\n    res.status(500).json({ error: { code: 'internal_error', message: error.message } });\n  }\n}\n\nexport async function updateTaskStatusHandler(req: Request, res: Response) {\n  const taskId = parseInt(req.params.id, 10);\n  const status = req.body.status as TaskStatus;\n  try {\n    await requireUser(req);\n    if (!['todo', 'in_progress', 'done'].includes(status)) {\n      return res.status(400).json({ error: { code: 'invalid_status', message: 'Invalid task status' } });\n    }\n    const updatedTask = await updateTaskStatus(taskId, status);\n    res.status(200).json(updatedTask);\n  } catch (error) {\n    res.status(500).json({ error: { code: 'internal_error', message: error.message } });\n  }\n}"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 50570,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'tasks',\n  description: 'Handles task creation, retrieval, and status updates.',\n\n  dependencies: { modules: ['auth'] },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/tasks', auth: true },\n      { method: 'GET', path: '/tasks/:id', auth: true },\n      { method: 'PUT', path: '/tasks/:id/status', auth: true },\n    ],\n    functions: ['createTask', 'getTaskById', 'updateTaskStatus'],\n    types: ['Task', 'TaskStatus', 'TaskError'],\n  },\n\n  sideEffects: [\n    'writes to: tasks table',\n    'reads from: users table',\n  ],\n\n  invariants: [\n    'A task must always belong to exactly one user',\n    'Deleted tasks must never be hard-deleted',\n    'Illegal status transitions are not allowed',\n  ],\n});"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/lib/types.ts\nimport { z } from 'zod';\n\nexport const TaskStatus = z.enum(['todo', 'in_progress', 'done']);\nexport type TaskStatus = z.infer<typeof TaskStatus>;\n\nexport const TaskError = z.object({\n  code: z.string(),\n  message: z.string(),\n});\nexport type TaskError = z.infer<typeof TaskError>;"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/lib/db.ts\nimport { query } from '../lib/db';\n\nexport async function createTask(userId: number, title: string, description: string): Promise<Task> {\n  const result = await query('INSERT INTO tasks (user_id, title, description) VALUES ($1, $2, $3) RETURNING *', [userId, title, description]);\n  return result.rows[0];\n}\n\nexport async function getTaskById(taskId: number): Promise<Task | null> {\n  const result = await query('SELECT * FROM tasks WHERE id = $1', [taskId]);\n  return result.rows.length > 0 ? result.rows[0] : null;\n}\n\nexport async function updateTaskStatus(taskId: number, status: TaskStatus): Promise<Task> {\n  if (!['todo', 'in_progress', 'done'].includes(status)) {\n    throw new Error('Invalid task status');\n  }\n  const result = await query('UPDATE tasks SET status = $1 WHERE id = $2 RETURNING *', [status, taskId]);\n  return result.rows[0];\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/lib/validate.ts\nimport { z } from 'zod';\n\nexport function parseTaskCreateRequest(req: Request): Task {\n  const schema = z.object({\n    title: z.string().min(1),\n    description: z.string(),\n  });\n  return schema.parse(req.body);\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/lib/auth.ts\nimport { requireUser } from '../lib/auth';\n\nexport async function createTaskHandler(req: Request, res: Response) {\n  const user = await requireUser(req);\n  const taskData = parseTaskCreateRequest(req);\n  try {\n    const task = await createTask(user.id, taskData.title, taskData.description);\n    res.status(201).json(task);\n  } catch (error) {\n    res.status(400).json({ error: { code: 'task_creation_failed', message: error.message } });\n  }\n}\n\nexport async function getTaskByIdHandler(req: Request, res: Response) {\n  const taskId = parseInt(req.params.id, 10);\n  try {\n    const task = await getTaskById(taskId);\n    if (task) {\n      res.status(200).json(task);\n    } else {\n      res.status(404).json({ error: { code: 'task_not_found', message: 'Task not found' } });\n    }\n  } catch (error) {\n    res.status(500).json({ error: { code: 'internal_error', message: error.message } });\n  }\n}\n\nexport async function updateTaskStatusHandler(req: Request, res: Response) {\n  const taskId = parseInt(req.params.id, 10);\n  const status = req.body.status as TaskStatus;\n  try {\n    await requireUser(req);\n    if (!['todo', 'in_progress', 'done'].includes(status)) {\n      return res.status(400).json({ error: { code: 'invalid_status', message: 'Invalid task status' } });\n    }\n    const updatedTask = await updateTaskStatus(taskId, status);\n    res.status(200).json(updatedTask);\n  } catch (error) {\n    res.status(500).json({ error: { code: 'internal_error', message: error.message } });\n  }\n}"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/routes.ts\nimport { Router } from 'bun';\nimport { createTaskHandler, getTaskByIdHandler, updateTaskStatusHandler } from '../lib/handlers';\n\nconst router = new Router();\n\nrouter.post('/tasks', createTaskHandler);\nrouter.get('/tasks/:id', getTaskByIdHandler);\nrouter.put('/tasks/:id/status', updateTaskStatusHandler);\n\nexport default router;"
+    },
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/tasks/lib/handlers.ts\nimport { requireUser } from '../lib/auth';\nimport { Task, TaskError } from '../lib/types';\n\nexport async function createTaskHandler(req: Request, res: Response) {\n  const user = await requireUser(req);\n  const taskData = parseTaskCreateRequest(req);\n  try {\n    const task = await createTask(user.id, taskData.title, taskData.description);\n    res.status(201).json(task);\n  } catch (error) {\n    res.status(400).json({ error: { code: 'task_creation_failed', message: error.message } });\n  }\n}\n\nexport async function getTaskByIdHandler(req: Request, res: Response) {\n  const taskId = parseInt(req.params.id, 10);\n  try {\n    const task = await getTaskById(taskId);\n    if (task) {\n      res.status(200).json(task);\n    } else {\n      res.status(404).json({ error: { code: 'task_not_found', message: 'Task not found' } });\n    }\n  } catch (error) {\n    res.status(500).json({ error: { code: 'internal_error', message: error.message } });\n  }\n}\n\nexport async function updateTaskStatusHandler(req: Request, res: Response) {\n  const taskId = parseInt(req.params.id, 10);\n  const status = req.body.status as TaskStatus;\n  try {\n    await requireUser(req);\n    if (!['todo', 'in_progress', 'done'].includes(status)) {\n      return res.status(400).json({ error: { code: 'invalid_status', message: 'Invalid task status' } });\n    }\n    const updatedTask = await updateTaskStatus(taskId, status);\n    res.status(200).json(updatedTask);\n  } catch (error) {\n    res.status(500).json({ error: { code: 'internal_error', message: error.message } });\n  }\n}"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 854
+      }
+    ],
+    "durationMs": 1707
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 862
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 534
+      }
+    ],
+    "durationMs": 1401
+  }
+}

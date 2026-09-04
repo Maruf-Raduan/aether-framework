@@ -1,0 +1,250 @@
+{
+  "promptId": "P18",
+  "targetDesc": "Create a password-reset-confirm route that consumes a one-time token, sets the new password (bcrypt), and invalidates all existing sessions.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 14024,
+      "tokensIn": 1062,
+      "tokensOut": 350,
+      "wallMs": 17139,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/auth/routes/password-reset-confirm.ts\nimport { Request, Response } from 'bun';\nimport { requireUser, getSession, createSession, invalidateSession } from '../module.contract';\nimport { Result, ok, err } from '/lib/result';\nimport { parseBody } from '/lib/validate';\nimport bcrypt from 'bcrypt';\n\nexport async function passwordResetConfirm(req: Request): Promise<Response> {\n  const body = await parseBody<{ token: string; newPassword: string }>(req);\n\n  // Validate input\n  if (!body.token || !body.newPassword) {\n    return err({ code: 'INVALID_INPUT', message: 'Token and new password are required' });\n  }\n\n  // Check if the session is valid\n  const session = await getSession(req);\n  if (!session) {\n    return err({ code: 'SESSION_INVALID', message: 'Session is invalid or expired' });\n  }\n\n  // Hash the new password\n  const hashedPassword = await bcrypt.hash(body.newPassword, 10);\n\n  // Update user's password in the database\n  try {\n    await query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, session.userId]);\n  } catch (error) {\n    return err({ code: 'DATABASE_ERROR', message: 'Failed to update user password' });\n  }\n\n  // Invalidate all existing sessions for the user\n  try {\n    await invalidateSession(session.userId);\n  } catch (error) {\n    return err({ code: 'SESSION_INVALIDATE_ERROR', message: 'Failed to invalidate user sessions' });\n  }\n\n  // Return success response\n  return ok({ message: 'Password reset successful' });\n}"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 17139,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/auth/routes/password-reset-confirm.ts\nimport { Request, Response } from 'bun';\nimport { requireUser, getSession, createSession, invalidateSession } from '../module.contract';\nimport { Result, ok, err } from '/lib/result';\nimport { parseBody } from '/lib/validate';\nimport bcrypt from 'bcrypt';\n\nexport async function passwordResetConfirm(req: Request): Promise<Response> {\n  const body = await parseBody<{ token: string; newPassword: string }>(req);\n\n  // Validate input\n  if (!body.token || !body.newPassword) {\n    return err({ code: 'INVALID_INPUT', message: 'Token and new password are required' });\n  }\n\n  // Check if the session is valid\n  const session = await getSession(req);\n  if (!session) {\n    return err({ code: 'SESSION_INVALID', message: 'Session is invalid or expired' });\n  }\n\n  // Hash the new password\n  const hashedPassword = await bcrypt.hash(body.newPassword, 10);\n\n  // Update user's password in the database\n  try {\n    await query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, session.userId]);\n  } catch (error) {\n    return err({ code: 'DATABASE_ERROR', message: 'Failed to update user password' });\n  }\n\n  // Invalidate all existing sessions for the user\n  try {\n    await invalidateSession(session.userId);\n  } catch (error) {\n    return err({ code: 'SESSION_INVALIDATE_ERROR', message: 'Failed to invalidate user sessions' });\n  }\n\n  // Return success response\n  return ok({ message: 'Password reset successful' });\n}"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 824
+      }
+    ],
+    "durationMs": 1706
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 921
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 484
+      }
+    ],
+    "durationMs": 1409
+  }
+}

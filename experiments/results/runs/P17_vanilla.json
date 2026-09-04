@@ -1,0 +1,113 @@
+{
+  "promptId": "P17",
+  "targetDesc": "Create a password-reset-request route that emails a one-time reset link. Always return 200 even when the email is unknown (avoid user enumeration).",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 19595,
+      "tokensIn": 185,
+      "tokensOut": 1710,
+      "wallMs": 21144,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:types.ts\nexport interface User {\n  id: string;\n  email: string;\n  // In a real app, you'd have a hashed password here\n}\n\nexport interface PasswordResetToken {\n  token: string;\n  userId: string;\n  expiresAt: Date;\n}\n```\n\n```aether:utils/token.ts\nimport { randomBytes } from 'crypto';\n\n/**\n * Generates a secure, random token.\n * @param length The length of the token in bytes (default 32 bytes, resulting in 64 hex characters).\n * @returns A hexadecimal string representation of the token.\n */\nexport function generateSecureToken(length: number = 32): string {\n  return randomBytes(length).toString('hex');\n}\n\n/**\n * Generates an expiration date for a token.\n * @param expiresInMinutes The number of minutes until the token expires (default 60 minutes).\n * @returns A Date object representing the expiration time.\n */\nexport function generateExpirationDate(expiresInMinutes: number = 60): Date {\n  const date = new Date();\n  date.setMinutes(date.getMinutes() + expiresInMinutes);\n  return date;\n}\n```\n\n```aether:services/user.ts\nimport { User, PasswordResetToken } from '../types';\n\n// --- Mock Database ---\nconst users: User[] = [\n  { id: 'user-1', email: 'test@example.com' },\n  { id: 'user-2', email: 'another@example.com' },\n];\n\nconst passwordResetTokens: Map<string, PasswordResetToken> = new Map();\n// --- End Mock Database ---\n\nexport const userService = {\n  /**\n   * Finds a user by their email address.\n   * @param email The email address to search for.\n   * @returns The User object if found, otherwise undefined.\n   */\n  findUserByEmail(email: string): User | undefined {\n    return users.find(user => user.email === email);\n  },\n\n  /**\n   * Stores a password reset token for a given user.\n   * @param userId The ID of the user.\n   * @param token The generated reset token.\n   * @param expiresAt The expiration date of the token.\n   */\n  storePasswordResetToken(userId: string, token: string, expiresAt: Date): void {\n    passwordResetTokens.set(token, { token, userId, expiresAt });\n    console.log(`[UserService] Stored reset token for user ${userId}: ${token}`);\n  },\n\n  /**\n   * Retrieves a password reset token.\n   * @param token The token string to retrieve.\n   * @returns The PasswordResetToken object if found and not expired, otherwise undefined.\n   */\n  getPasswordResetToken(token: string): PasswordResetToken | undefined {\n    const resetToken = passwordResetTokens.get(token);\n    if (resetToken && resetToken.expiresAt > new Date()) {\n      return resetToken;\n    }\n    // Optionally, clean up expired tokens here\n    if (resetToken && resetToken.expiresAt <= new Date()) {\n      passwordResetTokens.delete(token);\n      console.log(`[UserService] Deleted expired token: ${token}`);\n    }\n    return undefined;\n  },\n\n  /**\n   * Deletes a password reset token.\n   * @param token The token string to delete.\n   */\n  deletePasswordResetToken(token: string): void {\n    passwordResetTokens.delete(token);\n    console.log(`[UserService] Deleted used token: ${token}`);\n  },\n};\n```\n\n```aether:services/email.ts\nexport const emailService = {\n  /**\n   * Mocks sending a password reset email.\n   * In a real application, this would integrate with an email sending service (e.g., SendGrid, Nodemailer).\n   * @param to The recipient's email address.\n   * @param resetLink The full password reset link.\n   */\n  async sendPasswordResetEmail(to: string, resetLink: string): Promise<void> {\n    // Simulate network delay\n    await new Promise(resolve => setTimeout(resolve, 500));\n\n    console.log(`\n--- Email Sent ---\nTo: ${to}\nSubject: Password Reset Request\nBody:\nYou have requested a password reset. Please click the following link to reset your password:\n${resetLink}\n\nThis link will expire in 60 minutes.\nIf you did not request a password reset, please ignore this email.\n------------------\n    `);\n    // In a real app, handle potential email sending errors here\n  },\n};\n```\n\n```aether:routes/password-reset-request.ts\nimport { Hono } from 'hono';\nimport { userService } from '../services/user';\nimport { emailService } from '../services/email';\nimport { generateSecureToken, generateExpirationDate } from '../utils/token';\n\nconst passwordResetRequestRoute = new Hono();\n\n// Base URL for the frontend password reset page (replace with your actual frontend URL)\nconst FRONTEND_RESET_BASE_URL = 'http://localhost:3000/reset-password';\n\npasswordResetRequestRoute.post('/', async (c) => {\n  const { email } = await c.req.json();\n\n  if (!email || typeof email !== 'string') {\n    // Return 200 even for invalid input to avoid enumeration\n    return c.json({ message: 'If an account with that email exists, a password reset link has been sent.' }, 200);\n  }\n\n  const user = userService.findUserByEmail(email);\n\n  if (user) {\n    const token = generateSecureToken();\n    const expiresAt = generateExpirationDate(); // Default 60 minutes\n\n    userService.storePasswordResetToken(user.id, token, expiresAt);\n\n    const resetLink = `${FRONTEND_RESET_BASE_URL}?token=${token}`;\n\n    try {\n      await emailService.sendPasswordResetEmail(user.email, resetLink);\n      console.log(`[Route] Password reset email sent to ${user.email}`);\n    } catch (error) {\n      console.error(`[Route] Failed to send password reset email to ${user.email}:`, error);\n      // Log the error but still return 200 to the client to prevent enumeration\n    }\n  } else {\n    console.log(`[Route] Password reset requested for unknown email: ${email}`);\n    // Do nothing if user not found, but still return 200\n  }\n\n  // Always return 200 OK to prevent user enumeration, regardless of whether the email exists\n  return c.json({ message: 'If an account with that email exists, a password reset link has been sent.' }, 200);\n});\n\nexport default passwordResetRequestRoute;\n```\n\n```aether:server.ts\nimport { Hono } from 'hono';\nimport passwordResetRequestRoute from './routes/password-reset-request';\n\nconst app = new Hono();\n\n// Register the password reset request route\napp.route('/password-reset-request', passwordResetRequestRoute);\n\n// Basic health check route\napp.get('/', (c) => {\n  return c.text('Aether Password Reset API is running!');\n});\n\nconst port = 3001;\nconsole.log(`Server is running on http://localhost:${port}`);\n\n// Export the Hono app for deployment or testing\nexport default {\n  port,\n  fetch: app.fetch,\n};\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 21144,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:types.ts\nexport interface User {\n  id: string;\n  email: string;\n  // In a real app, you'd have a hashed password here\n}\n\nexport interface PasswordResetToken {\n  token: string;\n  userId: string;\n  expiresAt: Date;\n}\n```\n\n```aether:utils/token.ts\nimport { randomBytes } from 'crypto';\n\n/**\n * Generates a secure, random token.\n * @param length The length of the token in bytes (default 32 bytes, resulting in 64 hex characters).\n * @returns A hexadecimal string representation of the token.\n */\nexport function generateSecureToken(length: number = 32): string {\n  return randomBytes(length).toString('hex');\n}\n\n/**\n * Generates an expiration date for a token.\n * @param expiresInMinutes The number of minutes until the token expires (default 60 minutes).\n * @returns A Date object representing the expiration time.\n */\nexport function generateExpirationDate(expiresInMinutes: number = 60): Date {\n  const date = new Date();\n  date.setMinutes(date.getMinutes() + expiresInMinutes);\n  return date;\n}\n```\n\n```aether:services/user.ts\nimport { User, PasswordResetToken } from '../types';\n\n// --- Mock Database ---\nconst users: User[] = [\n  { id: 'user-1', email: 'test@example.com' },\n  { id: 'user-2', email: 'another@example.com' },\n];\n\nconst passwordResetTokens: Map<string, PasswordResetToken> = new Map();\n// --- End Mock Database ---\n\nexport const userService = {\n  /**\n   * Finds a user by their email address.\n   * @param email The email address to search for.\n   * @returns The User object if found, otherwise undefined.\n   */\n  findUserByEmail(email: string): User | undefined {\n    return users.find(user => user.email === email);\n  },\n\n  /**\n   * Stores a password reset token for a given user.\n   * @param userId The ID of the user.\n   * @param token The generated reset token.\n   * @param expiresAt The expiration date of the token.\n   */\n  storePasswordResetToken(userId: string, token: string, expiresAt: Date): void {\n    passwordResetTokens.set(token, { token, userId, expiresAt });\n    console.log(`[UserService] Stored reset token for user ${userId}: ${token}`);\n  },\n\n  /**\n   * Retrieves a password reset token.\n   * @param token The token string to retrieve.\n   * @returns The PasswordResetToken object if found and not expired, otherwise undefined.\n   */\n  getPasswordResetToken(token: string): PasswordResetToken | undefined {\n    const resetToken = passwordResetTokens.get(token);\n    if (resetToken && resetToken.expiresAt > new Date()) {\n      return resetToken;\n    }\n    // Optionally, clean up expired tokens here\n    if (resetToken && resetToken.expiresAt <= new Date()) {\n      passwordResetTokens.delete(token);\n      console.log(`[UserService] Deleted expired token: ${token}`);\n    }\n    return undefined;\n  },\n\n  /**\n   * Deletes a password reset token.\n   * @param token The token string to delete.\n   */\n  deletePasswordResetToken(token: string): void {\n    passwordResetTokens.delete(token);\n    console.log(`[UserService] Deleted used token: ${token}`);\n  },\n};\n```\n\n```aether:services/email.ts\nexport const emailService = {\n  /**\n   * Mocks sending a password reset email.\n   * In a real application, this would integrate with an email sending service (e.g., SendGrid, Nodemailer).\n   * @param to The recipient's email address.\n   * @param resetLink The full password reset link.\n   */\n  async sendPasswordResetEmail(to: string, resetLink: string): Promise<void> {\n    // Simulate network delay\n    await new Promise(resolve => setTimeout(resolve, 500));\n\n    console.log(`\n--- Email Sent ---\nTo: ${to}\nSubject: Password Reset Request\nBody:\nYou have requested a password reset. Please click the following link to reset your password:\n${resetLink}\n\nThis link will expire in 60 minutes.\nIf you did not request a password reset, please ignore this email.\n------------------\n    `);\n    // In a real app, handle potential email sending errors here\n  },\n};\n```\n\n```aether:routes/password-reset-request.ts\nimport { Hono } from 'hono';\nimport { userService } from '../services/user';\nimport { emailService } from '../services/email';\nimport { generateSecureToken, generateExpirationDate } from '../utils/token';\n\nconst passwordResetRequestRoute = new Hono();\n\n// Base URL for the frontend password reset page (replace with your actual frontend URL)\nconst FRONTEND_RESET_BASE_URL = 'http://localhost:3000/reset-password';\n\npasswordResetRequestRoute.post('/', async (c) => {\n  const { email } = await c.req.json();\n\n  if (!email || typeof email !== 'string') {\n    // Return 200 even for invalid input to avoid enumeration\n    return c.json({ message: 'If an account with that email exists, a password reset link has been sent.' }, 200);\n  }\n\n  const user = userService.findUserByEmail(email);\n\n  if (user) {\n    const token = generateSecureToken();\n    const expiresAt = generateExpirationDate(); // Default 60 minutes\n\n    userService.storePasswordResetToken(user.id, token, expiresAt);\n\n    const resetLink = `${FRONTEND_RESET_BASE_URL}?token=${token}`;\n\n    try {\n      await emailService.sendPasswordResetEmail(user.email, resetLink);\n      console.log(`[Route] Password reset email sent to ${user.email}`);\n    } catch (error) {\n      console.error(`[Route] Failed to send password reset email to ${user.email}:`, error);\n      // Log the error but still return 200 to the client to prevent enumeration\n    }\n  } else {\n    console.log(`[Route] Password reset requested for unknown email: ${email}`);\n    // Do nothing if user not found, but still return 200\n  }\n\n  // Always return 200 OK to prevent user enumeration, regardless of whether the email exists\n  return c.json({ message: 'If an account with that email exists, a password reset link has been sent.' }, 200);\n});\n\nexport default passwordResetRequestRoute;\n```\n\n```aether:server.ts\nimport { Hono } from 'hono';\nimport passwordResetRequestRoute from './routes/password-reset-request';\n\nconst app = new Hono();\n\n// Register the password reset request route\napp.route('/password-reset-request', passwordResetRequestRoute);\n\n// Basic health check route\napp.get('/', (c) => {\n  return c.text('Aether Password Reset API is running!');\n});\n\nconst port = 3001;\nconsole.log(`Server is running on http://localhost:${port}`);\n\n// Export the Hono app for deployment or testing\nexport default {\n  port,\n  fetch: app.fetch,\n};\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1026
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 510
+      }
+    ],
+    "durationMs": 1549
+  }
+}

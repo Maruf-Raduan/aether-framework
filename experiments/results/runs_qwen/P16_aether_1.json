@@ -1,0 +1,250 @@
+{
+  "promptId": "P16",
+  "targetDesc": "Create a token-refresh route that exchanges a refresh token for a new access token. Rotate the refresh token on every use.",
+  "provider": "ollama",
+  "model": "qwen2.5-coder:7b-instruct-q4_K_M",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 18706,
+      "tokensIn": 1059,
+      "tokensOut": 454,
+      "wallMs": 21974,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "// modules/auth/routes/token-refresh.ts\nimport { Request, Response } from 'bun';\nimport { defineRoute } from 'aether';\nimport { requireUser } from '/lib/auth';\nimport { Result, ok, err } from '/lib/result';\nimport { parseBody } from '/lib/validate';\nimport { User, Session, AuthError } from '/modules/auth/types';\n\nexport default defineRoute({\n  method: 'POST',\n  path: '/auth/token-refresh',\n  auth: false,\n  handler: async (req: Request) => {\n    try {\n      const body = parseBody<{ refreshToken: string }>(req);\n      const { refreshToken } = body;\n\n      // Validate the refresh token\n      if (!refreshToken || typeof refreshToken !== 'string') {\n        return err(new AuthError('Invalid refresh token'));\n      }\n\n      // Retrieve the session associated with the refresh token\n      const session = await getSession(refreshToken);\n\n      if (!session) {\n        return err(new AuthError('Session not found'));\n      }\n\n      // Check if the session is expired\n      if (Date.now() > session.expiryTime) {\n        return err(new AuthError('Session expired'));\n      }\n\n      // Rotate the refresh token\n      const newRefreshToken = generateNewRefreshToken();\n\n      // Update the session with the new refresh token\n      await updateSession(session.id, newRefreshToken);\n\n      // Generate a new access token\n      const accessToken = generateAccessToken(session.userId);\n\n      return ok({\n        accessToken,\n        refreshToken: newRefreshToken,\n      });\n    } catch (error) {\n      return err(new AuthError('Internal server error'));\n    }\n  },\n});\n\n// Helper functions\nfunction generateNewRefreshToken(): string {\n  // Generate a secure refresh token\n  return crypto.randomUUID();\n}\n\nasync function updateSession(sessionId: string, newRefreshToken: string): Promise<void> {\n  // Update the session with the new refresh token in the database\n  await query('UPDATE sessions SET refresh_token = $1 WHERE id = $2', [newRefreshToken, sessionId]);\n}\n\nfunction generateAccessToken(userId: string): string {\n  // Generate a secure access token\n  return crypto.randomUUID();\n}"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 21974,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "// modules/auth/routes/token-refresh.ts\nimport { Request, Response } from 'bun';\nimport { defineRoute } from 'aether';\nimport { requireUser } from '/lib/auth';\nimport { Result, ok, err } from '/lib/result';\nimport { parseBody } from '/lib/validate';\nimport { User, Session, AuthError } from '/modules/auth/types';\n\nexport default defineRoute({\n  method: 'POST',\n  path: '/auth/token-refresh',\n  auth: false,\n  handler: async (req: Request) => {\n    try {\n      const body = parseBody<{ refreshToken: string }>(req);\n      const { refreshToken } = body;\n\n      // Validate the refresh token\n      if (!refreshToken || typeof refreshToken !== 'string') {\n        return err(new AuthError('Invalid refresh token'));\n      }\n\n      // Retrieve the session associated with the refresh token\n      const session = await getSession(refreshToken);\n\n      if (!session) {\n        return err(new AuthError('Session not found'));\n      }\n\n      // Check if the session is expired\n      if (Date.now() > session.expiryTime) {\n        return err(new AuthError('Session expired'));\n      }\n\n      // Rotate the refresh token\n      const newRefreshToken = generateNewRefreshToken();\n\n      // Update the session with the new refresh token\n      await updateSession(session.id, newRefreshToken);\n\n      // Generate a new access token\n      const accessToken = generateAccessToken(session.userId);\n\n      return ok({\n        accessToken,\n        refreshToken: newRefreshToken,\n      });\n    } catch (error) {\n      return err(new AuthError('Internal server error'));\n    }\n  },\n});\n\n// Helper functions\nfunction generateNewRefreshToken(): string {\n  // Generate a secure refresh token\n  return crypto.randomUUID();\n}\n\nasync function updateSession(sessionId: string, newRefreshToken: string): Promise<void> {\n  // Update the session with the new refresh token in the database\n  await query('UPDATE sessions SET refresh_token = $1 WHERE id = $2', [newRefreshToken, sessionId]);\n}\n\nfunction generateAccessToken(userId: string): string {\n  // Generate a secure access token\n  return crypto.randomUUID();\n}"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 883
+      }
+    ],
+    "durationMs": 1852
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 867
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 547
+      }
+    ],
+    "durationMs": 1416
+  }
+}

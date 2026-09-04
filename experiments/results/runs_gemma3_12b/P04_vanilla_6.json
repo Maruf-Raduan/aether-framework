@@ -1,0 +1,73 @@
+{
+  "promptId": "P04",
+  "condition": "vanilla",
+  "iteration": 6,
+  "passed": true,
+  "tokensIn": 121,
+  "tokensOut": 1550,
+  "tokensTotal": 1671,
+  "latencyMs": 112114,
+  "wallMs": 112114,
+  "files": [
+    {
+      "path": "src/types.ts",
+      "length": 0
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 355
+    },
+    {
+      "path": "src/data.ts",
+      "length": 0
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 944
+    },
+    {
+      "path": "src/list-tasks.ts",
+      "length": 0
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 1080
+    },
+    {
+      "path": "src/index.ts",
+      "length": 0
+    },
+    {
+      "path": "unnamed.ts",
+      "length": 380
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

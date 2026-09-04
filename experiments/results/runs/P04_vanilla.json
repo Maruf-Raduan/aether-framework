@@ -1,0 +1,113 @@
+{
+  "promptId": "P04",
+  "targetDesc": "Create a list-tasks route that returns all tasks for the current user's team, paginated by limit/offset query params.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 17487,
+      "tokensIn": 178,
+      "tokensOut": 2416,
+      "wallMs": 18864,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types.ts\nexport interface Team {\n  id: string;\n  name: string;\n}\n\nexport interface User {\n  id: string;\n  name: string;\n  teamId: string;\n}\n\nexport interface Task {\n  id: string;\n  title: string;\n  description: string;\n  teamId: string;\n  dueDate?: string; // ISO date string\n  completed: boolean;\n}\n\n// Define the Hono environment for type safety\nexport type Env = {\n  Variables: {\n    currentUser: User;\n  };\n  Bindings: {};\n};\n```\n\n```aether:src/data.ts\nimport { Team, User, Task } from './types';\n\nexport const teams: Team[] = [\n  { id: 'team-alpha', name: 'Alpha Team' },\n  { id: 'team-beta', name: 'Beta Team' },\n  { id: 'team-gamma', name: 'Gamma Team' },\n];\n\nexport const users: User[] = [\n  { id: 'user-1', name: 'Alice', teamId: 'team-alpha' },\n  { id: 'user-2', name: 'Bob', teamId: 'team-alpha' },\n  { id: 'user-3', name: 'Charlie', teamId: 'team-beta' },\n  { id: 'user-4', name: 'Diana', teamId: 'team-gamma' },\n];\n\nexport const tasks: Task[] = [\n  // Tasks for Alpha Team\n  { id: 'task-101', title: 'Design landing page', description: 'Create mockups for the new landing page.', teamId: 'team-alpha', dueDate: '2023-10-26', completed: false },\n  { id: 'task-102', title: 'Implement user authentication', description: 'Develop the backend for user login and registration.', teamId: 'team-alpha', dueDate: '2023-11-01', completed: false },\n  { id: 'task-103', title: 'Write API documentation', description: 'Document all new API endpoints.', teamId: 'team-alpha', dueDate: '2023-10-30', completed: true },\n  { id: 'task-104', title: 'Refactor database schema', description: 'Optimize existing database tables for performance.', teamId: 'team-alpha', dueDate: '2023-11-15', completed: false },\n  { id: 'task-105', title: 'Deploy to staging', description: 'Push the latest changes to the staging environment.', teamId: 'team-alpha', dueDate: '2023-10-28', completed: false },\n  { id: 'task-106', title: 'Fix critical bug #123', description: 'Address the reported issue with user profiles.', teamId: 'team-alpha', dueDate: '2023-10-25', completed: false },\n  { id: 'task-107', title: 'Review pull requests', description: 'Check and approve pending code changes.', teamId: 'team-alpha', dueDate: '2023-10-27', completed: false },\n  { id: 'task-108', title: 'Plan next sprint', description: 'Outline tasks for the upcoming development cycle.', teamId: 'team-alpha', dueDate: '2023-11-05', completed: false },\n  { id: 'task-109', title: 'Onboard new team member', description: 'Help the new hire get set up and familiar with the project.', teamId: 'team-alpha', dueDate: '2023-11-03', completed: false },\n  { id: 'task-110', title: 'Research new technologies', description: 'Explore potential tools for future development.', teamId: 'team-alpha', dueDate: '2023-11-10', completed: false },\n  { id: 'task-111', title: 'Prepare client demo', description: 'Create a presentation for the upcoming client meeting.', teamId: 'team-alpha', dueDate: '2023-11-08', completed: false },\n  { id: 'task-112', title: 'Update dependencies', description: 'Upgrade project libraries to their latest versions.', teamId: 'team-alpha', dueDate: '2023-11-02', completed: true },\n  { id: 'task-113', title: 'Optimize image assets', description: 'Reduce file sizes of images for faster loading.', teamId: 'team-alpha', dueDate: '2023-11-07', completed: false },\n  { id: 'task-114', title: 'Conduct A/B testing', description: 'Set up and monitor A/B tests for new features.', teamId: 'team-alpha', dueDate: '2023-11-12', completed: false },\n  { id: 'task-115', title: 'Write unit tests', description: 'Add comprehensive unit tests for the new module.', teamId: 'team-alpha', dueDate: '2023-11-09', completed: false },\n\n  // Tasks for Beta Team\n  { id: 'task-201', title: 'Develop mobile app UI', description: 'Create the user interface for the iOS and Android apps.', teamId: 'team-beta', dueDate: '2023-11-05', completed: false },\n  { id: 'task-202', title: 'Integrate payment gateway', description: 'Connect the application with Stripe for payments.', teamId: 'team-beta', dueDate: '2023-11-20', completed: false },\n  { id: 'task-203', title: 'Perform security audit', description: 'Review the application for potential security vulnerabilities.', teamId: 'team-beta', dueDate: '2023-11-10', completed: true },\n\n  // Tasks for Gamma Team\n  { id: 'task-301', title: 'Market research for new product', description: 'Analyze market trends and competitor products.', teamId: 'team-gamma', dueDate: '2023-10-31', completed: false },\n  { id: 'task-302', title: 'Create marketing campaign assets', description: 'Design banners, social media posts, and email templates.', teamId: 'team-gamma', dueDate: '2023-11-15', completed: false },\n];\n```\n\n```aether:src/middleware/auth.ts\nimport { Context, Next } from 'hono';\nimport { Env, User } from '../types';\nimport { users } from '../data';\n\n/**\n * A simple authentication middleware that sets a 'currentUser' on the Hono context.\n * In a real application, this would involve token verification, database lookups, etc.\n * For this exercise, it simply picks the first user from the data store.\n */\nexport const authMiddleware = async (c: Context<Env>, next: Next) => {\n  // Simulate authentication: always set user-1 (Alice) as the current user.\n  // In a real app, this would come from a JWT, session, etc.\n  const currentUser: User | undefined = users.find(u => u.id === 'user-1'); // Alice from Alpha Team\n\n  if (!currentUser) {\n    // This should ideally not happen with our mock data, but good for robustness.\n    return c.json({ error: 'Authentication failed: User not found' }, 401);\n  }\n\n  c.set('currentUser', currentUser);\n  await next();\n};\n```\n\n```aether:src/routes/tasks.ts\nimport { Hono } from 'hono';\nimport { Env, Task } from '../types';\nimport { tasks } from '../data';\n\n// Create a Hono router specifically for task-related routes\nexport const tasksRouter = new Hono<Env>();\n\n/**\n * GET /tasks\n * Returns all tasks for the current user's team, paginated.\n * Query Params:\n *   - limit: number (default: 10)\n *   - offset: number (default: 0)\n */\ntasksRouter.get('/', async (c) => {\n  const currentUser = c.get('currentUser'); // Type-safe access thanks to Env\n\n  // Extract and parse query parameters\n  const query = c.req.query();\n  const limit = Math.max(1, parseInt(query.limit || '10', 10)); // Ensure limit is at least 1\n  const offset = Math.max(0, parseInt(query.offset || '0', 10)); // Ensure offset is at least 0\n\n  // Filter tasks by the current user's teamId\n  const teamTasks: Task[] = tasks.filter(task => task.teamId === currentUser.teamId);\n\n  // Apply pagination\n  const paginatedTasks = teamTasks.slice(offset, offset + limit);\n\n  // Return the paginated tasks and total count\n  return c.json({\n    data: paginatedTasks,\n    meta: {\n      total: teamTasks.length,\n      limit: limit,\n      offset: offset,\n    },\n  });\n});\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { Env } from './types';\nimport { authMiddleware } from './middleware/auth';\nimport { tasksRouter } from './routes/tasks';\n\n// Initialize the Hono application with our custom environment type\nconst app = new Hono<Env>();\n\n// Apply global middleware\napp.use('*', authMiddleware); // All routes will use this auth middleware\n\n// Mount the tasks router under the /tasks path\napp.route('/tasks', tasksRouter);\n\n// Basic root route for testing\napp.get('/', (c) => {\n  return c.text('Welcome to the Task API! Try /tasks');\n});\n\n// Export the Hono app for deployment (e.g., with Node.js or Cloudflare Workers)\nexport default app;\n\n// Example of how to run this with Node.js (requires 'npm install hono' and 'npm install @hono/node-server')\n// import { serve } from '@hono/node-server';\n// const port = 3000;\n// console.log(`Server is running on http://localhost:${port}`);\n// serve({\n//   fetch: app.fetch,\n//   port\n// });\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 18864,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types.ts\nexport interface Team {\n  id: string;\n  name: string;\n}\n\nexport interface User {\n  id: string;\n  name: string;\n  teamId: string;\n}\n\nexport interface Task {\n  id: string;\n  title: string;\n  description: string;\n  teamId: string;\n  dueDate?: string; // ISO date string\n  completed: boolean;\n}\n\n// Define the Hono environment for type safety\nexport type Env = {\n  Variables: {\n    currentUser: User;\n  };\n  Bindings: {};\n};\n```\n\n```aether:src/data.ts\nimport { Team, User, Task } from './types';\n\nexport const teams: Team[] = [\n  { id: 'team-alpha', name: 'Alpha Team' },\n  { id: 'team-beta', name: 'Beta Team' },\n  { id: 'team-gamma', name: 'Gamma Team' },\n];\n\nexport const users: User[] = [\n  { id: 'user-1', name: 'Alice', teamId: 'team-alpha' },\n  { id: 'user-2', name: 'Bob', teamId: 'team-alpha' },\n  { id: 'user-3', name: 'Charlie', teamId: 'team-beta' },\n  { id: 'user-4', name: 'Diana', teamId: 'team-gamma' },\n];\n\nexport const tasks: Task[] = [\n  // Tasks for Alpha Team\n  { id: 'task-101', title: 'Design landing page', description: 'Create mockups for the new landing page.', teamId: 'team-alpha', dueDate: '2023-10-26', completed: false },\n  { id: 'task-102', title: 'Implement user authentication', description: 'Develop the backend for user login and registration.', teamId: 'team-alpha', dueDate: '2023-11-01', completed: false },\n  { id: 'task-103', title: 'Write API documentation', description: 'Document all new API endpoints.', teamId: 'team-alpha', dueDate: '2023-10-30', completed: true },\n  { id: 'task-104', title: 'Refactor database schema', description: 'Optimize existing database tables for performance.', teamId: 'team-alpha', dueDate: '2023-11-15', completed: false },\n  { id: 'task-105', title: 'Deploy to staging', description: 'Push the latest changes to the staging environment.', teamId: 'team-alpha', dueDate: '2023-10-28', completed: false },\n  { id: 'task-106', title: 'Fix critical bug #123', description: 'Address the reported issue with user profiles.', teamId: 'team-alpha', dueDate: '2023-10-25', completed: false },\n  { id: 'task-107', title: 'Review pull requests', description: 'Check and approve pending code changes.', teamId: 'team-alpha', dueDate: '2023-10-27', completed: false },\n  { id: 'task-108', title: 'Plan next sprint', description: 'Outline tasks for the upcoming development cycle.', teamId: 'team-alpha', dueDate: '2023-11-05', completed: false },\n  { id: 'task-109', title: 'Onboard new team member', description: 'Help the new hire get set up and familiar with the project.', teamId: 'team-alpha', dueDate: '2023-11-03', completed: false },\n  { id: 'task-110', title: 'Research new technologies', description: 'Explore potential tools for future development.', teamId: 'team-alpha', dueDate: '2023-11-10', completed: false },\n  { id: 'task-111', title: 'Prepare client demo', description: 'Create a presentation for the upcoming client meeting.', teamId: 'team-alpha', dueDate: '2023-11-08', completed: false },\n  { id: 'task-112', title: 'Update dependencies', description: 'Upgrade project libraries to their latest versions.', teamId: 'team-alpha', dueDate: '2023-11-02', completed: true },\n  { id: 'task-113', title: 'Optimize image assets', description: 'Reduce file sizes of images for faster loading.', teamId: 'team-alpha', dueDate: '2023-11-07', completed: false },\n  { id: 'task-114', title: 'Conduct A/B testing', description: 'Set up and monitor A/B tests for new features.', teamId: 'team-alpha', dueDate: '2023-11-12', completed: false },\n  { id: 'task-115', title: 'Write unit tests', description: 'Add comprehensive unit tests for the new module.', teamId: 'team-alpha', dueDate: '2023-11-09', completed: false },\n\n  // Tasks for Beta Team\n  { id: 'task-201', title: 'Develop mobile app UI', description: 'Create the user interface for the iOS and Android apps.', teamId: 'team-beta', dueDate: '2023-11-05', completed: false },\n  { id: 'task-202', title: 'Integrate payment gateway', description: 'Connect the application with Stripe for payments.', teamId: 'team-beta', dueDate: '2023-11-20', completed: false },\n  { id: 'task-203', title: 'Perform security audit', description: 'Review the application for potential security vulnerabilities.', teamId: 'team-beta', dueDate: '2023-11-10', completed: true },\n\n  // Tasks for Gamma Team\n  { id: 'task-301', title: 'Market research for new product', description: 'Analyze market trends and competitor products.', teamId: 'team-gamma', dueDate: '2023-10-31', completed: false },\n  { id: 'task-302', title: 'Create marketing campaign assets', description: 'Design banners, social media posts, and email templates.', teamId: 'team-gamma', dueDate: '2023-11-15', completed: false },\n];\n```\n\n```aether:src/middleware/auth.ts\nimport { Context, Next } from 'hono';\nimport { Env, User } from '../types';\nimport { users } from '../data';\n\n/**\n * A simple authentication middleware that sets a 'currentUser' on the Hono context.\n * In a real application, this would involve token verification, database lookups, etc.\n * For this exercise, it simply picks the first user from the data store.\n */\nexport const authMiddleware = async (c: Context<Env>, next: Next) => {\n  // Simulate authentication: always set user-1 (Alice) as the current user.\n  // In a real app, this would come from a JWT, session, etc.\n  const currentUser: User | undefined = users.find(u => u.id === 'user-1'); // Alice from Alpha Team\n\n  if (!currentUser) {\n    // This should ideally not happen with our mock data, but good for robustness.\n    return c.json({ error: 'Authentication failed: User not found' }, 401);\n  }\n\n  c.set('currentUser', currentUser);\n  await next();\n};\n```\n\n```aether:src/routes/tasks.ts\nimport { Hono } from 'hono';\nimport { Env, Task } from '../types';\nimport { tasks } from '../data';\n\n// Create a Hono router specifically for task-related routes\nexport const tasksRouter = new Hono<Env>();\n\n/**\n * GET /tasks\n * Returns all tasks for the current user's team, paginated.\n * Query Params:\n *   - limit: number (default: 10)\n *   - offset: number (default: 0)\n */\ntasksRouter.get('/', async (c) => {\n  const currentUser = c.get('currentUser'); // Type-safe access thanks to Env\n\n  // Extract and parse query parameters\n  const query = c.req.query();\n  const limit = Math.max(1, parseInt(query.limit || '10', 10)); // Ensure limit is at least 1\n  const offset = Math.max(0, parseInt(query.offset || '0', 10)); // Ensure offset is at least 0\n\n  // Filter tasks by the current user's teamId\n  const teamTasks: Task[] = tasks.filter(task => task.teamId === currentUser.teamId);\n\n  // Apply pagination\n  const paginatedTasks = teamTasks.slice(offset, offset + limit);\n\n  // Return the paginated tasks and total count\n  return c.json({\n    data: paginatedTasks,\n    meta: {\n      total: teamTasks.length,\n      limit: limit,\n      offset: offset,\n    },\n  });\n});\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { Env } from './types';\nimport { authMiddleware } from './middleware/auth';\nimport { tasksRouter } from './routes/tasks';\n\n// Initialize the Hono application with our custom environment type\nconst app = new Hono<Env>();\n\n// Apply global middleware\napp.use('*', authMiddleware); // All routes will use this auth middleware\n\n// Mount the tasks router under the /tasks path\napp.route('/tasks', tasksRouter);\n\n// Basic root route for testing\napp.get('/', (c) => {\n  return c.text('Welcome to the Task API! Try /tasks');\n});\n\n// Export the Hono app for deployment (e.g., with Node.js or Cloudflare Workers)\nexport default app;\n\n// Example of how to run this with Node.js (requires 'npm install hono' and 'npm install @hono/node-server')\n// import { serve } from '@hono/node-server';\n// const port = 3000;\n// console.log(`Server is running on http://localhost:${port}`);\n// serve({\n//   fetch: app.fetch,\n//   port\n// });\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 865
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 507
+      }
+    ],
+    "durationMs": 1377
+  }
+}

@@ -1,0 +1,250 @@
+{
+  "promptId": "P21",
+  "targetDesc": "Create a remove-member route. The owner cannot be removed. After removal, all tasks assigned to that user in the team are unassigned (transaction).",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 17671,
+      "tokensIn": 1197,
+      "tokensOut": 2107,
+      "wallMs": 20697,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:modules/teams/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'teams',\n  description: 'Manages teams, team members, and team-related settings.',\n\n  dependencies: {\n    modules: ['auth'],\n  },\n\n  exposes: {\n    routes: [\n      { method: 'POST',   path: '/teams',                  auth: true },\n      { method: 'GET',    path: '/teams/:teamId',          auth: true },\n      { method: 'PUT',    path: '/teams/:teamId',          auth: true },\n      { method: 'DELETE', path: '/teams/:teamId',          auth: true },\n      { method: 'GET',    path: '/teams/:teamId/members',  auth: true },\n      { method: 'POST',   path: '/teams/:teamId/members',  auth: true },\n      { method: 'DELETE', path: '/teams/:teamId/members/:userId', auth: true }, // New route\n    ],\n    functions: [\n      'createTeam',\n      'getTeamById',\n      'updateTeam',\n      'deleteTeam',\n      'addTeamMember',\n      'getTeamMembers',\n      'isTeamOwner',\n      'isTeamMember',\n    ],\n    types: ['Team', 'TeamMember', 'TeamRole'],\n  },\n\n  sideEffects: [\n    'writes to: teams table',\n    'writes to: team_members table',\n    'reads from: users table',\n    'reads from: tasks table', // Added for unassigning tasks\n    'writes to: tasks table',  // Added for unassigning tasks\n  ],\n\n  invariants: [\n    'A team must always have exactly one owner',\n    'A user can only be a member of a team once',\n    'Deleting a team must also delete all its members and associated tasks',\n    'Removing a member must unassign their tasks within that team', // New invariant\n  ],\n});\n```\n```aether:modules/teams/lib/queries.ts\nimport { query, transaction } from 'lib/db';\nimport { User } from 'modules/auth/module.contract'; // Assuming User type is exposed by auth module\n\nexport async function createTeamQuery(name: string, ownerId: string) {\n  return query<{ id: string; name: string; owner_id: string }>(\n    `INSERT INTO teams (name, owner_id) VALUES ($1, $2) RETURNING id, name, owner_id`,\n    [name, ownerId]\n  );\n}\n\nexport async function addTeamMemberQuery(teamId: string, userId: string, role: string) {\n  return query<{ team_id: string; user_id: string; role: string }>(\n    `INSERT INTO team_members (team_id, user_id, role) VALUES ($1, $2, $3) RETURNING team_id, user_id, role`,\n    [teamId, userId, role]\n  );\n}\n\nexport async function getTeamByIdQuery(teamId: string) {\n  return query<{ id: string; name: string; owner_id: string }>(\n    `SELECT id, name, owner_id FROM teams WHERE id = $1`,\n    [teamId]\n  );\n}\n\nexport async function getTeamMembersQuery(teamId: string) {\n  return query<User & { role: string }>(\n    `SELECT u.id, u.email, u.name, tm.role\n     FROM team_members tm\n     JOIN users u ON tm.user_id = u.id\n     WHERE tm.team_id = $1`,\n    [teamId]\n  );\n}\n\nexport async function isTeamOwnerQuery(teamId: string, userId: string) {\n  const result = await query<{ exists: boolean }>(\n    `SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1 AND owner_id = $2) AS exists`,\n    [teamId, userId]\n  );\n  return result[0]?.exists || false;\n}\n\nexport async function isTeamMemberQuery(teamId: string, userId: string) {\n  const result = await query<{ exists: boolean }>(\n    `SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2) AS exists`,\n    [teamId, userId]\n  );\n  return result[0]?.exists || false;\n}\n\nexport async function removeTeamMemberQuery(teamId: string, userId: string) {\n  return query(\n    `DELETE FROM team_members WHERE team_id = $1 AND user_id = $2`,\n    [teamId, userId]\n  );\n}\n\nexport async function unassignTasksFromMemberInTeamQuery(teamId: string, userId: string) {\n  return query(\n    `UPDATE tasks SET assigned_to_user_id = NULL WHERE team_id = $1 AND assigned_to_user_id = $2`,\n    [teamId, userId]\n  );\n}\n```\n```aether:modules/teams/services/remove-member.ts\nimport { transaction } from 'lib/db';\nimport { ok, err, Result } from 'lib/result';\nimport {\n  isTeamOwnerQuery,\n  isTeamMemberQuery,\n  removeTeamMemberQuery,\n  unassignTasksFromMemberInTeamQuery,\n} from 'modules/teams/lib/queries';\n\ntype RemoveMemberError = 'NOT_FOUND' | 'NOT_AUTHORIZED' | 'CANNOT_REMOVE_OWNER' | 'UNKNOWN_ERROR';\n\nexport async function removeMemberFromTeam(\n  teamId: string,\n  memberId: string,\n  requestingUserId: string\n): Promise<Result<void, RemoveMemberError>> {\n  return transaction(async (db) => {\n    // 1. Verify requesting user is the team owner\n    const isOwner = await isTeamOwnerQuery(teamId, requestingUserId);\n    if (!isOwner) {\n      return err('NOT_AUTHORIZED');\n    }\n\n    // 2. Verify the member to be removed exists in the team\n    const isMember = await isTeamMemberQuery(teamId, memberId);\n    if (!isMember) {\n      return err('NOT_FOUND');\n    }\n\n    // 3. Prevent removing the team owner\n    const isMemberOwner = await isTeamOwnerQuery(teamId, memberId);\n    if (isMemberOwner) {\n      return err('CANNOT_REMOVE_OWNER');\n    }\n\n    // 4. Remove the member from the team\n    await removeTeamMemberQuery(teamId, memberId);\n\n    // 5. Unassign all tasks assigned to this user within this team\n    await unassignTasksFromMemberInTeamQuery(teamId, memberId);\n\n    return ok(undefined);\n  });\n}\n```\n```aether:modules/teams/routes/remove-member.ts\nimport { Request, Response } from 'aether';\nimport { requireUser } from 'lib/auth';\nimport { parseParams } from 'lib/validate';\nimport { z } from 'zod';\nimport { removeMemberFromTeam } from 'modules/teams/services/remove-member';\n\nconst removeMemberParamsSchema = z.object({\n  teamId: z.string().uuid('Invalid team ID format.'),\n  userId: z.string().uuid('Invalid user ID format.'),\n});\n\nexport async function removeMemberHandler(req: Request): Promise<Response> {\n  const user = await requireUser(req); // Ensure user is authenticated\n\n  const paramsResult = parseParams(req, removeMemberParamsSchema);\n  if (paramsResult.isErr()) {\n    return new Response(JSON.stringify({ error: paramsResult.error.message }), { status: 400, headers: { 'Content-Type': 'application/json' } });\n  }\n  const { teamId, userId } = paramsResult.value;\n\n  const result = await removeMemberFromTeam(teamId, userId, user.id);\n\n  if (result.isErr()) {\n    switch (result.error) {\n      case 'NOT_FOUND':\n        return new Response(JSON.stringify({ error: 'Team or member not found.' }), { status: 404, headers: { 'Content-Type': 'application/json' } });\n      case 'NOT_AUTHORIZED':\n        return new Response(JSON.stringify({ error: 'You are not authorized to remove members from this team.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });\n      case 'CANNOT_REMOVE_OWNER':\n        return new Response(JSON.stringify({ error: 'The team owner cannot be removed.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });\n      case 'UNKNOWN_ERROR':\n      default:\n        return new Response(JSON.stringify({ error: 'An unexpected error occurred.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });\n    }\n  }\n\n  return new Response(null, { status: 204 }); // No Content on successful deletion\n}\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 20697,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:modules/teams/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'teams',\n  description: 'Manages teams, team members, and team-related settings.',\n\n  dependencies: {\n    modules: ['auth'],\n  },\n\n  exposes: {\n    routes: [\n      { method: 'POST',   path: '/teams',                  auth: true },\n      { method: 'GET',    path: '/teams/:teamId',          auth: true },\n      { method: 'PUT',    path: '/teams/:teamId',          auth: true },\n      { method: 'DELETE', path: '/teams/:teamId',          auth: true },\n      { method: 'GET',    path: '/teams/:teamId/members',  auth: true },\n      { method: 'POST',   path: '/teams/:teamId/members',  auth: true },\n      { method: 'DELETE', path: '/teams/:teamId/members/:userId', auth: true }, // New route\n    ],\n    functions: [\n      'createTeam',\n      'getTeamById',\n      'updateTeam',\n      'deleteTeam',\n      'addTeamMember',\n      'getTeamMembers',\n      'isTeamOwner',\n      'isTeamMember',\n    ],\n    types: ['Team', 'TeamMember', 'TeamRole'],\n  },\n\n  sideEffects: [\n    'writes to: teams table',\n    'writes to: team_members table',\n    'reads from: users table',\n    'reads from: tasks table', // Added for unassigning tasks\n    'writes to: tasks table',  // Added for unassigning tasks\n  ],\n\n  invariants: [\n    'A team must always have exactly one owner',\n    'A user can only be a member of a team once',\n    'Deleting a team must also delete all its members and associated tasks',\n    'Removing a member must unassign their tasks within that team', // New invariant\n  ],\n});\n```\n```aether:modules/teams/lib/queries.ts\nimport { query, transaction } from 'lib/db';\nimport { User } from 'modules/auth/module.contract'; // Assuming User type is exposed by auth module\n\nexport async function createTeamQuery(name: string, ownerId: string) {\n  return query<{ id: string; name: string; owner_id: string }>(\n    `INSERT INTO teams (name, owner_id) VALUES ($1, $2) RETURNING id, name, owner_id`,\n    [name, ownerId]\n  );\n}\n\nexport async function addTeamMemberQuery(teamId: string, userId: string, role: string) {\n  return query<{ team_id: string; user_id: string; role: string }>(\n    `INSERT INTO team_members (team_id, user_id, role) VALUES ($1, $2, $3) RETURNING team_id, user_id, role`,\n    [teamId, userId, role]\n  );\n}\n\nexport async function getTeamByIdQuery(teamId: string) {\n  return query<{ id: string; name: string; owner_id: string }>(\n    `SELECT id, name, owner_id FROM teams WHERE id = $1`,\n    [teamId]\n  );\n}\n\nexport async function getTeamMembersQuery(teamId: string) {\n  return query<User & { role: string }>(\n    `SELECT u.id, u.email, u.name, tm.role\n     FROM team_members tm\n     JOIN users u ON tm.user_id = u.id\n     WHERE tm.team_id = $1`,\n    [teamId]\n  );\n}\n\nexport async function isTeamOwnerQuery(teamId: string, userId: string) {\n  const result = await query<{ exists: boolean }>(\n    `SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1 AND owner_id = $2) AS exists`,\n    [teamId, userId]\n  );\n  return result[0]?.exists || false;\n}\n\nexport async function isTeamMemberQuery(teamId: string, userId: string) {\n  const result = await query<{ exists: boolean }>(\n    `SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2) AS exists`,\n    [teamId, userId]\n  );\n  return result[0]?.exists || false;\n}\n\nexport async function removeTeamMemberQuery(teamId: string, userId: string) {\n  return query(\n    `DELETE FROM team_members WHERE team_id = $1 AND user_id = $2`,\n    [teamId, userId]\n  );\n}\n\nexport async function unassignTasksFromMemberInTeamQuery(teamId: string, userId: string) {\n  return query(\n    `UPDATE tasks SET assigned_to_user_id = NULL WHERE team_id = $1 AND assigned_to_user_id = $2`,\n    [teamId, userId]\n  );\n}\n```\n```aether:modules/teams/services/remove-member.ts\nimport { transaction } from 'lib/db';\nimport { ok, err, Result } from 'lib/result';\nimport {\n  isTeamOwnerQuery,\n  isTeamMemberQuery,\n  removeTeamMemberQuery,\n  unassignTasksFromMemberInTeamQuery,\n} from 'modules/teams/lib/queries';\n\ntype RemoveMemberError = 'NOT_FOUND' | 'NOT_AUTHORIZED' | 'CANNOT_REMOVE_OWNER' | 'UNKNOWN_ERROR';\n\nexport async function removeMemberFromTeam(\n  teamId: string,\n  memberId: string,\n  requestingUserId: string\n): Promise<Result<void, RemoveMemberError>> {\n  return transaction(async (db) => {\n    // 1. Verify requesting user is the team owner\n    const isOwner = await isTeamOwnerQuery(teamId, requestingUserId);\n    if (!isOwner) {\n      return err('NOT_AUTHORIZED');\n    }\n\n    // 2. Verify the member to be removed exists in the team\n    const isMember = await isTeamMemberQuery(teamId, memberId);\n    if (!isMember) {\n      return err('NOT_FOUND');\n    }\n\n    // 3. Prevent removing the team owner\n    const isMemberOwner = await isTeamOwnerQuery(teamId, memberId);\n    if (isMemberOwner) {\n      return err('CANNOT_REMOVE_OWNER');\n    }\n\n    // 4. Remove the member from the team\n    await removeTeamMemberQuery(teamId, memberId);\n\n    // 5. Unassign all tasks assigned to this user within this team\n    await unassignTasksFromMemberInTeamQuery(teamId, memberId);\n\n    return ok(undefined);\n  });\n}\n```\n```aether:modules/teams/routes/remove-member.ts\nimport { Request, Response } from 'aether';\nimport { requireUser } from 'lib/auth';\nimport { parseParams } from 'lib/validate';\nimport { z } from 'zod';\nimport { removeMemberFromTeam } from 'modules/teams/services/remove-member';\n\nconst removeMemberParamsSchema = z.object({\n  teamId: z.string().uuid('Invalid team ID format.'),\n  userId: z.string().uuid('Invalid user ID format.'),\n});\n\nexport async function removeMemberHandler(req: Request): Promise<Response> {\n  const user = await requireUser(req); // Ensure user is authenticated\n\n  const paramsResult = parseParams(req, removeMemberParamsSchema);\n  if (paramsResult.isErr()) {\n    return new Response(JSON.stringify({ error: paramsResult.error.message }), { status: 400, headers: { 'Content-Type': 'application/json' } });\n  }\n  const { teamId, userId } = paramsResult.value;\n\n  const result = await removeMemberFromTeam(teamId, userId, user.id);\n\n  if (result.isErr()) {\n    switch (result.error) {\n      case 'NOT_FOUND':\n        return new Response(JSON.stringify({ error: 'Team or member not found.' }), { status: 404, headers: { 'Content-Type': 'application/json' } });\n      case 'NOT_AUTHORIZED':\n        return new Response(JSON.stringify({ error: 'You are not authorized to remove members from this team.' }), { status: 403, headers: { 'Content-Type': 'application/json' } });\n      case 'CANNOT_REMOVE_OWNER':\n        return new Response(JSON.stringify({ error: 'The team owner cannot be removed.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });\n      case 'UNKNOWN_ERROR':\n      default:\n        return new Response(JSON.stringify({ error: 'An unexpected error occurred.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });\n    }\n  }\n\n  return new Response(null, { status: 204 }); // No Content on successful deletion\n}\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 831
+      }
+    ],
+    "durationMs": 1687
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 813
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 524
+      }
+    ],
+    "durationMs": 1339
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "promptId": "P21",
+  "condition": "aether",
+  "iteration": 10,
+  "passed": true,
+  "tokensIn": 1140,
+  "tokensOut": 1612,
+  "tokensTotal": 2752,
+  "latencyMs": 122275,
+  "wallMs": 122275,
+  "files": [
+    {
+      "path": "modules/teams/routes/remove-member.ts",
+      "length": 1957
+    },
+    {
+      "path": "modules/teams/module.contract.ts",
+      "length": 772
+    },
+    {
+      "path": "lib/db.ts",
+      "length": 831
+    },
+    {
+      "path": "lib/result.ts",
+      "length": 283
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

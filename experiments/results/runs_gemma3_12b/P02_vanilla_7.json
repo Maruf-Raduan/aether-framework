@@ -1,0 +1,57 @@
+{
+  "promptId": "P02",
+  "condition": "vanilla",
+  "iteration": 7,
+  "passed": true,
+  "tokensIn": 126,
+  "tokensOut": 1954,
+  "tokensTotal": 2080,
+  "latencyMs": 142941,
+  "wallMs": 142941,
+  "files": [
+    {
+      "path": "src/user_database.ts",
+      "length": 722
+    },
+    {
+      "path": "src/bcrypt.ts",
+      "length": 386
+    },
+    {
+      "path": "src/login_route.ts",
+      "length": 1548
+    },
+    {
+      "path": "index.ts",
+      "length": 434
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

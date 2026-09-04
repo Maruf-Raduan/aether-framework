@@ -1,0 +1,113 @@
+{
+  "promptId": "P27",
+  "targetDesc": "Create a route that returns a 3-month billing forecast based on current subscriptions and historical growth rate. Calls into billing and analytics modules.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 13725,
+      "tokensIn": 179,
+      "tokensOut": 1853,
+      "wallMs": 15551,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:modules/billing/index.ts\n/**\n * @module Billing\n * @description Simulates fetching current subscription data.\n */\n\nexport interface Subscription {\n  id: string;\n  userId: string;\n  plan: string;\n  monthlyPrice: number;\n  startDate: string;\n}\n\n/**\n * Fetches the current active subscriptions.\n * In a real application, this would interact with a database or a billing API.\n * @returns A promise that resolves to an array of Subscription objects.\n */\nexport async function getCurrentSubscriptions(): Promise<Subscription[]> {\n  // Simulate a network delay\n  await new Promise(resolve => setTimeout(resolve, 100));\n\n  // Return mock data\n  return [\n    { id: 'sub_001', userId: 'user_a', plan: 'Basic', monthlyPrice: 10.00, startDate: '2023-01-01' },\n    { id: 'sub_002', userId: 'user_b', plan: 'Pro', monthlyPrice: 25.00, startDate: '2023-02-15' },\n    { id: 'sub_003', userId: 'user_c', plan: 'Basic', monthlyPrice: 10.00, startDate: '2023-03-10' },\n    { id: 'sub_004', userId: 'user_d', plan: 'Enterprise', monthlyPrice: 100.00, startDate: '2023-04-01' },\n    { id: 'sub_005', userId: 'user_e', plan: 'Pro', monthlyPrice: 25.00, startDate: '2023-05-20' },\n  ];\n}\n```\n```aether:modules/analytics/index.ts\n/**\n * @module Analytics\n * @description Simulates fetching historical growth rate data.\n */\n\n/**\n * Fetches the historical monthly growth rate.\n * This rate is used to project future revenue based on past performance.\n * In a real application, this would involve querying an analytics database\n * and calculating the rate based on historical MRR or user growth.\n * @returns A promise that resolves to a number representing the monthly growth rate (e.g., 0.05 for 5%).\n */\nexport async function getHistoricalGrowthRate(): Promise<number> {\n  // Simulate a network delay\n  await new Promise(resolve => setTimeout(resolve, 50));\n\n  // Return a mock historical growth rate (e.g., 3% monthly growth)\n  return 0.03;\n}\n```\n```aether:modules/forecast/service.ts\n/**\n * @module ForecastService\n * @description Provides business logic for calculating billing forecasts.\n */\n\nimport { Subscription } from '../billing';\n\nexport interface MonthlyForecast {\n  month: string; // e.g., \"YYYY-MM\"\n  projectedMRR: number; // Projected Monthly Recurring Revenue\n}\n\n/**\n * Calculates a 3-month billing forecast based on current subscriptions and a historical growth rate.\n * @param currentSubscriptions An array of current active subscriptions.\n * @param historicalGrowthRate The historical monthly growth rate (e.g., 0.03 for 3%).\n * @returns An array of MonthlyForecast objects for the next 3 months.\n */\nexport function calculateBillingForecast(\n  currentSubscriptions: Subscription[],\n  historicalGrowthRate: number\n): MonthlyForecast[] {\n  if (historicalGrowthRate < 0) {\n    console.warn('Historical growth rate is negative. This might indicate a shrinking business.');\n  }\n\n  // Calculate current Monthly Recurring Revenue (MRR)\n  const currentMRR = currentSubscriptions.reduce((sum, sub) => sum + sub.monthlyPrice, 0);\n\n  const forecast: MonthlyForecast[] = [];\n  let projectedMRR = currentMRR;\n\n  // Project for the next 3 months\n  for (let i = 1; i <= 3; i++) {\n    projectedMRR *= (1 + historicalGrowthRate); // Apply growth rate\n    const date = new Date();\n    date.setMonth(date.getMonth() + i); // Get the month for the forecast\n\n    forecast.push({\n      month: `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`,\n      projectedMRR: parseFloat(projectedMRR.toFixed(2)), // Round to 2 decimal places\n    });\n  }\n\n  return forecast;\n}\n```\n```aether:modules/forecast/route.ts\n/**\n * @module ForecastRoute\n * @description Defines the API route for billing forecasts.\n */\n\nimport { Hono } from 'hono';\nimport { getCurrentSubscriptions } from '../billing';\nimport { getHistoricalGrowthRate } from '../analytics';\nimport { calculateBillingForecast } from './service';\n\n// Create a Hono router specifically for forecast-related routes\nconst forecastRouter = new Hono();\n\n/**\n * GET /forecast/billing\n * Returns a 3-month billing forecast based on current subscriptions and historical growth rate.\n */\nforecastRouter.get('/billing', async (c) => {\n  try {\n    // Fetch necessary data from external modules\n    const [currentSubscriptions, historicalGrowthRate] = await Promise.all([\n      getCurrentSubscriptions(),\n      getHistoricalGrowthRate(),\n    ]);\n\n    // Calculate the forecast using the service logic\n    const forecast = calculateBillingForecast(currentSubscriptions, historicalGrowthRate);\n\n    // Return the forecast as a JSON response\n    return c.json({\n      message: '3-month billing forecast generated successfully',\n      currentMRR: parseFloat(currentSubscriptions.reduce((sum, sub) => sum + sub.monthlyPrice, 0).toFixed(2)),\n      historicalGrowthRate: historicalGrowthRate,\n      forecast: forecast,\n    }, 200); // Explicitly set status code\n  } catch (error: any) {\n    console.error('Error generating billing forecast:', error);\n    // Return an error response\n    return c.json({\n      message: 'Failed to generate billing forecast',\n      error: error.message || 'An unknown error occurred',\n    }, 500); // Internal Server Error\n  }\n});\n\nexport default forecastRouter;\n```\n```aether:index.ts\n/**\n * @module App\n * @description Main application entry point. Sets up the Hono server and registers routes.\n */\n\nimport { Hono } from 'hono';\nimport forecastRouter from './modules/forecast/route';\n\n// Create a new Hono application instance\nconst app = new Hono();\n\n// Register the forecast router under the '/forecast' base path\napp.route('/forecast', forecastRouter);\n\n// Define a simple root route for health check or basic info\napp.get('/', (c) => {\n  return c.json({ message: 'Welcome to the Billing Forecast API! Try /forecast/billing' });\n});\n\n// Export the Hono app instance.\n// This is typically used by a server entry point (e.g., `server.ts` or `index.js` for Node.js)\n// or by a serverless function handler.\nexport default app;\n\n// Example of how to run the app locally (for development/testing)\n// In a real Node.js project, you might use `app.listen()` or integrate with a specific adapter.\n// For Hono, you'd typically use a server adapter like `@hono/node-server`.\n// This block is for demonstration and won't be part of the final build if using a framework adapter.\nif (process.env.NODE_ENV !== 'production') {\n  import('@hono/node-server').then(({ serve }) => {\n    serve({\n      fetch: app.fetch,\n      port: 3000,\n    }, (info) => {\n      console.log(`Server listening on http://localhost:${info.port}`);\n      console.log('Try: http://localhost:3000/forecast/billing');\n    });\n  }).catch(err => {\n    console.error('Failed to start server:', err);\n  });\n}\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 15552,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:modules/billing/index.ts\n/**\n * @module Billing\n * @description Simulates fetching current subscription data.\n */\n\nexport interface Subscription {\n  id: string;\n  userId: string;\n  plan: string;\n  monthlyPrice: number;\n  startDate: string;\n}\n\n/**\n * Fetches the current active subscriptions.\n * In a real application, this would interact with a database or a billing API.\n * @returns A promise that resolves to an array of Subscription objects.\n */\nexport async function getCurrentSubscriptions(): Promise<Subscription[]> {\n  // Simulate a network delay\n  await new Promise(resolve => setTimeout(resolve, 100));\n\n  // Return mock data\n  return [\n    { id: 'sub_001', userId: 'user_a', plan: 'Basic', monthlyPrice: 10.00, startDate: '2023-01-01' },\n    { id: 'sub_002', userId: 'user_b', plan: 'Pro', monthlyPrice: 25.00, startDate: '2023-02-15' },\n    { id: 'sub_003', userId: 'user_c', plan: 'Basic', monthlyPrice: 10.00, startDate: '2023-03-10' },\n    { id: 'sub_004', userId: 'user_d', plan: 'Enterprise', monthlyPrice: 100.00, startDate: '2023-04-01' },\n    { id: 'sub_005', userId: 'user_e', plan: 'Pro', monthlyPrice: 25.00, startDate: '2023-05-20' },\n  ];\n}\n```\n```aether:modules/analytics/index.ts\n/**\n * @module Analytics\n * @description Simulates fetching historical growth rate data.\n */\n\n/**\n * Fetches the historical monthly growth rate.\n * This rate is used to project future revenue based on past performance.\n * In a real application, this would involve querying an analytics database\n * and calculating the rate based on historical MRR or user growth.\n * @returns A promise that resolves to a number representing the monthly growth rate (e.g., 0.05 for 5%).\n */\nexport async function getHistoricalGrowthRate(): Promise<number> {\n  // Simulate a network delay\n  await new Promise(resolve => setTimeout(resolve, 50));\n\n  // Return a mock historical growth rate (e.g., 3% monthly growth)\n  return 0.03;\n}\n```\n```aether:modules/forecast/service.ts\n/**\n * @module ForecastService\n * @description Provides business logic for calculating billing forecasts.\n */\n\nimport { Subscription } from '../billing';\n\nexport interface MonthlyForecast {\n  month: string; // e.g., \"YYYY-MM\"\n  projectedMRR: number; // Projected Monthly Recurring Revenue\n}\n\n/**\n * Calculates a 3-month billing forecast based on current subscriptions and a historical growth rate.\n * @param currentSubscriptions An array of current active subscriptions.\n * @param historicalGrowthRate The historical monthly growth rate (e.g., 0.03 for 3%).\n * @returns An array of MonthlyForecast objects for the next 3 months.\n */\nexport function calculateBillingForecast(\n  currentSubscriptions: Subscription[],\n  historicalGrowthRate: number\n): MonthlyForecast[] {\n  if (historicalGrowthRate < 0) {\n    console.warn('Historical growth rate is negative. This might indicate a shrinking business.');\n  }\n\n  // Calculate current Monthly Recurring Revenue (MRR)\n  const currentMRR = currentSubscriptions.reduce((sum, sub) => sum + sub.monthlyPrice, 0);\n\n  const forecast: MonthlyForecast[] = [];\n  let projectedMRR = currentMRR;\n\n  // Project for the next 3 months\n  for (let i = 1; i <= 3; i++) {\n    projectedMRR *= (1 + historicalGrowthRate); // Apply growth rate\n    const date = new Date();\n    date.setMonth(date.getMonth() + i); // Get the month for the forecast\n\n    forecast.push({\n      month: `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`,\n      projectedMRR: parseFloat(projectedMRR.toFixed(2)), // Round to 2 decimal places\n    });\n  }\n\n  return forecast;\n}\n```\n```aether:modules/forecast/route.ts\n/**\n * @module ForecastRoute\n * @description Defines the API route for billing forecasts.\n */\n\nimport { Hono } from 'hono';\nimport { getCurrentSubscriptions } from '../billing';\nimport { getHistoricalGrowthRate } from '../analytics';\nimport { calculateBillingForecast } from './service';\n\n// Create a Hono router specifically for forecast-related routes\nconst forecastRouter = new Hono();\n\n/**\n * GET /forecast/billing\n * Returns a 3-month billing forecast based on current subscriptions and historical growth rate.\n */\nforecastRouter.get('/billing', async (c) => {\n  try {\n    // Fetch necessary data from external modules\n    const [currentSubscriptions, historicalGrowthRate] = await Promise.all([\n      getCurrentSubscriptions(),\n      getHistoricalGrowthRate(),\n    ]);\n\n    // Calculate the forecast using the service logic\n    const forecast = calculateBillingForecast(currentSubscriptions, historicalGrowthRate);\n\n    // Return the forecast as a JSON response\n    return c.json({\n      message: '3-month billing forecast generated successfully',\n      currentMRR: parseFloat(currentSubscriptions.reduce((sum, sub) => sum + sub.monthlyPrice, 0).toFixed(2)),\n      historicalGrowthRate: historicalGrowthRate,\n      forecast: forecast,\n    }, 200); // Explicitly set status code\n  } catch (error: any) {\n    console.error('Error generating billing forecast:', error);\n    // Return an error response\n    return c.json({\n      message: 'Failed to generate billing forecast',\n      error: error.message || 'An unknown error occurred',\n    }, 500); // Internal Server Error\n  }\n});\n\nexport default forecastRouter;\n```\n```aether:index.ts\n/**\n * @module App\n * @description Main application entry point. Sets up the Hono server and registers routes.\n */\n\nimport { Hono } from 'hono';\nimport forecastRouter from './modules/forecast/route';\n\n// Create a new Hono application instance\nconst app = new Hono();\n\n// Register the forecast router under the '/forecast' base path\napp.route('/forecast', forecastRouter);\n\n// Define a simple root route for health check or basic info\napp.get('/', (c) => {\n  return c.json({ message: 'Welcome to the Billing Forecast API! Try /forecast/billing' });\n});\n\n// Export the Hono app instance.\n// This is typically used by a server entry point (e.g., `server.ts` or `index.js` for Node.js)\n// or by a serverless function handler.\nexport default app;\n\n// Example of how to run the app locally (for development/testing)\n// In a real Node.js project, you might use `app.listen()` or integrate with a specific adapter.\n// For Hono, you'd typically use a server adapter like `@hono/node-server`.\n// This block is for demonstration and won't be part of the final build if using a framework adapter.\nif (process.env.NODE_ENV !== 'production') {\n  import('@hono/node-server').then(({ serve }) => {\n    serve({\n      fetch: app.fetch,\n      port: 3000,\n    }, (info) => {\n      console.log(`Server listening on http://localhost:${info.port}`);\n      console.log('Try: http://localhost:3000/forecast/billing');\n    });\n  }).catch(err => {\n    console.error('Failed to start server:', err);\n  });\n}\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1165
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 621
+      }
+    ],
+    "durationMs": 1825
+  }
+}

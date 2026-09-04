@@ -1,0 +1,113 @@
+{
+  "promptId": "P30",
+  "targetDesc": "Create a soft-delete route for files. Removes the row, deletes the underlying object asynchronously, and emits file.deleted.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 15716,
+      "tokensIn": 176,
+      "tokensOut": 1968,
+      "wallMs": 17066,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types.ts\nexport interface File {\n  id: string;\n  name: string;\n  path: string; // Path to the actual object in storage\n  createdAt: Date;\n  updatedAt: Date;\n  deletedAt?: Date; // Soft delete marker\n}\n\nexport interface FileDeletedEventPayload {\n  fileId: string;\n  filePath: string;\n}\n\nexport const FILE_DELETED_EVENT = 'file.deleted';\n```\n\n```aether:src/events/eventEmitter.ts\nimport { EventEmitter } from 'events';\nimport { FILE_DELETED_EVENT, FileDeletedEventPayload } from '../types';\n\n// Define a custom EventEmitter to type-check events\nclass AppEventEmitter extends EventEmitter {\n  emit(eventName: typeof FILE_DELETED_EVENT, payload: FileDeletedEventPayload): boolean;\n  emit(eventName: string | symbol, ...args: any[]): boolean {\n    return super.emit(eventName, ...args);\n  }\n\n  on(eventName: typeof FILE_DELETED_EVENT, listener: (payload: FileDeletedEventPayload) => void): this;\n  on(eventName: string | symbol, listener: (...args: any[]) => void): this {\n    return super.on(eventName, listener);\n  }\n\n  once(eventName: typeof FILE_DELETED_EVENT, listener: (payload: FileDeletedEventPayload) => void): this;\n  once(eventName: string | symbol, listener: (...args: any[]) => void): this {\n    return super.once(eventName, listener);\n  }\n}\n\n// Export a singleton instance\nexport const appEventEmitter = new AppEventEmitter();\n```\n\n```aether:src/services/fileService.ts\nimport { File } from '../types';\n\n// --- Simulate a Database ---\n// In a real application, this would interact with a database (e.g., PostgreSQL, MongoDB)\n// and an object storage service (e.g., S3, Google Cloud Storage, local disk).\nconst files: File[] = [\n  {\n    id: 'file-123',\n    name: 'document.pdf',\n    path: 'uploads/document.pdf',\n    createdAt: new Date(),\n    updatedAt: new Date(),\n  },\n  {\n    id: 'file-456',\n    name: 'image.jpg',\n    path: 'uploads/image.jpg',\n    createdAt: new Date(),\n    updatedAt: new Date(),\n  },\n];\n\nexport class FileService {\n  /**\n   * Simulates soft-deleting a file in the database.\n   * Marks the file as deleted by setting `deletedAt`.\n   * @param fileId The ID of the file to soft-delete.\n   * @returns The updated File object if found and deleted, otherwise null.\n   */\n  async softDeleteFile(fileId: string): Promise<File | null> {\n    const fileIndex = files.findIndex((f) => f.id === fileId && !f.deletedAt);\n\n    if (fileIndex === -1) {\n      return null; // File not found or already deleted\n    }\n\n    const file = files[fileIndex];\n    file.deletedAt = new Date();\n    file.updatedAt = new Date();\n\n    console.log(`[DB] File '${file.id}' soft-deleted at ${file.deletedAt.toISOString()}`);\n    return { ...file }; // Return a copy\n  }\n\n  /**\n   * Simulates asynchronously deleting the actual object from storage.\n   * This operation is typically performed by a separate worker or process\n   * after the database record has been updated and an event emitted.\n   * @param filePath The path to the object in storage.\n   */\n  async deleteObjectStorage(filePath: string): Promise<void> {\n    return new Promise((resolve) => {\n      // Simulate an asynchronous I/O operation (e.g., network request to S3)\n      setTimeout(() => {\n        console.log(`[Storage] Object at path '${filePath}' asynchronously deleted.`);\n        // In a real scenario, you'd call your storage client here:\n        // await s3Client.deleteObject({ Bucket: 'my-bucket', Key: filePath });\n        resolve();\n      }, 1000); // Simulate 1 second delay for storage deletion\n    });\n  }\n}\n\nexport const fileService = new FileService();\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { fileService } from './services/fileService';\nimport { appEventEmitter } from './events/eventEmitter';\nimport { FILE_DELETED_EVENT, FileDeletedEventPayload } from './types';\n\nconst app = new Hono();\n\n// --- Event Listener for Asynchronous Object Deletion ---\nappEventEmitter.on(FILE_DELETED_EVENT, async (payload: FileDeletedEventPayload) => {\n  console.log(`[Event] Received '${FILE_DELETED_EVENT}' for file ID: ${payload.fileId}`);\n  try {\n    await fileService.deleteObjectStorage(payload.filePath);\n    console.log(`[Event] Asynchronous object deletion completed for file ID: ${payload.fileId}`);\n  } catch (error) {\n    console.error(`[Event] Failed to delete object for file ID: ${payload.fileId}, path: ${payload.filePath}`, error);\n    // In a real application, you might want to retry this operation or log it to a dead-letter queue.\n  }\n});\n\n// --- Soft-Delete File Route ---\napp.delete('/files/:id', async (c) => {\n  const fileId = c.req.param('id');\n\n  console.log(`[API] Attempting soft-delete for file ID: ${fileId}`);\n\n  const deletedFile = await fileService.softDeleteFile(fileId);\n\n  if (!deletedFile) {\n    console.log(`[API] File ID: ${fileId} not found or already deleted.`);\n    return c.json({ message: 'File not found or already deleted' }, 404);\n  }\n\n  // Emit event for asynchronous object deletion\n  appEventEmitter.emit(FILE_DELETED_EVENT, {\n    fileId: deletedFile.id,\n    filePath: deletedFile.path,\n  });\n\n  console.log(`[API] File ID: ${fileId} soft-deleted and '${FILE_DELETED_EVENT}' event emitted.`);\n\n  return c.json({\n    message: 'File soft-deleted successfully. Object deletion initiated asynchronously.',\n    fileId: deletedFile.id,\n  }, 200);\n});\n\n// --- Basic Health Check / Root Route ---\napp.get('/', (c) => {\n  return c.text('Hono App is running!');\n});\n\n// --- Start the Server ---\nconst port = 3000;\nconsole.log(`Server is running on http://localhost:${port}`);\n\nexport default {\n  port,\n  fetch: app.fetch,\n};\n\n/*\nTo run this example:\n1. Save the files as src/types.ts, src/events/eventEmitter.ts, src/services/fileService.ts, src/index.ts\n2. Install dependencies: `npm install hono`\n3. Create a `package.json` with `type: module` and a start script:\n   ```json\n   {\n     \"name\": \"aether-file-delete\",\n     \"version\": \"1.0.0\",\n     \"description\": \"File soft-delete with async object deletion and event emission\",\n     \"main\": \"src/index.ts\",\n     \"scripts\": {\n       \"start\": \"node --loader ts-node/esm src/index.ts\"\n     },\n     \"keywords\": [],\n     \"author\": \"\",\n     \"license\": \"ISC\",\n     \"dependencies\": {\n       \"hono\": \"^4.0.0\"\n     },\n     \"devDependencies\": {\n       \"ts-node\": \"^10.9.2\",\n       \"typescript\": \"^5.3.3\"\n     }\n   }\n   ```\n4. Run: `npm start`\n\nTest with curl:\n- Soft-delete an existing file:\n  `curl -X DELETE http://localhost:3000/files/file-123`\n- Try to delete a non-existent file:\n  `curl -X DELETE http://localhost:3000/files/non-existent-file`\n- Try to delete an already deleted file (will return 404 as per current logic):\n  `curl -X DELETE http://localhost:3000/files/file-123` (after the first successful delete)\n*/\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 17066,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types.ts\nexport interface File {\n  id: string;\n  name: string;\n  path: string; // Path to the actual object in storage\n  createdAt: Date;\n  updatedAt: Date;\n  deletedAt?: Date; // Soft delete marker\n}\n\nexport interface FileDeletedEventPayload {\n  fileId: string;\n  filePath: string;\n}\n\nexport const FILE_DELETED_EVENT = 'file.deleted';\n```\n\n```aether:src/events/eventEmitter.ts\nimport { EventEmitter } from 'events';\nimport { FILE_DELETED_EVENT, FileDeletedEventPayload } from '../types';\n\n// Define a custom EventEmitter to type-check events\nclass AppEventEmitter extends EventEmitter {\n  emit(eventName: typeof FILE_DELETED_EVENT, payload: FileDeletedEventPayload): boolean;\n  emit(eventName: string | symbol, ...args: any[]): boolean {\n    return super.emit(eventName, ...args);\n  }\n\n  on(eventName: typeof FILE_DELETED_EVENT, listener: (payload: FileDeletedEventPayload) => void): this;\n  on(eventName: string | symbol, listener: (...args: any[]) => void): this {\n    return super.on(eventName, listener);\n  }\n\n  once(eventName: typeof FILE_DELETED_EVENT, listener: (payload: FileDeletedEventPayload) => void): this;\n  once(eventName: string | symbol, listener: (...args: any[]) => void): this {\n    return super.once(eventName, listener);\n  }\n}\n\n// Export a singleton instance\nexport const appEventEmitter = new AppEventEmitter();\n```\n\n```aether:src/services/fileService.ts\nimport { File } from '../types';\n\n// --- Simulate a Database ---\n// In a real application, this would interact with a database (e.g., PostgreSQL, MongoDB)\n// and an object storage service (e.g., S3, Google Cloud Storage, local disk).\nconst files: File[] = [\n  {\n    id: 'file-123',\n    name: 'document.pdf',\n    path: 'uploads/document.pdf',\n    createdAt: new Date(),\n    updatedAt: new Date(),\n  },\n  {\n    id: 'file-456',\n    name: 'image.jpg',\n    path: 'uploads/image.jpg',\n    createdAt: new Date(),\n    updatedAt: new Date(),\n  },\n];\n\nexport class FileService {\n  /**\n   * Simulates soft-deleting a file in the database.\n   * Marks the file as deleted by setting `deletedAt`.\n   * @param fileId The ID of the file to soft-delete.\n   * @returns The updated File object if found and deleted, otherwise null.\n   */\n  async softDeleteFile(fileId: string): Promise<File | null> {\n    const fileIndex = files.findIndex((f) => f.id === fileId && !f.deletedAt);\n\n    if (fileIndex === -1) {\n      return null; // File not found or already deleted\n    }\n\n    const file = files[fileIndex];\n    file.deletedAt = new Date();\n    file.updatedAt = new Date();\n\n    console.log(`[DB] File '${file.id}' soft-deleted at ${file.deletedAt.toISOString()}`);\n    return { ...file }; // Return a copy\n  }\n\n  /**\n   * Simulates asynchronously deleting the actual object from storage.\n   * This operation is typically performed by a separate worker or process\n   * after the database record has been updated and an event emitted.\n   * @param filePath The path to the object in storage.\n   */\n  async deleteObjectStorage(filePath: string): Promise<void> {\n    return new Promise((resolve) => {\n      // Simulate an asynchronous I/O operation (e.g., network request to S3)\n      setTimeout(() => {\n        console.log(`[Storage] Object at path '${filePath}' asynchronously deleted.`);\n        // In a real scenario, you'd call your storage client here:\n        // await s3Client.deleteObject({ Bucket: 'my-bucket', Key: filePath });\n        resolve();\n      }, 1000); // Simulate 1 second delay for storage deletion\n    });\n  }\n}\n\nexport const fileService = new FileService();\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { fileService } from './services/fileService';\nimport { appEventEmitter } from './events/eventEmitter';\nimport { FILE_DELETED_EVENT, FileDeletedEventPayload } from './types';\n\nconst app = new Hono();\n\n// --- Event Listener for Asynchronous Object Deletion ---\nappEventEmitter.on(FILE_DELETED_EVENT, async (payload: FileDeletedEventPayload) => {\n  console.log(`[Event] Received '${FILE_DELETED_EVENT}' for file ID: ${payload.fileId}`);\n  try {\n    await fileService.deleteObjectStorage(payload.filePath);\n    console.log(`[Event] Asynchronous object deletion completed for file ID: ${payload.fileId}`);\n  } catch (error) {\n    console.error(`[Event] Failed to delete object for file ID: ${payload.fileId}, path: ${payload.filePath}`, error);\n    // In a real application, you might want to retry this operation or log it to a dead-letter queue.\n  }\n});\n\n// --- Soft-Delete File Route ---\napp.delete('/files/:id', async (c) => {\n  const fileId = c.req.param('id');\n\n  console.log(`[API] Attempting soft-delete for file ID: ${fileId}`);\n\n  const deletedFile = await fileService.softDeleteFile(fileId);\n\n  if (!deletedFile) {\n    console.log(`[API] File ID: ${fileId} not found or already deleted.`);\n    return c.json({ message: 'File not found or already deleted' }, 404);\n  }\n\n  // Emit event for asynchronous object deletion\n  appEventEmitter.emit(FILE_DELETED_EVENT, {\n    fileId: deletedFile.id,\n    filePath: deletedFile.path,\n  });\n\n  console.log(`[API] File ID: ${fileId} soft-deleted and '${FILE_DELETED_EVENT}' event emitted.`);\n\n  return c.json({\n    message: 'File soft-deleted successfully. Object deletion initiated asynchronously.',\n    fileId: deletedFile.id,\n  }, 200);\n});\n\n// --- Basic Health Check / Root Route ---\napp.get('/', (c) => {\n  return c.text('Hono App is running!');\n});\n\n// --- Start the Server ---\nconst port = 3000;\nconsole.log(`Server is running on http://localhost:${port}`);\n\nexport default {\n  port,\n  fetch: app.fetch,\n};\n\n/*\nTo run this example:\n1. Save the files as src/types.ts, src/events/eventEmitter.ts, src/services/fileService.ts, src/index.ts\n2. Install dependencies: `npm install hono`\n3. Create a `package.json` with `type: module` and a start script:\n   ```json\n   {\n     \"name\": \"aether-file-delete\",\n     \"version\": \"1.0.0\",\n     \"description\": \"File soft-delete with async object deletion and event emission\",\n     \"main\": \"src/index.ts\",\n     \"scripts\": {\n       \"start\": \"node --loader ts-node/esm src/index.ts\"\n     },\n     \"keywords\": [],\n     \"author\": \"\",\n     \"license\": \"ISC\",\n     \"dependencies\": {\n       \"hono\": \"^4.0.0\"\n     },\n     \"devDependencies\": {\n       \"ts-node\": \"^10.9.2\",\n       \"typescript\": \"^5.3.3\"\n     }\n   }\n   ```\n4. Run: `npm start`\n\nTest with curl:\n- Soft-delete an existing file:\n  `curl -X DELETE http://localhost:3000/files/file-123`\n- Try to delete a non-existent file:\n  `curl -X DELETE http://localhost:3000/files/non-existent-file`\n- Try to delete an already deleted file (will return 404 as per current logic):\n  `curl -X DELETE http://localhost:3000/files/file-123` (after the first successful delete)\n*/\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 847
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 496
+      }
+    ],
+    "durationMs": 1349
+  }
+}

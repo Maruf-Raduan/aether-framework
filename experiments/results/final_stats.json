@@ -1,0 +1,333 @@
+{
+  "global_stats": {
+    "total_evaluations": 2451,
+    "structural_pass_rate_overall": 0.9506323949408405
+  },
+  "models": {
+    "Gemini 2.5 Flash": {
+      "raw": {
+        "vanilla": {
+          "tokens_out_mean": 1830.2666666666667,
+          "tokens_out_sd": 638.4216493030688,
+          "tokens_in_mean": 181.2,
+          "tokens_in_sd": 7.9411629479262835,
+          "latency_ms_mean": 16282.6,
+          "latency_ms_sd": 3998.916375633572,
+          "weighted_cost_mean": 7502.266666666666,
+          "weighted_cost_sd": 2556.845833461993
+        },
+        "aether": {
+          "tokens_out_mean": 872.4,
+          "tokens_out_sd": 863.6066952831775,
+          "tokens_in_mean": 1195.9,
+          "tokens_in_sd": 8.703348543064847,
+          "latency_ms_mean": 25334.9,
+          "latency_ms_sd": 13876.223707081315,
+          "weighted_cost_mean": 4685.5,
+          "weighted_cost_sd": 3453.5251830057896
+        },
+        "pass_rate_vanilla": 1.0,
+        "pass_rate_aether": 1.0,
+        "g5_failures": 0,
+        "raw_n_vanilla": 30,
+        "raw_n_aether": 30
+      },
+      "corrected": {
+        "vanilla": {
+          "tokens_out_mean": 1830.2666666666667,
+          "tokens_out_sd": 638.4216493030688,
+          "tokens_in_mean": 181.2,
+          "tokens_in_sd": 7.9411629479262835,
+          "latency_ms_mean": 16282.6,
+          "latency_ms_sd": 3998.916375633572,
+          "weighted_cost_mean": 7502.266666666666,
+          "weighted_cost_sd": 2556.845833461993
+        },
+        "aether": {
+          "tokens_out_mean": 872.4,
+          "tokens_out_sd": 863.6066952831775,
+          "tokens_in_mean": 1195.9,
+          "tokens_in_sd": 8.703348543064847,
+          "latency_ms_mean": 25334.9,
+          "latency_ms_sd": 13876.223707081315,
+          "weighted_cost_mean": 4685.5,
+          "weighted_cost_sd": 3453.5251830057896
+        },
+        "token_pct_change": -52.33481459896554,
+        "cost_pct_change": -37.54554179181403
+      },
+      "hypothesis": {
+        "W": 59.0,
+        "p_value": 0.0001528710126876831,
+        "cohens_d": 1.2613346441212903,
+        "n_pairs": 30,
+        "significant": true
+      },
+      "entropy": {
+        "vanilla_cv": null,
+        "aether_cv": null,
+        "direction": null
+      }
+    },
+    "Qwen 2.5 Coder 14B": {
+      "raw": {
+        "vanilla": {
+          "tokens_out_mean": 749.4133333333333,
+          "tokens_out_sd": 138.64645187531582,
+          "tokens_in_mean": 138.03333333333333,
+          "tokens_in_sd": 7.812533166038854,
+          "latency_ms_mean": 58730.73333333333,
+          "latency_ms_sd": 11363.407456935176,
+          "weighted_cost_mean": 3135.6866666666665,
+          "weighted_cost_sd": 557.7578997540202
+        },
+        "aether": {
+          "tokens_out_mean": 494.4166666666667,
+          "tokens_out_sd": 235.49041489463298,
+          "tokens_in_mean": 1065.5,
+          "tokens_in_sd": 8.719907642725286,
+          "latency_ms_mean": 42203.253333333334,
+          "latency_ms_sd": 20965.538167941068,
+          "weighted_cost_mean": 3043.1666666666665,
+          "weighted_cost_sd": 942.4650267486694
+        },
+        "pass_rate_vanilla": 1.0,
+        "pass_rate_aether": 1.0,
+        "g5_failures": 0,
+        "raw_n_vanilla": 300,
+        "raw_n_aether": 300
+      },
+      "corrected": {
+        "vanilla": {
+          "tokens_out_mean": 749.4133333333333,
+          "tokens_out_sd": 138.64645187531582,
+          "tokens_in_mean": 138.03333333333333,
+          "tokens_in_sd": 7.812533166038854,
+          "latency_ms_mean": 58730.73333333333,
+          "latency_ms_sd": 11363.407456935176,
+          "weighted_cost_mean": 3135.6866666666665,
+          "weighted_cost_sd": 557.7578997540202
+        },
+        "aether": {
+          "tokens_out_mean": 494.4166666666667,
+          "tokens_out_sd": 235.49041489463298,
+          "tokens_in_mean": 1065.5,
+          "tokens_in_sd": 8.719907642725286,
+          "latency_ms_mean": 42203.253333333334,
+          "latency_ms_sd": 20965.538167941068,
+          "weighted_cost_mean": 3043.1666666666665,
+          "weighted_cost_sd": 942.4650267486694
+        },
+        "token_pct_change": -34.026171583105004,
+        "cost_pct_change": -2.9505499061343285
+      },
+      "hypothesis": {
+        "W": 56.0,
+        "p_value": 0.00011058151721954346,
+        "cohens_d": 1.325230984036667,
+        "n_pairs": 30,
+        "significant": true
+      },
+      "entropy": {
+        "vanilla_cv": 0.02636957162736832,
+        "aether_cv": 0.04182099071831693,
+        "direction": "increases"
+      }
+    },
+    "Gemma 3 12B": {
+      "raw": {
+        "vanilla": {
+          "tokens_out_mean": 1690.85,
+          "tokens_out_sd": 260.20540027917974,
+          "tokens_in_mean": 124.2,
+          "tokens_in_sd": 7.82073395524117,
+          "latency_ms_mean": 123245.72333333333,
+          "latency_ms_sd": 19576.935867152726,
+          "weighted_cost_mean": 6887.6,
+          "weighted_cost_sd": 1042.401748215281
+        },
+        "aether": {
+          "tokens_out_mean": 1065.46,
+          "tokens_out_sd": 493.9663730041377,
+          "tokens_in_mean": 1138.9,
+          "tokens_in_sd": 8.57136088522407,
+          "latency_ms_mean": 80702.61333333333,
+          "latency_ms_sd": 37300.447549170014,
+          "weighted_cost_mean": 5400.74,
+          "weighted_cost_sd": 1977.3792913702216
+        },
+        "pass_rate_vanilla": 1.0,
+        "pass_rate_aether": 0.6633333333333333,
+        "g5_failures": 101,
+        "raw_n_vanilla": 300,
+        "raw_n_aether": 300
+      },
+      "corrected": {
+        "vanilla": {
+          "tokens_out_mean": 1690.85,
+          "tokens_out_sd": 260.20540027917974,
+          "tokens_in_mean": 124.2,
+          "tokens_in_sd": 7.82073395524117,
+          "latency_ms_mean": 123245.72333333333,
+          "latency_ms_sd": 19576.935867152726,
+          "weighted_cost_mean": 6887.6,
+          "weighted_cost_sd": 1042.401748215281
+        },
+        "aether": {
+          "tokens_out_mean": 1065.46,
+          "tokens_out_sd": 493.9663730041377,
+          "tokens_in_mean": 1138.9,
+          "tokens_in_sd": 8.57136088522407,
+          "latency_ms_mean": 80702.61333333333,
+          "latency_ms_sd": 37300.447549170014,
+          "weighted_cost_mean": 5400.74,
+          "weighted_cost_sd": 1977.3792913702216
+        },
+        "token_pct_change": -36.986722654286304,
+        "cost_pct_change": -21.587490562750457
+      },
+      "hypothesis": {
+        "W": 7.0,
+        "p_value": 3.5390257835388184e-08,
+        "cohens_d": 1.61973425807532,
+        "n_pairs": 30,
+        "significant": true
+      },
+      "entropy": {
+        "vanilla_cv": 0.030128029594013193,
+        "aether_cv": 0.07287109649208533,
+        "direction": "increases"
+      }
+    },
+    "Llama 3.1 8B": {
+      "raw": {
+        "vanilla": {
+          "tokens_out_mean": 607.6566666666666,
+          "tokens_out_sd": 182.39231153362107,
+          "tokens_in_mean": 118.66666666666667,
+          "tokens_in_sd": 7.497305350186514,
+          "latency_ms_mean": 15702.606666666667,
+          "latency_ms_sd": 4602.296309781926,
+          "weighted_cost_mean": 2549.2933333333335,
+          "weighted_cost_sd": 731.1105361085413
+        },
+        "aether": {
+          "tokens_out_mean": 633.93,
+          "tokens_out_sd": 463.48404860473545,
+          "tokens_in_mean": 1042.0666666666666,
+          "tokens_in_sd": 8.467657663717988,
+          "latency_ms_mean": 16769.45,
+          "latency_ms_sd": 12845.831849560798,
+          "weighted_cost_mean": 3577.786666666667,
+          "weighted_cost_sd": 1855.821006053814
+        },
+        "pass_rate_vanilla": 1.0,
+        "pass_rate_aether": 0.9333333333333333,
+        "g5_failures": 20,
+        "raw_n_vanilla": 300,
+        "raw_n_aether": 300
+      },
+      "corrected": {
+        "vanilla": {
+          "tokens_out_mean": 607.6566666666666,
+          "tokens_out_sd": 182.39231153362107,
+          "tokens_in_mean": 118.66666666666667,
+          "tokens_in_sd": 7.497305350186514,
+          "latency_ms_mean": 15702.606666666667,
+          "latency_ms_sd": 4602.296309781926,
+          "weighted_cost_mean": 2549.2933333333335,
+          "weighted_cost_sd": 731.1105361085413
+        },
+        "aether": {
+          "tokens_out_mean": 608.6521739130435,
+          "tokens_out_sd": 152.33030856113982,
+          "tokens_in_mean": 1042.0066889632108,
+          "tokens_in_sd": 8.417779725694539,
+          "latency_ms_mean": 16061.839464882944,
+          "latency_ms_sd": 3853.733886344443,
+          "weighted_cost_mean": 3476.6153846153848,
+          "weighted_cost_sd": 612.075221199825
+        },
+        "token_pct_change": 0.16382725657199956,
+        "cost_pct_change": 36.37565121113503
+      },
+      "hypothesis": {
+        "W": 199.0,
+        "p_value": 0.5027610473334789,
+        "cohens_d": -0.009612281686904804,
+        "n_pairs": 30,
+        "significant": false
+      },
+      "entropy": {
+        "vanilla_cv": 0.06304440916696241,
+        "aether_cv": 0.03975983541061721,
+        "direction": "decreases"
+      }
+    },
+    "Qwen 2.5 Coder 7B": {
+      "raw": {
+        "vanilla": {
+          "tokens_out_mean": 460.93470790378007,
+          "tokens_out_sd": 267.2090732473174,
+          "tokens_in_mean": 138.21993127147766,
+          "tokens_in_sd": 7.8590875136356795,
+          "latency_ms_mean": 20401.9587628866,
+          "latency_ms_sd": 9635.87168604988,
+          "weighted_cost_mean": 1981.958762886598,
+          "weighted_cost_sd": 1071.140129770135
+        },
+        "aether": {
+          "tokens_out_mean": 572.9266666666666,
+          "tokens_out_sd": 506.5399989378615,
+          "tokens_in_mean": 1065.5,
+          "tokens_in_sd": 8.719907642725286,
+          "latency_ms_mean": 24970.336666666666,
+          "latency_ms_sd": 23883.79416373176,
+          "weighted_cost_mean": 3357.2066666666665,
+          "weighted_cost_sd": 2024.9719971528161
+        },
+        "pass_rate_vanilla": 1.0,
+        "pass_rate_aether": 1.0,
+        "g5_failures": 0,
+        "raw_n_vanilla": 291,
+        "raw_n_aether": 300
+      },
+      "corrected": {
+        "vanilla": {
+          "tokens_out_mean": 448.4,
+          "tokens_out_sd": 160.52396472986567,
+          "tokens_in_mean": 138.24137931034483,
+          "tokens_in_sd": 7.864136863632974,
+          "latency_ms_mean": 20120.513793103448,
+          "latency_ms_sd": 8369.05396059261,
+          "weighted_cost_mean": 1931.8413793103448,
+          "weighted_cost_sd": 646.4226249494473
+        },
+        "aether": {
+          "tokens_out_mean": 585.303448275862,
+          "tokens_out_sd": 510.73439659327903,
+          "tokens_in_mean": 1065.6206896551723,
+          "tokens_in_sd": 8.844734492479306,
+          "latency_ms_mean": 25299.21379310345,
+          "latency_ms_sd": 23822.828244347285,
+          "weighted_cost_mean": 3406.8344827586207,
+          "weighted_cost_sd": 2041.6303615157374
+        },
+        "token_pct_change": 30.53154511058476,
+        "cost_pct_change": 76.35166733900476
+      },
+      "hypothesis": {
+        "W": 177.0,
+        "p_value": 0.39265386015176773,
+        "cohens_d": -0.3622555504809016,
+        "n_pairs": 29,
+        "significant": false
+      },
+      "entropy": {
+        "vanilla_cv": 0.025101072423569206,
+        "aether_cv": 0.07689676217721035,
+        "direction": "increases"
+      }
+    }
+  }
+}

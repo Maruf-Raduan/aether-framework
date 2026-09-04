@@ -1,0 +1,113 @@
+{
+  "promptId": "P21",
+  "targetDesc": "Create a remove-member route. The owner cannot be removed. After removal, all tasks assigned to that user in the team are unassigned (transaction).",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 13586,
+      "tokensIn": 182,
+      "tokensOut": 1984,
+      "wallMs": 14971,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:db.ts\nimport { v4 as uuidv4 } from 'uuid';\n\n// --- Data Models ---\n\nexport interface Member {\n    id: string;\n    name: string;\n    email: string;\n}\n\nexport interface Team {\n    id: string;\n    name: string;\n    ownerId: string; // ID of the the member who owns the team\n    memberIds: string[]; // IDs of all members in the team\n}\n\nexport interface Task {\n    id: string;\n    teamId: string;\n    title: string;\n    description: string;\n    assignedToMemberId: string | null; // ID of the member assigned, or null if unassigned\n}\n\n// --- In-memory Database Simulation ---\n\nconst members: Member[] = [\n    { id: 'member-1', name: 'Alice', email: 'alice@example.com' },\n    { id: 'member-2', name: 'Bob', email: 'bob@example.com' },\n    { id: 'member-3', name: 'Charlie', email: 'charlie@example.com' },\n    { id: 'member-4', name: 'David', email: 'david@example.com' },\n];\n\nconst teams: Team[] = [\n    { id: 'team-1', name: 'Alpha Team', ownerId: 'member-1', memberIds: ['member-1', 'member-2'] },\n    { id: 'team-2', name: 'Beta Team', ownerId: 'member-3', memberIds: ['member-3', 'member-4'] },\n];\n\nconst tasks: Task[] = [\n    { id: 'task-1', teamId: 'team-1', title: 'Design UI', description: 'Create mockups for new features', assignedToMemberId: 'member-2' },\n    { id: 'task-2', teamId: 'team-1', title: 'Implement API', description: 'Develop backend endpoints', assignedToMemberId: 'member-1' },\n    { id: 'task-3', teamId: 'team-1', title: 'Write Tests', description: 'Unit and integration tests', assignedToMemberId: 'member-2' },\n    { id: 'task-4', teamId: 'team-2', title: 'Marketing Campaign', description: 'Plan social media strategy', assignedToMemberId: 'member-4' },\n];\n\n// --- Database Access Functions ---\n\nexport const findTeamById = (teamId: string): Team | undefined => {\n    return teams.find(team => team.id === teamId);\n};\n\nexport const findMemberById = (memberId: string): Member | undefined => {\n    return members.find(member => member.id === memberId);\n};\n\nexport const isTeamOwner = (teamId: string, memberId: string): boolean => {\n    const team = findTeamById(teamId);\n    return team?.ownerId === memberId;\n};\n\nexport const isMemberOfTeam = (teamId: string, memberId: string): boolean => {\n    const team = findTeamById(teamId);\n    return team?.memberIds.includes(memberId) ?? false;\n};\n\nexport const getTasksAssignedToMemberInTeam = (teamId: string, memberId: string): Task[] => {\n    return tasks.filter(task => task.teamId === teamId && task.assignedToMemberId === memberId);\n};\n\n/**\n * Removes a member from a team and unassigns all their tasks within that team.\n * This function simulates a transaction.\n * @returns true if successful, false otherwise (e.g., member not found, owner removal attempt).\n */\nexport const removeMemberAndUnassignTasksTransaction = async (teamId: string, memberId: string): Promise<boolean> => {\n    const teamIndex = teams.findIndex(t => t.id === teamId);\n    if (teamIndex === -1) {\n        console.error(`Team with ID ${teamId} not found.`);\n        return false; // Team not found\n    }\n\n    const team = teams[teamIndex];\n\n    if (!team.memberIds.includes(memberId)) {\n        console.error(`Member with ID ${memberId} is not part of team ${teamId}.`);\n        return false; // Member not in team\n    }\n\n    if (team.ownerId === memberId) {\n        console.error(`Cannot remove team owner (ID: ${memberId}) from team ${teamId}.`);\n        return false; // Cannot remove owner\n    }\n\n    // Simulate transaction:\n    // 1. Prepare changes\n    const newMemberIds = team.memberIds.filter(id => id !== memberId);\n    const tasksToUnassign = tasks.filter(task => task.teamId === teamId && task.assignedToMemberId === memberId);\n\n    // 2. Apply changes (in a real DB, this would be a single transaction block)\n    try {\n        // Update team members\n        teams[teamIndex].memberIds = newMemberIds;\n\n        // Unassign tasks\n        tasksToUnassign.forEach(task => {\n            const taskIndex = tasks.findIndex(t => t.id === task.id);\n            if (taskIndex !== -1) {\n                tasks[taskIndex].assignedToMemberId = null;\n            }\n        });\n\n        console.log(`Member ${memberId} removed from team ${teamId} and ${tasksToUnassign.length} tasks unassigned.`);\n        return true;\n    } catch (error) {\n        console.error('Transaction failed:', error);\n        // In a real DB, you'd rollback here. For in-memory, we just report failure.\n        return false;\n    }\n};\n```\n```aether:routes/members/remove.ts\nimport { Hono } from 'hono';\nimport { removeMemberAndUnassignTasksTransaction, findTeamById, findMemberById, isMemberOfTeam, isTeamOwner } from '../db';\n\nconst app = new Hono();\n\napp.delete('/:teamId/members/:memberId', async (c) => {\n    const { teamId, memberId } = c.req.param();\n\n    if (!teamId || !memberId) {\n        return c.json({ error: 'Team ID and Member ID are required.' }, 400);\n    }\n\n    const team = findTeamById(teamId);\n    if (!team) {\n        return c.json({ error: `Team with ID '${teamId}' not found.` }, 404);\n    }\n\n    const member = findMemberById(memberId);\n    if (!member) {\n        return c.json({ error: `Member with ID '${memberId}' not found.` }, 404);\n    }\n\n    if (!isMemberOfTeam(teamId, memberId)) {\n        return c.json({ error: `Member '${memberId}' is not part of team '${teamId}'.` }, 400);\n    }\n\n    if (isTeamOwner(teamId, memberId)) {\n        return c.json({ error: `Cannot remove team owner '${memberId}' from team '${teamId}'.` }, 403);\n    }\n\n    const success = await removeMemberAndUnassignTasksTransaction(teamId, memberId);\n\n    if (success) {\n        return c.json({ message: `Member '${memberId}' successfully removed from team '${teamId}' and tasks unassigned.` }, 200);\n    } else {\n        // This case should ideally be caught by the checks above,\n        // but serves as a fallback for unexpected transaction failures.\n        return c.json({ error: 'Failed to remove member and unassign tasks due to an internal error.' }, 500);\n    }\n});\n\nexport default app;\n```\n```aether:index.ts\nimport { Hono } from 'hono';\nimport { logger } from 'hono/logger';\nimport { prettyJSON } from 'hono/pretty-json';\nimport memberRoutes from './routes/members/remove';\n\nconst app = new Hono();\n\n// Middleware\napp.use(logger()); // Logs requests to the console\napp.use(prettyJSON()); // Formats JSON responses nicely\n\n// Register routes\napp.route('/teams', memberRoutes); // Mount member routes under /teams\n\n// Root route for health check or general info\napp.get('/', (c) => {\n    return c.json({ message: 'Welcome to the Team Management API!' });\n});\n\n// Global error handler\napp.onError((err, c) => {\n    console.error(`${err}`);\n    return c.json({ error: 'An unexpected error occurred.' }, 500);\n});\n\nexport default app;\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 14971,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:db.ts\nimport { v4 as uuidv4 } from 'uuid';\n\n// --- Data Models ---\n\nexport interface Member {\n    id: string;\n    name: string;\n    email: string;\n}\n\nexport interface Team {\n    id: string;\n    name: string;\n    ownerId: string; // ID of the the member who owns the team\n    memberIds: string[]; // IDs of all members in the team\n}\n\nexport interface Task {\n    id: string;\n    teamId: string;\n    title: string;\n    description: string;\n    assignedToMemberId: string | null; // ID of the member assigned, or null if unassigned\n}\n\n// --- In-memory Database Simulation ---\n\nconst members: Member[] = [\n    { id: 'member-1', name: 'Alice', email: 'alice@example.com' },\n    { id: 'member-2', name: 'Bob', email: 'bob@example.com' },\n    { id: 'member-3', name: 'Charlie', email: 'charlie@example.com' },\n    { id: 'member-4', name: 'David', email: 'david@example.com' },\n];\n\nconst teams: Team[] = [\n    { id: 'team-1', name: 'Alpha Team', ownerId: 'member-1', memberIds: ['member-1', 'member-2'] },\n    { id: 'team-2', name: 'Beta Team', ownerId: 'member-3', memberIds: ['member-3', 'member-4'] },\n];\n\nconst tasks: Task[] = [\n    { id: 'task-1', teamId: 'team-1', title: 'Design UI', description: 'Create mockups for new features', assignedToMemberId: 'member-2' },\n    { id: 'task-2', teamId: 'team-1', title: 'Implement API', description: 'Develop backend endpoints', assignedToMemberId: 'member-1' },\n    { id: 'task-3', teamId: 'team-1', title: 'Write Tests', description: 'Unit and integration tests', assignedToMemberId: 'member-2' },\n    { id: 'task-4', teamId: 'team-2', title: 'Marketing Campaign', description: 'Plan social media strategy', assignedToMemberId: 'member-4' },\n];\n\n// --- Database Access Functions ---\n\nexport const findTeamById = (teamId: string): Team | undefined => {\n    return teams.find(team => team.id === teamId);\n};\n\nexport const findMemberById = (memberId: string): Member | undefined => {\n    return members.find(member => member.id === memberId);\n};\n\nexport const isTeamOwner = (teamId: string, memberId: string): boolean => {\n    const team = findTeamById(teamId);\n    return team?.ownerId === memberId;\n};\n\nexport const isMemberOfTeam = (teamId: string, memberId: string): boolean => {\n    const team = findTeamById(teamId);\n    return team?.memberIds.includes(memberId) ?? false;\n};\n\nexport const getTasksAssignedToMemberInTeam = (teamId: string, memberId: string): Task[] => {\n    return tasks.filter(task => task.teamId === teamId && task.assignedToMemberId === memberId);\n};\n\n/**\n * Removes a member from a team and unassigns all their tasks within that team.\n * This function simulates a transaction.\n * @returns true if successful, false otherwise (e.g., member not found, owner removal attempt).\n */\nexport const removeMemberAndUnassignTasksTransaction = async (teamId: string, memberId: string): Promise<boolean> => {\n    const teamIndex = teams.findIndex(t => t.id === teamId);\n    if (teamIndex === -1) {\n        console.error(`Team with ID ${teamId} not found.`);\n        return false; // Team not found\n    }\n\n    const team = teams[teamIndex];\n\n    if (!team.memberIds.includes(memberId)) {\n        console.error(`Member with ID ${memberId} is not part of team ${teamId}.`);\n        return false; // Member not in team\n    }\n\n    if (team.ownerId === memberId) {\n        console.error(`Cannot remove team owner (ID: ${memberId}) from team ${teamId}.`);\n        return false; // Cannot remove owner\n    }\n\n    // Simulate transaction:\n    // 1. Prepare changes\n    const newMemberIds = team.memberIds.filter(id => id !== memberId);\n    const tasksToUnassign = tasks.filter(task => task.teamId === teamId && task.assignedToMemberId === memberId);\n\n    // 2. Apply changes (in a real DB, this would be a single transaction block)\n    try {\n        // Update team members\n        teams[teamIndex].memberIds = newMemberIds;\n\n        // Unassign tasks\n        tasksToUnassign.forEach(task => {\n            const taskIndex = tasks.findIndex(t => t.id === task.id);\n            if (taskIndex !== -1) {\n                tasks[taskIndex].assignedToMemberId = null;\n            }\n        });\n\n        console.log(`Member ${memberId} removed from team ${teamId} and ${tasksToUnassign.length} tasks unassigned.`);\n        return true;\n    } catch (error) {\n        console.error('Transaction failed:', error);\n        // In a real DB, you'd rollback here. For in-memory, we just report failure.\n        return false;\n    }\n};\n```\n```aether:routes/members/remove.ts\nimport { Hono } from 'hono';\nimport { removeMemberAndUnassignTasksTransaction, findTeamById, findMemberById, isMemberOfTeam, isTeamOwner } from '../db';\n\nconst app = new Hono();\n\napp.delete('/:teamId/members/:memberId', async (c) => {\n    const { teamId, memberId } = c.req.param();\n\n    if (!teamId || !memberId) {\n        return c.json({ error: 'Team ID and Member ID are required.' }, 400);\n    }\n\n    const team = findTeamById(teamId);\n    if (!team) {\n        return c.json({ error: `Team with ID '${teamId}' not found.` }, 404);\n    }\n\n    const member = findMemberById(memberId);\n    if (!member) {\n        return c.json({ error: `Member with ID '${memberId}' not found.` }, 404);\n    }\n\n    if (!isMemberOfTeam(teamId, memberId)) {\n        return c.json({ error: `Member '${memberId}' is not part of team '${teamId}'.` }, 400);\n    }\n\n    if (isTeamOwner(teamId, memberId)) {\n        return c.json({ error: `Cannot remove team owner '${memberId}' from team '${teamId}'.` }, 403);\n    }\n\n    const success = await removeMemberAndUnassignTasksTransaction(teamId, memberId);\n\n    if (success) {\n        return c.json({ message: `Member '${memberId}' successfully removed from team '${teamId}' and tasks unassigned.` }, 200);\n    } else {\n        // This case should ideally be caught by the checks above,\n        // but serves as a fallback for unexpected transaction failures.\n        return c.json({ error: 'Failed to remove member and unassign tasks due to an internal error.' }, 500);\n    }\n});\n\nexport default app;\n```\n```aether:index.ts\nimport { Hono } from 'hono';\nimport { logger } from 'hono/logger';\nimport { prettyJSON } from 'hono/pretty-json';\nimport memberRoutes from './routes/members/remove';\n\nconst app = new Hono();\n\n// Middleware\napp.use(logger()); // Logs requests to the console\napp.use(prettyJSON()); // Formats JSON responses nicely\n\n// Register routes\napp.route('/teams', memberRoutes); // Mount member routes under /teams\n\n// Root route for health check or general info\napp.get('/', (c) => {\n    return c.json({ message: 'Welcome to the Team Management API!' });\n});\n\n// Global error handler\napp.onError((err, c) => {\n    console.error(`${err}`);\n    return c.json({ error: 'An unexpected error occurred.' }, 500);\n});\n\nexport default app;\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 893
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 487
+      }
+    ],
+    "durationMs": 1384
+  }
+}

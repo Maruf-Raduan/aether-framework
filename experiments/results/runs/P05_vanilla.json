@@ -1,0 +1,113 @@
+{
+  "promptId": "P05",
+  "targetDesc": "Create a create-task route that accepts { title, description, assigneeId }, validates with Zod, and inserts a new task belonging to the caller's team. Enforce the invariant that a task must belong to exactly one team.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 25535,
+      "tokensIn": 199,
+      "tokensOut": 1431,
+      "wallMs": 26887,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types.ts\nexport type Task = {\n  id: string;\n  title: string;\n  description?: string;\n  assigneeId: string;\n  teamId: string; // Enforce invariant: a task must belong to exactly one team\n};\n\nexport type User = {\n  id: string;\n  teamId: string;\n};\n\nexport type Team = {\n  id: string;\n  name: string;\n};\n```\n\n```aether:src/db.ts\nimport { Task, User, Team } from './types';\n\n// --- Mock Database ---\nconst tasks: Task[] = [];\nconst users: User[] = [\n  { id: 'user-1', teamId: 'team-a' },\n  { id: 'user-2', teamId: 'team-a' },\n  { id: 'user-3', teamId: 'team-b' },\n];\nconst teams: Team[] = [\n  { id: 'team-a', name: 'Alpha Team' },\n  { id: 'team-b', name: 'Beta Team' },\n];\n\nlet taskIdCounter = 1;\n\nexport const db = {\n  tasks,\n  users,\n  teams,\n\n  insertTask: (taskData: Omit<Task, 'id'>): Task => {\n    const newTask: Task = {\n      id: `task-${taskIdCounter++}`,\n      ...taskData,\n    };\n    tasks.push(newTask);\n    return newTask;\n  },\n\n  findUserById: (userId: string): User | undefined => {\n    return users.find(u => u.id === userId);\n  },\n\n  findTeamById: (teamId: string): Team | undefined => {\n    return teams.find(t => t.id === teamId);\n  }\n};\n```\n\n```aether:src/middleware/auth.ts\nimport { Context, Next } from 'hono';\nimport { db } from '../db';\n\n// Extend Hono's Context to include our custom properties\ndeclare module 'hono' {\n  interface ContextVariableMap {\n    userId: string;\n    teamId: string;\n  }\n}\n\n/**\n * Mock authentication middleware.\n * In a real application, this would validate a token,\n * fetch user details, and set `userId` and `teamId` based on the authenticated user.\n * For this exercise, we'll hardcode a user.\n */\nexport const authMiddleware = async (c: Context, next: Next) => {\n  // Simulate an authenticated user (e.g., from a JWT token)\n  const authenticatedUserId = 'user-1'; // This user belongs to 'team-a'\n\n  const user = db.findUserById(authenticatedUserId);\n\n  if (!user) {\n    return c.json({ error: 'Unauthorized: User not found' }, 401);\n  }\n\n  // Set user and team ID in the context for downstream handlers\n  c.set('userId', user.id);\n  c.set('teamId', user.teamId);\n\n  await next();\n};\n```\n\n```aether:src/routes/tasks/create.ts\nimport { Hono } from 'hono';\nimport { z } from 'zod';\nimport { db } from '../../db';\n\nconst createTaskSchema = z.object({\n  title: z.string({\n    required_error: 'Title is required',\n  }).min(1, 'Title cannot be empty'),\n  description: z.string().optional(),\n  assigneeId: z.string({\n    required_error: 'Assignee ID is required',\n  }).min(1, 'Assignee ID cannot be empty'),\n});\n\nexport const createTaskRoute = new Hono();\n\ncreateTaskRoute.post('/', async (c) => {\n  const teamId = c.get('teamId'); // Retrieved from auth middleware\n\n  try {\n    const body = await c.req.json();\n    const validatedData = createTaskSchema.parse(body);\n\n    // Validate assigneeId belongs to the same team\n    const assignee = db.findUserById(validatedData.assigneeId);\n    if (!assignee || assignee.teamId !== teamId) {\n      return c.json({ error: 'Assignee not found or does not belong to your team' }, 400);\n    }\n\n    const newTask = db.insertTask({\n      title: validatedData.title,\n      description: validatedData.description,\n      assigneeId: validatedData.assigneeId,\n      teamId: teamId, // Enforce the invariant: task belongs to the caller's team\n    });\n\n    return c.json(newTask, 201);\n  } catch (error: any) {\n    if (error instanceof z.ZodError) {\n      return c.json({ errors: error.errors }, 400);\n    }\n    console.error('Error creating task:', error);\n    return c.json({ error: 'Internal server error' }, 500);\n  }\n});\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { logger } from 'hono/logger';\nimport { prettyJSON } from 'hono/pretty-json';\nimport { authMiddleware } from './middleware/auth';\nimport { createTaskRoute } from './routes/tasks/create';\n\nconst app = new Hono();\n\n// Middlewares\napp.use(logger()); // Logs requests to the console\napp.use(prettyJSON()); // Formats JSON responses nicely\n\n// Apply authentication middleware to all routes under /tasks\napp.use('/tasks/*', authMiddleware);\n\n// Mount task routes\napp.route('/tasks', createTaskRoute);\n\n// Basic health check route\napp.get('/', (c) => {\n  return c.json({ message: 'Aether Task API is running!' });\n});\n\n// Error handling for unmatched routes\napp.notFound((c) => {\n  return c.json({ message: 'Not Found', ok: false }, 404);\n});\n\n// Global error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ error: 'An unexpected error occurred' }, 500);\n});\n\nexport default app;\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 26887,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types.ts\nexport type Task = {\n  id: string;\n  title: string;\n  description?: string;\n  assigneeId: string;\n  teamId: string; // Enforce invariant: a task must belong to exactly one team\n};\n\nexport type User = {\n  id: string;\n  teamId: string;\n};\n\nexport type Team = {\n  id: string;\n  name: string;\n};\n```\n\n```aether:src/db.ts\nimport { Task, User, Team } from './types';\n\n// --- Mock Database ---\nconst tasks: Task[] = [];\nconst users: User[] = [\n  { id: 'user-1', teamId: 'team-a' },\n  { id: 'user-2', teamId: 'team-a' },\n  { id: 'user-3', teamId: 'team-b' },\n];\nconst teams: Team[] = [\n  { id: 'team-a', name: 'Alpha Team' },\n  { id: 'team-b', name: 'Beta Team' },\n];\n\nlet taskIdCounter = 1;\n\nexport const db = {\n  tasks,\n  users,\n  teams,\n\n  insertTask: (taskData: Omit<Task, 'id'>): Task => {\n    const newTask: Task = {\n      id: `task-${taskIdCounter++}`,\n      ...taskData,\n    };\n    tasks.push(newTask);\n    return newTask;\n  },\n\n  findUserById: (userId: string): User | undefined => {\n    return users.find(u => u.id === userId);\n  },\n\n  findTeamById: (teamId: string): Team | undefined => {\n    return teams.find(t => t.id === teamId);\n  }\n};\n```\n\n```aether:src/middleware/auth.ts\nimport { Context, Next } from 'hono';\nimport { db } from '../db';\n\n// Extend Hono's Context to include our custom properties\ndeclare module 'hono' {\n  interface ContextVariableMap {\n    userId: string;\n    teamId: string;\n  }\n}\n\n/**\n * Mock authentication middleware.\n * In a real application, this would validate a token,\n * fetch user details, and set `userId` and `teamId` based on the authenticated user.\n * For this exercise, we'll hardcode a user.\n */\nexport const authMiddleware = async (c: Context, next: Next) => {\n  // Simulate an authenticated user (e.g., from a JWT token)\n  const authenticatedUserId = 'user-1'; // This user belongs to 'team-a'\n\n  const user = db.findUserById(authenticatedUserId);\n\n  if (!user) {\n    return c.json({ error: 'Unauthorized: User not found' }, 401);\n  }\n\n  // Set user and team ID in the context for downstream handlers\n  c.set('userId', user.id);\n  c.set('teamId', user.teamId);\n\n  await next();\n};\n```\n\n```aether:src/routes/tasks/create.ts\nimport { Hono } from 'hono';\nimport { z } from 'zod';\nimport { db } from '../../db';\n\nconst createTaskSchema = z.object({\n  title: z.string({\n    required_error: 'Title is required',\n  }).min(1, 'Title cannot be empty'),\n  description: z.string().optional(),\n  assigneeId: z.string({\n    required_error: 'Assignee ID is required',\n  }).min(1, 'Assignee ID cannot be empty'),\n});\n\nexport const createTaskRoute = new Hono();\n\ncreateTaskRoute.post('/', async (c) => {\n  const teamId = c.get('teamId'); // Retrieved from auth middleware\n\n  try {\n    const body = await c.req.json();\n    const validatedData = createTaskSchema.parse(body);\n\n    // Validate assigneeId belongs to the same team\n    const assignee = db.findUserById(validatedData.assigneeId);\n    if (!assignee || assignee.teamId !== teamId) {\n      return c.json({ error: 'Assignee not found or does not belong to your team' }, 400);\n    }\n\n    const newTask = db.insertTask({\n      title: validatedData.title,\n      description: validatedData.description,\n      assigneeId: validatedData.assigneeId,\n      teamId: teamId, // Enforce the invariant: task belongs to the caller's team\n    });\n\n    return c.json(newTask, 201);\n  } catch (error: any) {\n    if (error instanceof z.ZodError) {\n      return c.json({ errors: error.errors }, 400);\n    }\n    console.error('Error creating task:', error);\n    return c.json({ error: 'Internal server error' }, 500);\n  }\n});\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport { logger } from 'hono/logger';\nimport { prettyJSON } from 'hono/pretty-json';\nimport { authMiddleware } from './middleware/auth';\nimport { createTaskRoute } from './routes/tasks/create';\n\nconst app = new Hono();\n\n// Middlewares\napp.use(logger()); // Logs requests to the console\napp.use(prettyJSON()); // Formats JSON responses nicely\n\n// Apply authentication middleware to all routes under /tasks\napp.use('/tasks/*', authMiddleware);\n\n// Mount task routes\napp.route('/tasks', createTaskRoute);\n\n// Basic health check route\napp.get('/', (c) => {\n  return c.json({ message: 'Aether Task API is running!' });\n});\n\n// Error handling for unmatched routes\napp.notFound((c) => {\n  return c.json({ message: 'Not Found', ok: false }, 404);\n});\n\n// Global error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ error: 'An unexpected error occurred' }, 500);\n});\n\nexport default app;\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 872
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 476
+      }
+    ],
+    "durationMs": 1353
+  }
+}

@@ -1,0 +1,250 @@
+{
+  "promptId": "P22",
+  "targetDesc": "Create a route to rename a team. Only admins may call it.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 19370,
+      "tokensIn": 1174,
+      "tokensOut": 1426,
+      "wallMs": 22252,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:modules/teams/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'teams',\n  description: 'Manages team creation, membership, and settings.',\n\n  dependencies: {\n    modules: ['auth'], // Depends on auth for user session and roles\n  },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/teams/:teamId/rename', auth: true, admin: true }, // New route\n    ],\n    functions: [], // No specific functions exposed for now\n    types: ['Team', 'TeamError'], // Expose Team type and potential errors\n  },\n\n  sideEffects: [\n    'writes to: teams table',\n  ],\n\n  invariants: [\n    'Team names must be unique within the application',\n    'Only admins can rename teams',\n    'A team must always have a name',\n  ],\n});\n```\n```aether:modules/teams/types.ts\nexport type Team = {\n  id: string;\n  name: string;\n  created_at: Date;\n  updated_at: Date;\n};\n\nexport type TeamError =\n  | { type: 'NotFound', message: string }\n  | { type: 'InvalidInput', message: string }\n  | { type: 'Unauthorized', message: string }\n  | { type: 'DatabaseError', message: string };\n```\n```aether:modules/teams/services/teamService.ts\nimport { query } from '~/lib/db';\nimport { ok, err, Result } from '~/lib/result';\nimport { Team, TeamError } from '../types';\n\n/**\n * Renames an existing team.\n * @param teamId The ID of the team to rename.\n * @param newName The new name for the team.\n * @returns A Result containing the updated Team object on success, or a TeamError on failure.\n */\nexport async function renameTeam(teamId: string, newName: string): Promise<Result<Team, TeamError>> {\n  if (!teamId || typeof teamId !== 'string' || teamId.trim() === '') {\n    return err({ type: 'InvalidInput', message: 'Team ID is required and must be a non-empty string.' });\n  }\n  if (!newName || typeof newName !== 'string' || newName.trim() === '') {\n    return err({ type: 'InvalidInput', message: 'New team name is required and cannot be empty.' });\n  }\n\n  try {\n    // Check if the team exists\n    const existingTeamResult = await query<Team>('SELECT id, name, created_at, updated_at FROM teams WHERE id = $1', [teamId]);\n    if (existingTeamResult.rows.length === 0) {\n      return err({ type: 'NotFound', message: `Team with ID '${teamId}' not found.` });\n    }\n\n    // Check for duplicate name (case-insensitive, excluding the current team)\n    const duplicateNameResult = await query<Team>('SELECT id FROM teams WHERE LOWER(name) = LOWER($1) AND id != $2', [newName.trim(), teamId]);\n    if (duplicateNameResult.rows.length > 0) {\n      return err({ type: 'InvalidInput', message: `Team name '${newName.trim()}' already exists.` });\n    }\n\n    // Update the team name\n    const updateResult = await query<Team>(\n      'UPDATE teams SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING id, name, created_at, updated_at',\n      [newName.trim(), teamId]\n    );\n\n    if (updateResult.rows.length === 0) {\n      // This case should ideally not happen if the team was found above,\n      // but it's a good safeguard for concurrent updates or other unexpected issues.\n      return err({ type: 'NotFound', message: `Failed to update team with ID '${teamId}'. It might have been deleted.` });\n    }\n\n    return ok(updateResult.rows[0]);\n  } catch (error: any) {\n    console.error(`Database error renaming team '${teamId}':`, error);\n    return err({ type: 'DatabaseError', message: `Failed to rename team due to a database error: ${error.message}` });\n  }\n}\n```\n```aether:modules/teams/routes/rename.ts\nimport { Request, Response } from 'express'; // Assuming Express types for Request/Response\nimport { requireUser } from '~/lib/auth';\nimport { parseBody } from '~/lib/validate';\nimport { z } from 'zod';\nimport { renameTeam } from '../services/teamService';\nimport { TeamError } from '../types';\n\n// Define the schema for the request body\nconst renameTeamBodySchema = z.object({\n  newName: z.string().min(1, 'New team name cannot be empty.').max(100, 'New team name cannot exceed 100 characters.').trim(),\n});\n\n/**\n * Handles the POST request to rename a team.\n * Requires the user to be authenticated and have an 'admin' role.\n *\n * @param req The Express request object.\n * @param res The Express response object.\n * @returns A Promise that resolves to the Express Response object.\n */\nexport async function renameTeamHandler(req: Request, res: Response): Promise<Response> {\n  // 1. Authentication: Ensure user is logged in\n  const userResult = await requireUser(req);\n  if (userResult.isErr()) {\n    return res.status(401).json({ error: userResult.error.message });\n  }\n  const user = userResult.value;\n\n  // 2. Authorization: Ensure user is an admin\n  if (user.role !== 'admin') {\n    return res.status(403).json({ error: 'Only administrators are authorized to rename teams.' });\n  }\n\n  // 3. Validate request parameters: teamId from URL\n  const teamId = req.params.teamId;\n  if (!teamId || typeof teamId !== 'string' || teamId.trim() === '') {\n    return res.status(400).json({ error:"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 22253,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:modules/teams/module.contract.ts\nimport { defineContract } from 'aether';\n\nexport default defineContract({\n  name: 'teams',\n  description: 'Manages team creation, membership, and settings.',\n\n  dependencies: {\n    modules: ['auth'], // Depends on auth for user session and roles\n  },\n\n  exposes: {\n    routes: [\n      { method: 'POST', path: '/teams/:teamId/rename', auth: true, admin: true }, // New route\n    ],\n    functions: [], // No specific functions exposed for now\n    types: ['Team', 'TeamError'], // Expose Team type and potential errors\n  },\n\n  sideEffects: [\n    'writes to: teams table',\n  ],\n\n  invariants: [\n    'Team names must be unique within the application',\n    'Only admins can rename teams',\n    'A team must always have a name',\n  ],\n});\n```\n```aether:modules/teams/types.ts\nexport type Team = {\n  id: string;\n  name: string;\n  created_at: Date;\n  updated_at: Date;\n};\n\nexport type TeamError =\n  | { type: 'NotFound', message: string }\n  | { type: 'InvalidInput', message: string }\n  | { type: 'Unauthorized', message: string }\n  | { type: 'DatabaseError', message: string };\n```\n```aether:modules/teams/services/teamService.ts\nimport { query } from '~/lib/db';\nimport { ok, err, Result } from '~/lib/result';\nimport { Team, TeamError } from '../types';\n\n/**\n * Renames an existing team.\n * @param teamId The ID of the team to rename.\n * @param newName The new name for the team.\n * @returns A Result containing the updated Team object on success, or a TeamError on failure.\n */\nexport async function renameTeam(teamId: string, newName: string): Promise<Result<Team, TeamError>> {\n  if (!teamId || typeof teamId !== 'string' || teamId.trim() === '') {\n    return err({ type: 'InvalidInput', message: 'Team ID is required and must be a non-empty string.' });\n  }\n  if (!newName || typeof newName !== 'string' || newName.trim() === '') {\n    return err({ type: 'InvalidInput', message: 'New team name is required and cannot be empty.' });\n  }\n\n  try {\n    // Check if the team exists\n    const existingTeamResult = await query<Team>('SELECT id, name, created_at, updated_at FROM teams WHERE id = $1', [teamId]);\n    if (existingTeamResult.rows.length === 0) {\n      return err({ type: 'NotFound', message: `Team with ID '${teamId}' not found.` });\n    }\n\n    // Check for duplicate name (case-insensitive, excluding the current team)\n    const duplicateNameResult = await query<Team>('SELECT id FROM teams WHERE LOWER(name) = LOWER($1) AND id != $2', [newName.trim(), teamId]);\n    if (duplicateNameResult.rows.length > 0) {\n      return err({ type: 'InvalidInput', message: `Team name '${newName.trim()}' already exists.` });\n    }\n\n    // Update the team name\n    const updateResult = await query<Team>(\n      'UPDATE teams SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING id, name, created_at, updated_at',\n      [newName.trim(), teamId]\n    );\n\n    if (updateResult.rows.length === 0) {\n      // This case should ideally not happen if the team was found above,\n      // but it's a good safeguard for concurrent updates or other unexpected issues.\n      return err({ type: 'NotFound', message: `Failed to update team with ID '${teamId}'. It might have been deleted.` });\n    }\n\n    return ok(updateResult.rows[0]);\n  } catch (error: any) {\n    console.error(`Database error renaming team '${teamId}':`, error);\n    return err({ type: 'DatabaseError', message: `Failed to rename team due to a database error: ${error.message}` });\n  }\n}\n```\n```aether:modules/teams/routes/rename.ts\nimport { Request, Response } from 'express'; // Assuming Express types for Request/Response\nimport { requireUser } from '~/lib/auth';\nimport { parseBody } from '~/lib/validate';\nimport { z } from 'zod';\nimport { renameTeam } from '../services/teamService';\nimport { TeamError } from '../types';\n\n// Define the schema for the request body\nconst renameTeamBodySchema = z.object({\n  newName: z.string().min(1, 'New team name cannot be empty.').max(100, 'New team name cannot exceed 100 characters.').trim(),\n});\n\n/**\n * Handles the POST request to rename a team.\n * Requires the user to be authenticated and have an 'admin' role.\n *\n * @param req The Express request object.\n * @param res The Express response object.\n * @returns A Promise that resolves to the Express Response object.\n */\nexport async function renameTeamHandler(req: Request, res: Response): Promise<Response> {\n  // 1. Authentication: Ensure user is logged in\n  const userResult = await requireUser(req);\n  if (userResult.isErr()) {\n    return res.status(401).json({ error: userResult.error.message });\n  }\n  const user = userResult.value;\n\n  // 2. Authorization: Ensure user is an admin\n  if (user.role !== 'admin') {\n    return res.status(403).json({ error: 'Only administrators are authorized to rename teams.' });\n  }\n\n  // 3. Validate request parameters: teamId from URL\n  const teamId = req.params.teamId;\n  if (!teamId || typeof teamId !== 'string' || teamId.trim() === '') {\n    return res.status(400).json({ error:"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c1",
+        "name": "defineContract() is called as default export",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c2",
+        "name": "description field is ≥ 30 chars",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c3",
+        "name": "exposes.routes entries have method, path, auth",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c4",
+        "name": "exposes.functions names match actual exports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 1
+      },
+      {
+        "id": "c5",
+        "name": "invariants array is non-empty",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c6",
+        "name": "each invariant has a generated test",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "c7",
+        "name": "sideEffects declared for all DB writes",
+        "passed": true,
+        "severity": "warning",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c8",
+        "name": "all declared dependencies are registered modules",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "c9",
+        "name": "no circular module dependencies",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 771
+      }
+    ],
+    "durationMs": 1585
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 0
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 823
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 473
+      }
+    ],
+    "durationMs": 1298
+  }
+}

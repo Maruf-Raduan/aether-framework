@@ -1,0 +1,45 @@
+{
+  "promptId": "P17",
+  "condition": "vanilla",
+  "iteration": 10,
+  "passed": true,
+  "tokensIn": 140,
+  "tokensOut": 739,
+  "tokensTotal": 879,
+  "latencyMs": 58311,
+  "wallMs": 58311,
+  "files": [
+    {
+      "path": "unnamed.ts",
+      "length": 971
+    }
+  ],
+  "rules": [
+    {
+      "id": "g1",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g2",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g3",
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "id": "g4",
+      "passed": true,
+      "skipped": true,
+      "message": "Deferred: test runner integration is Session 2"
+    },
+    {
+      "id": "g5",
+      "passed": true,
+      "skipped": false
+    }
+  ]
+}

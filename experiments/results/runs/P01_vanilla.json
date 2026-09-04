@@ -1,0 +1,113 @@
+{
+  "promptId": "P01",
+  "targetDesc": "Create a user registration route that validates email, hashes the password, and inserts into the users table. Return a 201 with the new user id.",
+  "provider": "gemini",
+  "model": "gemini-2.5-flash",
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": true,
+      "gPassed": 4,
+      "gFailed": 0,
+      "gSkipped": 1,
+      "llmLatencyMs": 13699,
+      "tokensIn": 183,
+      "tokensOut": 1503,
+      "wallMs": 15574,
+      "rules": {
+        "g1": {
+          "passed": true,
+          "skipped": false
+        },
+        "g2": {
+          "passed": true,
+          "skipped": false
+        },
+        "g3": {
+          "passed": true,
+          "skipped": false
+        },
+        "g4": {
+          "passed": true,
+          "skipped": true,
+          "message": "Deferred: test runner integration is Session 2"
+        },
+        "g5": {
+          "passed": true,
+          "skipped": false
+        }
+      },
+      "files": [
+        {
+          "path": "unnamed.ts",
+          "content": "```aether:src/types/index.ts\nexport interface User {\n  id: string;\n  email: string;\n  passwordHash: string;\n  createdAt: Date;\n}\n\nexport interface NewUserPayload {\n  email: string;\n  passwordPlain: string;\n}\n```\n\n```aether:src/utils/validation.ts\nexport const isValidEmail = (email: string): boolean => {\n  // A simple regex for email validation. More robust validation might be needed for production.\n  const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\n  return emailRegex.test(email);\n};\n\nexport const isValidPassword = (password: string): boolean => {\n  // Example: Password must be at least 8 characters long, contain a number and a special character.\n  // For this exercise, let's keep it simple: at least 8 characters.\n  return password.length >= 8;\n};\n```\n\n```aether:src/db/index.ts\nimport { User } from '../types';\n\n// This is a simple in-memory \"database\" for demonstration purposes.\n// In a real application, this would be replaced with a proper database client (e.g., PostgreSQL, MongoDB).\nconst users: User[] = [];\n\nexport const db = {\n  async findUserByEmail(email: string): Promise<User | undefined> {\n    return users.find(user => user.email === email);\n  },\n\n  async createUser(user: Omit<User, 'id' | 'createdAt'>): Promise<User> {\n    const newUser: User = {\n      id: crypto.randomUUID(), // Node.js crypto.randomUUID()\n      createdAt: new Date(),\n      ...user,\n    };\n    users.push(newUser);\n    return newUser;\n  },\n\n  // For testing/debugging purposes\n  _getUsers(): User[] {\n    return users;\n  },\n  _clearUsers(): void {\n    users.length = 0;\n  }\n};\n```\n\n```aether:src/services/auth.ts\nimport bcrypt from 'bcrypt';\nimport { db } from '../db';\nimport { NewUserPayload, User } from '../types';\n\nconst SALT_ROUNDS = 10; // Recommended salt rounds for bcrypt\n\nexport const authService = {\n  async hashPassword(password: string): Promise<string> {\n    return bcrypt.hash(password, SALT_ROUNDS);\n  },\n\n  async registerUser(payload: NewUserPayload): Promise<User> {\n    const { email, passwordPlain } = payload;\n\n    // Check if user already exists\n    const existingUser = await db.findUserByEmail(email);\n    if (existingUser) {\n      throw new Error('User with this email already exists.');\n    }\n\n    // Hash the password\n    const passwordHash = await this.hashPassword(passwordPlain);\n\n    // Create user in the database\n    const newUser = await db.createUser({\n      email,\n      passwordHash,\n    });\n\n    return newUser;\n  },\n};\n```\n\n```aether:src/routes/auth.ts\nimport { Hono } from 'hono';\nimport { authService } from '../services/auth';\nimport { isValidEmail, isValidPassword } from '../utils/validation';\n\nconst auth = new Hono();\n\nauth.post('/register', async (c) => {\n  const { email, password } = await c.req.json();\n\n  if (!email || !password) {\n    return c.json({ error: 'Email and password are required.' }, 400);\n  }\n\n  if (!isValidEmail(email)) {\n    return c.json({ error: 'Invalid email format.' }, 400);\n  }\n\n  if (!isValidPassword(password)) {\n    return c.json({ error: 'Password does not meet requirements.' }, 400);\n  }\n\n  try {\n    const newUser = await authService.registerUser({\n      email,\n      passwordPlain: password,\n    });\n\n    // Return 201 Created with the new user's ID\n    return c.json({ id: newUser.id }, 201);\n  } catch (error: any) {\n    if (error.message.includes('User with this email already exists')) {\n      return c.json({ error: error.message }, 409); // 409 Conflict\n    }\n    console.error('Registration error:', error);\n    return c.json({ error: 'Internal server error.' }, 500);\n  }\n});\n\nexport default auth;\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport authRoutes from './routes/auth';\n\nconst app = new Hono();\n\n// Mount authentication routes\napp.route('/auth', authRoutes);\n\n// Basic root route\napp.get('/', (c) => {\n  return c.text('Welcome to the User Registration API!');\n});\n\n// Error handling for unmatched routes\napp.notFound((c) => {\n  return c.json({ message: 'Not Found' }, 404);\n});\n\n// Global error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ error: 'An unexpected error occurred.' }, 500);\n});\n\n// Export the Hono app for serverless environments or direct Node.js server setup\nexport default app;\n\n// For local development, you might want to run it directly\n// This part is typically handled by a separate server file or build process in production.\n// For this exercise, we'll include a simple listener.\nif (process.env.NODE_ENV !== 'test') {\n  const port = parseInt(process.env.PORT || '3000');\n  console.log(`Server is running on http://localhost:${port}`);\n  // Hono's app.listen is for Node.js environments\n  // In a real project, you might use `serve` from 'bun' or 'deno' or a Node.js http server.\n  // For Hono on Node.js, you'd typically use a server adapter like `@hono/node-server`.\n  // For simplicity, we'll just export the app and assume a runner will pick it up.\n  // If running directly with `node src/index.ts`, you'd need a server adapter:\n  // import { serve } from '@hono/node-server';\n  // serve({\n  //   fetch: app.fetch,\n  //   port\n  // });\n}\n```"
+        }
+      ],
+      "errorHint": ""
+    }
+  ],
+  "passed": true,
+  "attemptsToPass": 1,
+  "totalMs": 15575,
+  "finalFiles": [
+    {
+      "path": "unnamed.ts",
+      "content": "```aether:src/types/index.ts\nexport interface User {\n  id: string;\n  email: string;\n  passwordHash: string;\n  createdAt: Date;\n}\n\nexport interface NewUserPayload {\n  email: string;\n  passwordPlain: string;\n}\n```\n\n```aether:src/utils/validation.ts\nexport const isValidEmail = (email: string): boolean => {\n  // A simple regex for email validation. More robust validation might be needed for production.\n  const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\n  return emailRegex.test(email);\n};\n\nexport const isValidPassword = (password: string): boolean => {\n  // Example: Password must be at least 8 characters long, contain a number and a special character.\n  // For this exercise, let's keep it simple: at least 8 characters.\n  return password.length >= 8;\n};\n```\n\n```aether:src/db/index.ts\nimport { User } from '../types';\n\n// This is a simple in-memory \"database\" for demonstration purposes.\n// In a real application, this would be replaced with a proper database client (e.g., PostgreSQL, MongoDB).\nconst users: User[] = [];\n\nexport const db = {\n  async findUserByEmail(email: string): Promise<User | undefined> {\n    return users.find(user => user.email === email);\n  },\n\n  async createUser(user: Omit<User, 'id' | 'createdAt'>): Promise<User> {\n    const newUser: User = {\n      id: crypto.randomUUID(), // Node.js crypto.randomUUID()\n      createdAt: new Date(),\n      ...user,\n    };\n    users.push(newUser);\n    return newUser;\n  },\n\n  // For testing/debugging purposes\n  _getUsers(): User[] {\n    return users;\n  },\n  _clearUsers(): void {\n    users.length = 0;\n  }\n};\n```\n\n```aether:src/services/auth.ts\nimport bcrypt from 'bcrypt';\nimport { db } from '../db';\nimport { NewUserPayload, User } from '../types';\n\nconst SALT_ROUNDS = 10; // Recommended salt rounds for bcrypt\n\nexport const authService = {\n  async hashPassword(password: string): Promise<string> {\n    return bcrypt.hash(password, SALT_ROUNDS);\n  },\n\n  async registerUser(payload: NewUserPayload): Promise<User> {\n    const { email, passwordPlain } = payload;\n\n    // Check if user already exists\n    const existingUser = await db.findUserByEmail(email);\n    if (existingUser) {\n      throw new Error('User with this email already exists.');\n    }\n\n    // Hash the password\n    const passwordHash = await this.hashPassword(passwordPlain);\n\n    // Create user in the database\n    const newUser = await db.createUser({\n      email,\n      passwordHash,\n    });\n\n    return newUser;\n  },\n};\n```\n\n```aether:src/routes/auth.ts\nimport { Hono } from 'hono';\nimport { authService } from '../services/auth';\nimport { isValidEmail, isValidPassword } from '../utils/validation';\n\nconst auth = new Hono();\n\nauth.post('/register', async (c) => {\n  const { email, password } = await c.req.json();\n\n  if (!email || !password) {\n    return c.json({ error: 'Email and password are required.' }, 400);\n  }\n\n  if (!isValidEmail(email)) {\n    return c.json({ error: 'Invalid email format.' }, 400);\n  }\n\n  if (!isValidPassword(password)) {\n    return c.json({ error: 'Password does not meet requirements.' }, 400);\n  }\n\n  try {\n    const newUser = await authService.registerUser({\n      email,\n      passwordPlain: password,\n    });\n\n    // Return 201 Created with the new user's ID\n    return c.json({ id: newUser.id }, 201);\n  } catch (error: any) {\n    if (error.message.includes('User with this email already exists')) {\n      return c.json({ error: error.message }, 409); // 409 Conflict\n    }\n    console.error('Registration error:', error);\n    return c.json({ error: 'Internal server error.' }, 500);\n  }\n});\n\nexport default auth;\n```\n\n```aether:src/index.ts\nimport { Hono } from 'hono';\nimport authRoutes from './routes/auth';\n\nconst app = new Hono();\n\n// Mount authentication routes\napp.route('/auth', authRoutes);\n\n// Basic root route\napp.get('/', (c) => {\n  return c.text('Welcome to the User Registration API!');\n});\n\n// Error handling for unmatched routes\napp.notFound((c) => {\n  return c.json({ message: 'Not Found' }, 404);\n});\n\n// Global error handler\napp.onError((err, c) => {\n  console.error(`${err}`);\n  return c.json({ error: 'An unexpected error occurred.' }, 500);\n});\n\n// Export the Hono app for serverless environments or direct Node.js server setup\nexport default app;\n\n// For local development, you might want to run it directly\n// This part is typically handled by a separate server file or build process in production.\n// For this exercise, we'll include a simple listener.\nif (process.env.NODE_ENV !== 'test') {\n  const port = parseInt(process.env.PORT || '3000');\n  console.log(`Server is running on http://localhost:${port}`);\n  // Hono's app.listen is for Node.js environments\n  // In a real project, you might use `serve` from 'bun' or 'deno' or a Node.js http server.\n  // For Hono on Node.js, you'd typically use a server adapter like `@hono/node-server`.\n  // For simplicity, we'll just export the app and assume a runner will pick it up.\n  // If running directly with `node src/index.ts`, you'd need a server adapter:\n  // import { serve } from '@hono/node-server';\n  // serve({\n  //   fetch: app.fetch,\n  //   port\n  // });\n}\n```"
+    }
+  ],
+  "contractSuite": {
+    "suite": "C",
+    "label": "CONTRACT",
+    "results": [],
+    "durationMs": 0
+  },
+  "finalGenerationSuite": {
+    "suite": "G",
+    "label": "GENERATION",
+    "results": [
+      {
+        "id": "g1",
+        "name": "no direct DB imports outside /lib/db.ts",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1
+      },
+      {
+        "id": "g2",
+        "name": "auth constraint respected on all generated routes",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "high",
+        "durationMs": 1208
+      },
+      {
+        "id": "g3",
+        "name": "no undeclared module cross-imports",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 0
+      },
+      {
+        "id": "g4",
+        "name": "all invariant tests pass after generation",
+        "passed": true,
+        "skipped": true,
+        "severity": "info",
+        "aiImpact": "high",
+        "durationMs": 0,
+        "message": "Deferred: test runner integration is Session 2"
+      },
+      {
+        "id": "g5",
+        "name": "type check passes with zero errors",
+        "passed": true,
+        "severity": "critical",
+        "aiImpact": "medium",
+        "durationMs": 600
+      }
+    ],
+    "durationMs": 1874
+  }
+}
